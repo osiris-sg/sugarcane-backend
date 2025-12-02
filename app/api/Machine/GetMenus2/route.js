@@ -3,11 +3,14 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
-  const { syncTime, machineId } = body;
+  const { syncTime, machineId, terminalId } = body;
 
-  // Also check headers for machineId
+  // Check headers for device ID
   const headerMachineId = request.headers.get('X-Machine-Id') || request.headers.get('machineId');
-  const deviceId = machineId || headerMachineId;
+  const headerTerminalId = request.headers.get('X-Terminal-Id') || request.headers.get('terminalId');
+
+  // Use terminalId, machineId, or header values
+  const deviceId = terminalId || machineId || headerTerminalId || headerMachineId;
 
   const menu = await getMenu(deviceId);
   let menus = [menu];
