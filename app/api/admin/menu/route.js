@@ -1,27 +1,18 @@
-import { db } from '@/lib/db';
+import { getMenu, updateMenu } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-// GET /api/admin/menu - View all menus
+// GET /api/admin/menu - View menu
 export async function GET() {
-  return NextResponse.json({ success: true, data: db.menus });
+  const menu = await getMenu();
+  return NextResponse.json({ success: true, data: [menu] });
 }
 
-// PUT /api/admin/menu - Update menu by no (in body)
+// PUT /api/admin/menu - Update menu (price, name, etc.)
 export async function PUT(request) {
-  const { no, price, name, name2, isVisible } = await request.json();
+  const updates = await request.json();
+  const updated = await updateMenu(updates);
 
-  const menu = db.menus.find(m => m.no === (no || 1));
-  if (!menu) {
-    return NextResponse.json({ success: false, error: 'Menu not found' }, { status: 404 });
-  }
+  console.log(`[Admin] Menu updated: $${(updated.price / 100).toFixed(2)}`);
 
-  if (price !== undefined) menu.price = price;
-  if (name !== undefined) menu.name = name;
-  if (name2 !== undefined) menu.name2 = name2;
-  if (isVisible !== undefined) menu.isVisible = isVisible;
-  menu.timestamp = Date.now();
-
-  console.log(`[Admin] Menu updated: $${(menu.price / 100).toFixed(2)}`);
-
-  return NextResponse.json({ success: true, data: menu });
+  return NextResponse.json({ success: true, data: updated });
 }

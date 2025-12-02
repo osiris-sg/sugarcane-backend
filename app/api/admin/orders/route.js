@@ -1,6 +1,7 @@
-import { db } from '@/lib/db';
+import { getOrders } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  return NextResponse.json({ success: true, data: db.orders });
+  const orders = await getOrders();
+  return NextResponse.json({ success: true, data: orders });
 }
