@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../lib/db/index.js';
 
+// Force dynamic rendering (uses request.url)
+export const dynamic = 'force-dynamic';
+
 // GET /api/telegram/subscribers?category=STOCK
 // Returns list of chat IDs for a category
 export async function GET(request) {
