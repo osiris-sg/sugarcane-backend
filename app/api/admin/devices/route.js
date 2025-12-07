@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 
 // Simple admin key check
 const checkAdminKey = (request) => {
@@ -16,7 +18,7 @@ export async function GET(request) {
   }
 
   try {
-    const devices = await prisma.device.findMany({
+    const devices = await db.device.findMany({
       orderBy: { createdAt: 'desc' },
     });
 
@@ -49,7 +51,7 @@ export async function POST(request) {
     }
 
     // Upsert - create if not exists, update if exists
-    const device = await prisma.device.upsert({
+    const device = await db.device.upsert({
       where: { deviceId: deviceId },
       update: {
         ...(deviceName && { deviceName }),
@@ -92,7 +94,7 @@ export async function DELETE(request) {
       );
     }
 
-    await prisma.device.delete({
+    await db.device.delete({
       where: { deviceId: deviceId },
     });
 

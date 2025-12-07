@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 
 // GET /api/device/config?deviceId=123
 // Android app calls this to get device configuration (price, name)
@@ -16,7 +18,7 @@ export async function GET(request) {
     }
 
     // Find device by deviceId
-    const device = await prisma.device.findUnique({
+    const device = await db.device.findUnique({
       where: { deviceId: deviceId },
     });
 
