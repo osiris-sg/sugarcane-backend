@@ -52,3 +52,16 @@ model NotificationLog {
 
   @@index([type, createdAt])
 }
+
+// Device configuration (price, name linked to device ID)
+model Device {
+  id          String   @id @default(cuid())
+  deviceId    String   @unique  // Terminal ID from the vending machine
+  deviceName  String            // Display name (e.g., "116 Jln Tenteram")
+  price       Int               // Price in cents (e.g., 250 = $2.50)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([deviceId])
+}
