@@ -1,0 +1,54 @@
+// Prisma schema for Sugarcane Backend
+// Uses Neon DB (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Telegram subscriber categories
+enum SubscriptionCategory {
+  STOCK       // Stock level and fault alerts
+  MAINTENANCE // Maintenance activity (requires password)
+}
+
+// Telegram subscribers
+model Subscriber {
+  id           String               @id @default(cuid())
+  chatId       String               @unique
+  username     String?
+  firstName    String?
+  lastName     String?
+  categories   SubscriptionCategory[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([chatId])
+}
+
+// Pending password verification for maintenance subscription
+model PendingVerification {
+  id        String   @id @default(cuid())
+  chatId    String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([chatId])
+}
+
+// Notification log (optional - for tracking sent notifications)
+model NotificationLog {
+  id          String   @id @default(cuid())
+  type        String   // "stock", "fault", "maintenance_login", "topup"
+  deviceId    String?
+  deviceName  String?
+  message     String
+  recipients  Int      // Number of recipients sent to
+  createdAt   DateTime @default(now())
+
+  @@index([type, createdAt])
+}

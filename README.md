@@ -1,6 +1,51 @@
 # Sugarcane Vending Machine Backend (Next.js)
 
-Backend API for the Sugarcane Vending Machine Android app.
+Backend API for the Sugarcane Vending Machine Android app with Telegram notification subscriptions.
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **API**: tRPC + REST
+- **Database**: PostgreSQL (Neon)
+- **ORM**: Prisma
+
+## Setup
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure Environment
+
+Copy `.env.example` to `.env` and fill in:
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+- `DATABASE_URL` - Neon PostgreSQL connection string
+- `DIRECT_URL` - Direct connection for migrations
+- `TELEGRAM_BOT_TOKEN` - Your Telegram bot token
+- `MAINTENANCE_PASSWORD` - Password for admin subscriptions
+
+### 3. Setup Database
+
+```bash
+npm run db:push
+```
+
+### 4. Run Development Server
+
+```bash
+npm run dev
+```
+
+Server runs on http://localhost:5188
+
+---
 
 ## Deploy to Vercel
 
@@ -8,18 +53,20 @@ Backend API for the Sugarcane Vending Machine Android app.
 2. Go to [vercel.com](https://vercel.com)
 3. Click "Add New Project"
 4. Import your GitHub repo
-5. Click "Deploy"
+5. Add environment variables
+6. Click "Deploy"
 
 Vercel will give you a URL like: `https://sugarcane-backend.vercel.app`
 
-## Local Development
+### Set Telegram Webhook
+
+After deploying, set the webhook URL:
 
 ```bash
-npm install
-npm run dev
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-domain.vercel.app/api/telegram/webhook"
 ```
 
-Server runs on http://localhost:5188
+---
 
 ## API Endpoints
 
@@ -43,6 +90,59 @@ Server runs on http://localhost:5188
 | PUT | `/api/admin/menu` | Update price |
 | GET | `/api/admin/orders` | View orders |
 
+### Telegram Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/telegram/webhook` | Telegram bot webhook |
+| GET | `/api/telegram/subscribers?category=STOCK` | Get subscribers list |
+| POST | `/api/telegram/send` | Send notification to subscribers |
+
+---
+
+## Telegram Bot Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message and help |
+| `/help` | Show available commands |
+| `/status` | View your subscriptions |
+| `/subscribe stock` | Subscribe to stock & fault alerts |
+| `/subscribe maintenance` | Subscribe to maintenance alerts (password required) |
+| `/unsubscribe stock` | Unsubscribe from stock alerts |
+| `/unsubscribe maintenance` | Unsubscribe from maintenance alerts |
+
+### Subscription Categories
+
+**STOCK** (No password required)
+- Low stock warnings (50% and 25%)
+- Device faults
+
+**MAINTENANCE** (Admin only - password required)
+- Maintenance mode logins
+- Stock top-ups
+
+---
+
+## Send Notification from Android App
+
+The Android app can send notifications by calling:
+
+```bash
+POST /api/telegram/send
+Content-Type: application/json
+
+{
+  "category": "STOCK",  // or "MAINTENANCE"
+  "message": "⚠️ Low Stock Alert\n\nDevice: 116 Jln Tenteram\nStock: 15 sticks remaining",
+  "type": "stock_alert",
+  "deviceId": "123",
+  "deviceName": "116 Jln Tenteram"
+}
+```
+
+---
+
 ## Change Price
 
 ```bash
@@ -53,20 +153,16 @@ curl -X PUT https://your-app.vercel.app/api/admin/menu \
 
 Price in cents: `300` = $3.00, `500` = $5.00
 
-## Update Android App
+---
 
-After deploying to Vercel, update the APK:
+## Scripts
 
-1. Edit `app/smali/com/xnkj1688/juice/service/DataService.smali`
-2. Change `119.29.4.213:5188` to your Vercel URL (without https://)
-3. Also update the protocol from `http://` to `https://`
-4. Rebuild APK
-
-## Note on Data Persistence
-
-This uses in-memory storage. Data resets on each deployment.
-
-For persistent data, add a database:
-- [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres) (free tier)
-- [Supabase](https://supabase.com) (free tier)
-- [PlanetScale](https://planetscale.com) (free tier)
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run start        # Start production server
+npm run db:generate  # Generate Prisma client
+npm run db:push      # Push schema to database
+npm run db:studio    # Open Prisma Studio
+npm run db:migrate   # Run migrations
+```
