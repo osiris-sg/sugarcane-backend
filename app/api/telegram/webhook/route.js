@@ -34,6 +34,9 @@ I'm the <b>Sugarcane Alert Bot</b>. I can notify you about:
 🔧 <b>Maintenance Alerts</b> - Maintenance login activity (admin only)
 
 <b>Commands:</b>
+/stock - View all device stock levels
+/stock [deviceId] - View specific device stock
+/history - View recent stock changes
 /subscribe stock - Get stock & fault alerts
 /subscribe maintenance - Get maintenance alerts (password required)
 /unsubscribe stock - Stop stock alerts
@@ -47,6 +50,90 @@ I'm the <b>Sugarcane Alert Bot</b>. I can notify you about:
 // Handle /help command
 async function handleHelp(chatId) {
   await handleStart(chatId, null);
+}
+
+// Handle /stock command - show all device stock levels
+async function handleStock(chatId, deviceId = null) {
+  try {
+    if (deviceId) {
+      // Get specific device stock
+      const stock = await db.stock.findUnique({
+        where: { deviceId: String(deviceId) },
+      });
+
+      if (!stock) {
+        await sendMessage(chatId, `❌ Device ${deviceId} not found.`);
+        return;
+      }
+
+      const message = `📦 <b>Stock Level</b>\n\n🎯 Device: ${stock.deviceId}\n📍 Name: ${stock.deviceName}\n📊 Quantity: <b>${stock.quantity}</b> pcs\n🕒 Updated: ${stock.updatedAt.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}`;
+      await sendMessage(chatId, message);
+      return;
+    }
+
+    // Get all stocks
+    const stocks = await db.stock.findMany({
+      orderBy: { deviceName: 'asc' },
+    });
+
+    if (stocks.length === 0) {
+      await sendMessage(chatId, '📭 No stock data available yet.\n\nStock levels will appear here once devices report their inventory.');
+      return;
+    }
+
+    let message = '📦 <b>Stock Levels - All Devices</b>\n\n';
+    let totalStock = 0;
+
+    for (const stock of stocks) {
+      const emoji = stock.quantity <= 20 ? '🔴' : stock.quantity <= 40 ? '🟡' : '🟢';
+      message += `${emoji} <b>${stock.deviceName}</b>\n`;
+      message += `   ID: ${stock.deviceId} | Qty: <b>${stock.quantity}</b> pcs\n\n`;
+      totalStock += stock.quantity;
+    }
+
+    message += `━━━━━━━━━━━━━━━━\n`;
+    message += `📊 <b>Total Stock:</b> ${totalStock} pcs\n`;
+    message += `🏪 <b>Devices:</b> ${stocks.length}`;
+
+    await sendMessage(chatId, message);
+  } catch (error) {
+    console.error('Error fetching stock:', error);
+    await sendMessage(chatId, '❌ Error fetching stock levels. Please try again later.');
+  }
+}
+
+// Handle /history command - show recent stock changes
+async function handleHistory(chatId, deviceId = null) {
+  try {
+    const where = deviceId ? { deviceId: String(deviceId) } : {};
+
+    const history = await db.stockHistory.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    if (history.length === 0) {
+      await sendMessage(chatId, '📭 No stock history available yet.');
+      return;
+    }
+
+    let message = '📜 <b>Recent Stock Changes</b>\n\n';
+
+    for (const entry of history) {
+      const changeEmoji = entry.change > 0 ? '➕' : '➖';
+      const reasonEmoji = entry.reason === 'topup' ? '📦' : entry.reason === 'sale' ? '🧃' : '🔧';
+      const time = entry.createdAt.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' });
+
+      message += `${reasonEmoji} <b>${entry.deviceName}</b>\n`;
+      message += `   ${changeEmoji} ${entry.change > 0 ? '+' : ''}${entry.change} (${entry.previousQty}→${entry.newQty}) | ${time}\n\n`;
+    }
+
+    await sendMessage(chatId, message);
+  } catch (error) {
+    console.error('Error fetching history:', error);
+    await sendMessage(chatId, '❌ Error fetching stock history. Please try again later.');
+  }
 }
 
 // Handle /status command
@@ -255,6 +342,14 @@ export async function POST(request) {
       const parts = text.split(/\s+/);
       const category = parts[1];
       await handleUnsubscribe(chatId, category);
+    } else if (text.startsWith('/stock')) {
+      const parts = text.split(/\s+/);
+      const deviceId = parts[1];
+      await handleStock(chatId, deviceId);
+    } else if (text.startsWith('/history')) {
+      const parts = text.split(/\s+/);
+      const deviceId = parts[1];
+      await handleHistory(chatId, deviceId);
     }
 
     return NextResponse.json({ ok: true });

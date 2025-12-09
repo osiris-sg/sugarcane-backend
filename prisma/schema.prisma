@@ -65,3 +65,29 @@ model Device {
 
   @@index([deviceId])
 }
+
+// Stock levels for each device
+model Stock {
+  id          String   @id @default(cuid())
+  deviceId    String   @unique  // Terminal ID from the vending machine
+  deviceName  String            // Display name for easy reference
+  quantity    Int      @default(0)  // Current stock count
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([deviceId])
+}
+
+// Stock history log (for tracking changes)
+model StockHistory {
+  id          String   @id @default(cuid())
+  deviceId    String
+  deviceName  String
+  previousQty Int              // Stock before change
+  newQty      Int              // Stock after change
+  change      Int              // Difference (+/-)
+  reason      String           // "sale", "topup", "adjustment"
+  createdAt   DateTime @default(now())
+
+  @@index([deviceId, createdAt])
+}
