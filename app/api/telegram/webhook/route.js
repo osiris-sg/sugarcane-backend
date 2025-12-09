@@ -33,12 +33,18 @@ I'm the <b>Sugarcane Alert Bot</b>. I can notify you about:
 📦 <b>Stock Alerts</b> - Low stock & fault notifications
 🔧 <b>Maintenance Alerts</b> - Maintenance login activity (admin only)
 
-<b>Commands:</b>
+<b>Stock Commands:</b>
 /stock - View all device stock levels
-/stock [deviceId] - View specific device stock
-/history - View recent stock changes
+/stock [deviceId] - View specific device
+/stock 5075 - Devices with 50-75% stock
+/stock 75100 - Devices with 75-100% stock
+/storage - All machines with stock
+/history - Recent stock changes
+/setmax [deviceId] [max] - Set max stock
+
+<b>Subscription Commands:</b>
 /subscribe stock - Get stock & fault alerts
-/subscribe maintenance - Get maintenance alerts (password required)
+/subscribe maintenance - Get maintenance alerts
 /unsubscribe stock - Stop stock alerts
 /unsubscribe maintenance - Stop maintenance alerts
 /status - View your subscriptions
@@ -52,26 +58,77 @@ async function handleHelp(chatId) {
   await handleStart(chatId, null);
 }
 
-// Handle /stock command - show all device stock levels
-async function handleStock(chatId, deviceId = null) {
+// Helper function to get stock percentage and emoji
+function getStockInfo(quantity, maxStock) {
+  const percent = Math.round((quantity / maxStock) * 100);
+  let emoji = '🟢';
+  if (percent <= 15) emoji = '⚫';
+  else if (percent <= 25) emoji = '🔴';
+  else if (percent <= 50) emoji = '🟡';
+  return { percent, emoji };
+}
+
+// Handle /stock command - show device stock levels
+// Formats: /stock, /stock [deviceId], /stock 5075, /stock 75100
+async function handleStock(chatId, arg = null) {
   try {
-    if (deviceId) {
-      // Get specific device stock
-      const stock = await db.stock.findUnique({
-        where: { deviceId: String(deviceId) },
+    // Check if arg is a range filter (5075 or 75100)
+    if (arg === '5075' || arg === '75100') {
+      const stocks = await db.stock.findMany({
+        orderBy: { deviceName: 'asc' },
       });
 
-      if (!stock) {
-        await sendMessage(chatId, `❌ Device ${deviceId} not found.`);
+      if (stocks.length === 0) {
+        await sendMessage(chatId, '📭 No stock data available yet.');
         return;
       }
 
-      const message = `📦 <b>Stock Level</b>\n\n🎯 Device: ${stock.deviceId}\n📍 Name: ${stock.deviceName}\n📊 Quantity: <b>${stock.quantity}</b> pcs\n🕒 Updated: ${stock.updatedAt.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}`;
+      const minPercent = arg === '5075' ? 50 : 75;
+      const maxPercent = arg === '5075' ? 75 : 100;
+
+      const filtered = stocks.filter(stock => {
+        const percent = (stock.quantity / stock.maxStock) * 100;
+        return percent >= minPercent && percent <= maxPercent;
+      });
+
+      if (filtered.length === 0) {
+        await sendMessage(chatId, `📭 No devices with ${minPercent}-${maxPercent}% stock.`);
+        return;
+      }
+
+      let message = `📦 <b>Stock Levels (${minPercent}-${maxPercent}%)</b>\n\n`;
+
+      for (const stock of filtered) {
+        const { percent, emoji } = getStockInfo(stock.quantity, stock.maxStock);
+        message += `${emoji} <b>${stock.deviceName}</b>\n`;
+        message += `   ${stock.quantity}/${stock.maxStock} pcs (<b>${percent}%</b>)\n\n`;
+      }
+
+      message += `━━━━━━━━━━━━━━━━\n`;
+      message += `🏪 <b>Devices:</b> ${filtered.length}`;
+
       await sendMessage(chatId, message);
       return;
     }
 
-    // Get all stocks
+    // Check if arg is a specific device ID
+    if (arg) {
+      const stock = await db.stock.findUnique({
+        where: { deviceId: String(arg) },
+      });
+
+      if (!stock) {
+        await sendMessage(chatId, `❌ Device ${arg} not found.`);
+        return;
+      }
+
+      const { percent, emoji } = getStockInfo(stock.quantity, stock.maxStock);
+      const message = `📦 <b>Stock Level</b>\n\n${emoji} <b>${stock.deviceName}</b>\n🎯 Device ID: ${stock.deviceId}\n📊 Stock: <b>${stock.quantity}/${stock.maxStock}</b> pcs (<b>${percent}%</b>)\n🕒 Updated: ${stock.updatedAt.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}`;
+      await sendMessage(chatId, message);
+      return;
+    }
+
+    // Get all stocks (default)
     const stocks = await db.stock.findMany({
       orderBy: { deviceName: 'asc' },
     });
@@ -83,22 +140,92 @@ async function handleStock(chatId, deviceId = null) {
 
     let message = '📦 <b>Stock Levels - All Devices</b>\n\n';
     let totalStock = 0;
+    let totalMax = 0;
 
     for (const stock of stocks) {
-      const emoji = stock.quantity <= 20 ? '🔴' : stock.quantity <= 40 ? '🟡' : '🟢';
+      const { percent, emoji } = getStockInfo(stock.quantity, stock.maxStock);
       message += `${emoji} <b>${stock.deviceName}</b>\n`;
-      message += `   ID: ${stock.deviceId} | Qty: <b>${stock.quantity}</b> pcs\n\n`;
+      message += `   ${stock.quantity}/${stock.maxStock} pcs (<b>${percent}%</b>)\n\n`;
       totalStock += stock.quantity;
+      totalMax += stock.maxStock;
     }
 
+    const totalPercent = totalMax > 0 ? Math.round((totalStock / totalMax) * 100) : 0;
     message += `━━━━━━━━━━━━━━━━\n`;
-    message += `📊 <b>Total Stock:</b> ${totalStock} pcs\n`;
+    message += `📊 <b>Total:</b> ${totalStock}/${totalMax} pcs (${totalPercent}%)\n`;
     message += `🏪 <b>Devices:</b> ${stocks.length}`;
 
     await sendMessage(chatId, message);
   } catch (error) {
     console.error('Error fetching stock:', error);
     await sendMessage(chatId, '❌ Error fetching stock levels. Please try again later.');
+  }
+}
+
+// Handle /storage command - show all machines with any stock
+async function handleStorage(chatId) {
+  try {
+    const stocks = await db.stock.findMany({
+      where: { quantity: { gt: 0 } },
+      orderBy: { quantity: 'desc' },
+    });
+
+    if (stocks.length === 0) {
+      await sendMessage(chatId, '📭 No machines have stock currently.');
+      return;
+    }
+
+    let message = '📦 <b>Machines with Stock</b>\n\n';
+
+    for (const stock of stocks) {
+      const { percent, emoji } = getStockInfo(stock.quantity, stock.maxStock);
+      message += `${emoji} <b>${stock.deviceName}</b>\n`;
+      message += `   ${stock.quantity}/${stock.maxStock} pcs (<b>${percent}%</b>)\n\n`;
+    }
+
+    message += `━━━━━━━━━━━━━━━━\n`;
+    message += `🏪 <b>Active Devices:</b> ${stocks.length}`;
+
+    await sendMessage(chatId, message);
+  } catch (error) {
+    console.error('Error fetching storage:', error);
+    await sendMessage(chatId, '❌ Error fetching storage data. Please try again later.');
+  }
+}
+
+// Handle /setmax command - set max stock for a device
+async function handleSetMax(chatId, deviceId, maxStock) {
+  try {
+    if (!deviceId || !maxStock) {
+      await sendMessage(chatId, '❓ Usage: /setmax [deviceId] [maxStock]\n\nExample: /setmax 12345 80');
+      return;
+    }
+
+    const max = parseInt(maxStock);
+    if (isNaN(max) || max <= 0) {
+      await sendMessage(chatId, '❌ Max stock must be a positive number.');
+      return;
+    }
+
+    const stock = await db.stock.findUnique({
+      where: { deviceId: String(deviceId) },
+    });
+
+    if (!stock) {
+      await sendMessage(chatId, `❌ Device ${deviceId} not found.`);
+      return;
+    }
+
+    await db.stock.update({
+      where: { deviceId: String(deviceId) },
+      data: { maxStock: max },
+    });
+
+    const { percent, emoji } = getStockInfo(stock.quantity, max);
+    await sendMessage(chatId, `✅ Max stock updated!\n\n${emoji} <b>${stock.deviceName}</b>\n📊 Stock: ${stock.quantity}/<b>${max}</b> pcs (${percent}%)`);
+  } catch (error) {
+    console.error('Error setting max stock:', error);
+    await sendMessage(chatId, '❌ Error updating max stock. Please try again later.');
   }
 }
 
@@ -344,12 +471,19 @@ export async function POST(request) {
       await handleUnsubscribe(chatId, category);
     } else if (text.startsWith('/stock')) {
       const parts = text.split(/\s+/);
-      const deviceId = parts[1];
-      await handleStock(chatId, deviceId);
+      const arg = parts[1];
+      await handleStock(chatId, arg);
     } else if (text.startsWith('/history')) {
       const parts = text.split(/\s+/);
       const deviceId = parts[1];
       await handleHistory(chatId, deviceId);
+    } else if (text.startsWith('/storage')) {
+      await handleStorage(chatId);
+    } else if (text.startsWith('/setmax')) {
+      const parts = text.split(/\s+/);
+      const deviceId = parts[1];
+      const maxStock = parts[2];
+      await handleSetMax(chatId, deviceId, maxStock);
     }
 
     return NextResponse.json({ ok: true });

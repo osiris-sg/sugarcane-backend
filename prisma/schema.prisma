@@ -68,12 +68,15 @@ model Device {
 
 // Stock levels for each device
 model Stock {
-  id          String   @id @default(cuid())
-  deviceId    String   @unique  // Terminal ID from the vending machine
-  deviceName  String            // Display name for easy reference
-  quantity    Int      @default(0)  // Current stock count
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  id          String    @id @default(cuid())
+  deviceId    String    @unique  // Terminal ID from the vending machine
+  deviceName  String             // Display name for easy reference
+  quantity    Int       @default(0)   // Current stock count
+  maxStock    Int       @default(80)  // Maximum stock capacity
+  lastAlertAt DateTime?              // When last recurring alert was sent
+  alertLevel  String?                // Current alert level (25/15/0)
+  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
 
   @@index([deviceId])
 }
