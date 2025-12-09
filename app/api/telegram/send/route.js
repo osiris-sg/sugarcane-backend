@@ -40,6 +40,17 @@ export async function POST(request) {
       );
     }
 
+    // Skip Z014 fault code
+    if (message.includes('Z014')) {
+      console.log('[Telegram] Skipping Z014 fault code notification');
+      return NextResponse.json({
+        success: true,
+        sent: 0,
+        skipped: true,
+        reason: 'Z014 fault code filtered',
+      });
+    }
+
     const cat = category.toUpperCase();
     if (cat !== 'STOCK' && cat !== 'MAINTENANCE') {
       return NextResponse.json(
