@@ -1,0 +1,177 @@
+import { NextResponse } from 'next/server';
+import { db } from '../../../../lib/db/index.js';
+
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+
+// Time blocks for zero sales detection (Singapore time, UTC+8)
+const TIME_BLOCKS = [
+  { start: 8, end: 10, label: '8am-10am' },
+  { start: 10, end: 12, label: '10am-12pm' },
+  { start: 12, end: 14, label: '12pm-2pm' },
+  { start: 14, end: 16, label: '2pm-4pm' },
+  { start: 16, end: 18, label: '4pm-6pm' },
+  { start: 18, end: 20, label: '6pm-8pm' },
+];
+
+// Send message to Telegram
+async function sendTelegramMessage(chatId, text) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+      }),
+    });
+  } catch (error) {
+    console.error('Error sending Telegram message:', error);
+  }
+}
+
+// Send alert to all STOCK subscribers
+async function sendStockAlert(message) {
+  const subscribers = await db.subscriber.findMany({
+    where: {
+      categories: { has: 'STOCK' },
+    },
+  });
+
+  console.log(`[ZeroSales] Sending to ${subscribers.length} subscribers`);
+
+  for (const subscriber of subscribers) {
+    await sendTelegramMessage(subscriber.chatId, message);
+  }
+
+  return subscribers.length;
+}
+
+// Get Singapore time (UTC+8)
+function getSingaporeTime() {
+  const now = new Date();
+  // Add 8 hours to UTC to get Singapore time
+  return new Date(now.getTime() + 8 * 60 * 60 * 1000);
+}
+
+// Get the current time block (if any)
+function getCurrentTimeBlock(sgHour) {
+  return TIME_BLOCKS.find(block => sgHour >= block.start && sgHour < block.end);
+}
+
+// Get the previous time block
+function getPreviousTimeBlock(sgHour) {
+  // Find the block that just ended
+  const previousEndHour = sgHour;
+  return TIME_BLOCKS.find(block => block.end === previousEndHour);
+}
+
+// Main cron handler - runs at the end of each time block
+// Should run at: 10:00, 12:00, 14:00, 16:00, 18:00, 20:00 Singapore time
+export async function GET(request) {
+  // Verify cron secret (optional security)
+  const authHeader = request.headers.get('authorization');
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.log('[ZeroSales] Warning: No valid CRON_SECRET provided');
+  }
+
+  const now = new Date();
+  const sgTime = getSingaporeTime();
+  const sgHour = sgTime.getUTCHours();
+
+  console.log(`[ZeroSales] Cron job started at ${now.toISOString()} (SG: ${sgHour}:00)`);
+
+  // Get the time block that just ended
+  const timeBlock = getPreviousTimeBlock(sgHour);
+
+  if (!timeBlock) {
+    console.log(`[ZeroSales] No time block ended at ${sgHour}:00 SG time, skipping`);
+    return NextResponse.json({
+      success: true,
+      message: 'No time block to check',
+      sgHour,
+    });
+  }
+
+  console.log(`[ZeroSales] Checking time block: ${timeBlock.label}`);
+
+  try {
+    // Calculate the time range for the previous block
+    const blockEndTime = new Date(sgTime);
+    blockEndTime.setUTCHours(timeBlock.end, 0, 0, 0);
+    // Convert back to UTC
+    const blockEndUTC = new Date(blockEndTime.getTime() - 8 * 60 * 60 * 1000);
+
+    const blockStartTime = new Date(sgTime);
+    blockStartTime.setUTCHours(timeBlock.start, 0, 0, 0);
+    // Convert back to UTC
+    const blockStartUTC = new Date(blockStartTime.getTime() - 8 * 60 * 60 * 1000);
+
+    console.log(`[ZeroSales] Checking orders between ${blockStartUTC.toISOString()} and ${blockEndUTC.toISOString()}`);
+
+    // Get all active devices
+    const stocks = await db.stock.findMany();
+    let alertsSent = 0;
+
+    for (const stock of stocks) {
+      // Check if there were any orders for this device in the time block
+      const orders = await db.order.findMany({
+        where: {
+          deviceId: stock.deviceId,
+          isSuccess: true,
+          createdAt: {
+            gte: blockStartUTC,
+            lt: blockEndUTC,
+          },
+        },
+      });
+
+      if (orders.length === 0) {
+        // No sales in this time block - send alert
+        const message = `⚠️ <b>ZERO SALES ALERT</b>
+
+📍 <b>${stock.deviceName}</b>
+🎯 Device ID: ${stock.deviceId}
+⏰ Time Block: <b>${timeBlock.label}</b>
+📊 Current Stock: ${stock.quantity}/${stock.maxStock} pcs
+
+No sales recorded during this period.`;
+
+        await sendStockAlert(message);
+        alertsSent++;
+
+        console.log(`[ZeroSales] Sent alert for ${stock.deviceName} - no sales in ${timeBlock.label}`);
+      } else {
+        console.log(`[ZeroSales] ${stock.deviceName} had ${orders.length} orders in ${timeBlock.label}`);
+      }
+    }
+
+    // Log notification
+    if (alertsSent > 0) {
+      await db.notificationLog.create({
+        data: {
+          type: 'zero_sales',
+          message: `Sent ${alertsSent} zero sales alerts for ${timeBlock.label}`,
+          recipients: alertsSent,
+        },
+      });
+    }
+
+    console.log(`[ZeroSales] Cron job completed. Alerts sent: ${alertsSent}`);
+
+    return NextResponse.json({
+      success: true,
+      timeBlock: timeBlock.label,
+      alertsSent,
+      timestamp: now.toISOString(),
+    });
+  } catch (error) {
+    console.error('[ZeroSales] Cron job error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}

@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/stock-alerts",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/zero-sales",
+      "schedule": "0 2,4,6,8,10,12 * * *"
     }
   ]
 }

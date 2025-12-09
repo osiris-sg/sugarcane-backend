@@ -75,10 +75,27 @@ model Stock {
   maxStock    Int       @default(80)  // Maximum stock capacity
   lastAlertAt DateTime?              // When last recurring alert was sent
   alertLevel  String?                // Current alert level (25/15/0)
+  lastSaleAt  DateTime?              // When last sale occurred (for zero sales alert)
   updatedAt   DateTime  @updatedAt
   createdAt   DateTime  @default(now())
 
   @@index([deviceId])
+}
+
+// Orders from vending machines
+model Order {
+  id          String   @id @default(cuid())
+  orderId     String            // Original order ID from device
+  deviceId    String            // Terminal ID
+  deviceName  String            // Device display name
+  amount      Int               // Amount in cents
+  quantity    Int      @default(1)  // Number of items
+  payWay      String?           // Payment method (cash, card, etc.)
+  isSuccess   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([deviceId, createdAt])
+  @@index([createdAt])
 }
 
 // Stock history log (for tracking changes)
