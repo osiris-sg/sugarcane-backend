@@ -129,6 +129,20 @@ export async function GET(request) {
       });
 
       if (orders.length === 0) {
+        // Check if there's already an open Issue for this device
+        const existingIssue = await db.issue.findFirst({
+          where: {
+            deviceId: stock.deviceId,
+            type: 'ZERO_SALES',
+            status: { in: ['OPEN', 'CHECKING'] }
+          }
+        });
+
+        if (existingIssue) {
+          console.log(`[ZeroSales] Skipping ${stock.deviceName} - existing issue pending (${existingIssue.id})`);
+          continue;
+        }
+
         // No sales in this time block - send alert
         const message = `⚠️ <b>ZERO SALES ALERT</b>
 
@@ -140,9 +154,21 @@ export async function GET(request) {
 No sales recorded during this period.`;
 
         await sendStockAlert(message);
-        alertsSent++;
 
-        console.log(`[ZeroSales] Sent alert for ${stock.deviceName} - no sales in ${timeBlock.label}`);
+        // Create Issue record for tracking
+        const issue = await db.issue.create({
+          data: {
+            deviceId: stock.deviceId,
+            deviceName: stock.deviceName,
+            type: 'ZERO_SALES',
+            status: 'OPEN',
+            timeBlock: timeBlock.label,
+            triggeredAt: new Date()
+          }
+        });
+
+        alertsSent++;
+        console.log(`[ZeroSales] Sent alert for ${stock.deviceName} - no sales in ${timeBlock.label}. Issue ID: ${issue.id}`);
       } else {
         console.log(`[ZeroSales] ${stock.deviceName} had ${orders.length} orders in ${timeBlock.label}`);
       }

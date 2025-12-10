@@ -22,11 +22,8 @@ async function sendTelegramMessage(chatId, text) {
   }
 }
 
-// Send stock change notification to STOCK subscribers
-async function sendStockChangeNotification(deviceName, deviceId, previousQty, newQty, change, reason, maxStock = 80) {
-  // Only notify for non-sale changes (topup, remove, convert, adjustment)
-  if (reason === 'sale') return;
-
+// Send storage change notification to STOCK subscribers
+async function sendStorageChangeNotification(deviceName, deviceId, previousQty, newQty, change, reason) {
   const subscribers = await db.subscriber.findMany({
     where: {
       categories: { has: 'STOCK' },
@@ -35,29 +32,23 @@ async function sendStockChangeNotification(deviceName, deviceId, previousQty, ne
 
   if (subscribers.length === 0) return;
 
-  const percent = Math.round((newQty / maxStock) * 100);
-
   // Determine emoji and title based on reason
-  let emoji = '📦';
-  let title = 'STOCK CHANGE';
+  let emoji = '🗃️';
+  let title = 'STORAGE CHANGE';
   let changeText = `${change > 0 ? '+' : ''}${change}`;
 
   switch (reason) {
-    case 'topup':
-      emoji = '📦';
-      title = 'STOCK ADDED';
+    case 'add':
+      emoji = '🗃️';
+      title = 'STORAGE ADDED';
       break;
     case 'remove':
       emoji = '📤';
-      title = 'STOCK REMOVED';
+      title = 'STORAGE REMOVED';
       break;
     case 'convert':
       emoji = '🔄';
-      title = 'STOCK CONVERTED';
-      break;
-    case 'adjustment':
-      emoji = '🔧';
-      title = 'STOCK ADJUSTED';
+      title = 'STORAGE CONVERTED';
       break;
   }
 
@@ -65,10 +56,9 @@ async function sendStockChangeNotification(deviceName, deviceId, previousQty, ne
 
 📍 <b>${deviceName}</b>
 🎯 Device ID: ${deviceId}
-📊 Stock: <b>${previousQty} → ${newQty}</b> (${changeText})
-📈 Level: <b>${percent}%</b> (${newQty}/${maxStock})`;
+📦 Storage: <b>${previousQty} → ${newQty}</b> (${changeText})`;
 
-  console.log(`[ReportStock] Sending ${reason} notification to ${subscribers.length} subscribers`);
+  console.log(`[ReportStorage] Sending ${reason} notification to ${subscribers.length} subscribers`);
 
   for (const subscriber of subscribers) {
     await sendTelegramMessage(subscriber.chatId, message);
@@ -77,7 +67,7 @@ async function sendStockChangeNotification(deviceName, deviceId, previousQty, ne
   // Log notification
   await db.notificationLog.create({
     data: {
-      type: `stock_${reason}`,
+      type: `storage_${reason}`,
       deviceId: String(deviceId),
       deviceName,
       message: `${title}: ${previousQty} → ${newQty}`,
@@ -86,8 +76,8 @@ async function sendStockChangeNotification(deviceName, deviceId, previousQty, ne
   });
 }
 
-// POST /api/Machine/ReportStock
-// Called by Android app to report stock changes
+// POST /api/Machine/ReportStorage
+// Called by Android app to report storage changes
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -101,10 +91,10 @@ export async function POST(request) {
       );
     }
 
-    console.log(`[ReportStock] Device ${deviceId} (${deviceName}): ${previousQty} -> ${quantity} (${change > 0 ? '+' : ''}${change}) reason: ${reason}`);
+    console.log(`[ReportStorage] Device ${deviceId} (${deviceName}): ${previousQty} -> ${quantity} (${change > 0 ? '+' : ''}${change}) reason: ${reason}`);
 
-    // Upsert stock level
-    const stock = await db.stock.upsert({
+    // Upsert storage level
+    const storage = await db.storage.upsert({
       where: { deviceId: String(deviceId) },
       update: {
         quantity: quantity,
@@ -114,46 +104,44 @@ export async function POST(request) {
         deviceId: String(deviceId),
         deviceName: deviceName || `Device ${deviceId}`,
         quantity: quantity,
-        maxStock: 80,
       },
     });
 
-    // Log stock history if we have change info
+    // Log storage history if we have change info
     if (change !== undefined && reason) {
-      await db.stockHistory.create({
+      await db.storageHistory.create({
         data: {
           deviceId: String(deviceId),
           deviceName: deviceName || `Device ${deviceId}`,
           previousQty: previousQty || 0,
           newQty: quantity,
           change: change,
-          reason: reason, // "sale", "topup", "remove", "convert", "adjustment"
+          reason: reason, // "add", "remove", "convert"
         },
       });
 
-      // Send Telegram notification for non-sale changes
-      await sendStockChangeNotification(
+      // Send Telegram notification
+      await sendStorageChangeNotification(
         deviceName || `Device ${deviceId}`,
         deviceId,
         previousQty || 0,
         quantity,
         change,
-        reason,
-        stock.maxStock
+        reason
       );
     }
 
     return NextResponse.json({
       success: true,
-      stock: {
-        deviceId: stock.deviceId,
-        deviceName: stock.deviceName,
-        quantity: stock.quantity,
-        updatedAt: stock.updatedAt,
+      storage: {
+        deviceId: storage.deviceId,
+        deviceName: storage.deviceName,
+        quantity: storage.quantity,
+        updatedAt: storage.updatedAt,
       },
     });
   } catch (error) {
-    console.error('[ReportStock] Error:', error);
+    console.error('[ReportStorage] Error:', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
@@ -161,37 +149,37 @@ export async function POST(request) {
   }
 }
 
-// GET /api/Machine/ReportStock?deviceId=123
-// Get stock level for a specific device
+// GET /api/Machine/ReportStorage?deviceId=123
+// Get storage level for a specific device
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const deviceId = searchParams.get('deviceId');
 
     if (deviceId) {
-      // Get specific device stock
-      const stock = await db.stock.findUnique({
+      // Get specific device storage
+      const storage = await db.storage.findUnique({
         where: { deviceId: String(deviceId) },
       });
 
-      if (!stock) {
+      if (!storage) {
         return NextResponse.json(
           { success: false, error: 'Device not found' },
           { status: 404 }
         );
       }
 
-      return NextResponse.json({ success: true, stock });
+      return NextResponse.json({ success: true, storage });
     }
 
-    // Get all stocks
-    const stocks = await db.stock.findMany({
+    // Get all storages
+    const storages = await db.storage.findMany({
       orderBy: { deviceName: 'asc' },
     });
 
-    return NextResponse.json({ success: true, stocks });
+    return NextResponse.json({ success: true, storages });
   } catch (error) {
-    console.error('[ReportStock] Error:', error);
+    console.error('[ReportStorage] Error:', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

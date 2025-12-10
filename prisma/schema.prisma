@@ -106,8 +106,109 @@ model StockHistory {
   previousQty Int              // Stock before change
   newQty      Int              // Stock after change
   change      Int              // Difference (+/-)
-  reason      String           // "sale", "topup", "adjustment"
+  reason      String           // "sale", "topup", "remove", "convert", "adjustment"
   createdAt   DateTime @default(now())
 
   @@index([deviceId, createdAt])
+}
+
+// Storage levels for each device (raw sugarcane stored locally)
+model Storage {
+  id          String    @id @default(cuid())
+  deviceId    String    @unique  // Terminal ID from the vending machine
+  deviceName  String             // Display name for easy reference
+  quantity    Int       @default(0)   // Current storage count
+  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+
+  @@index([deviceId])
+}
+
+// Storage history log (for tracking changes)
+model StorageHistory {
+  id          String   @id @default(cuid())
+  deviceId    String
+  deviceName  String
+  previousQty Int              // Storage before change
+  newQty      Int              // Storage after change
+  change      Int              // Difference (+/-)
+  reason      String           // "add", "remove", "convert"
+  createdAt   DateTime @default(now())
+
+  @@index([deviceId, createdAt])
+}
+
+// Issue types for maintenance tracking
+enum IssueType {
+  DEVICE_ERROR    // Device fault codes (E316, etc.)
+  ZERO_SALES      // Zero sales detected by cron
+}
+
+// Issue status workflow
+enum IssueStatus {
+  OPEN            // Issue created, not yet responded to
+  CHECKING        // Staff is checking (responded)
+  RESOLVED        // Issue resolved
+  UNRESOLVED      // Issue not resolved, escalated to manager
+}
+
+// Issue tracking for device errors and zero sales
+model Issue {
+  id                String      @id @default(cuid())
+  deviceId          String
+  deviceName        String
+  type              IssueType
+
+  // For DEVICE_ERROR type
+  faultCode         String?     // E.g., "E316", "E50D"
+  faultName         String?     // E.g., "Fruits out of stock"
+  orderId           String?     // Associated order if any
+
+  // For ZERO_SALES type
+  timeBlock         String?     // E.g., "8am-10am"
+
+  // Timestamps for KPI tracking
+  triggeredAt       DateTime    @default(now())  // When issue was detected
+  respondedAt       DateTime?   // When staff clicked "Checking"
+  resolvedAt        DateTime?   // When staff clicked Resolved/Unresolved
+
+  // Computed KPIs (stored for reporting)
+  responseTimeMs    Int?        // respondedAt - triggeredAt
+  resolutionTimeMs  Int?        // resolvedAt - respondedAt
+
+  // Resolution info
+  status            IssueStatus @default(OPEN)
+  resolution        String?     // "resolved" or "unresolved"
+
+  // Reminder tracking (3hr KPI, then hourly)
+  lastReminderAt    DateTime?   // For hourly reminders after 3 hours
+  reminderCount     Int         @default(0)
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([deviceId, status])
+  @@index([type, status])
+  @@index([triggeredAt])
+  @@index([status, lastReminderAt])
+}
+
+// Maintenance activity log (for clean/wash down and customer feedback)
+model MaintenanceActivity {
+  id              String    @id @default(cuid())
+  deviceId        String
+  deviceName      String
+  activityType    String    // "clean_wash" or "customer_feedback"
+
+  startedAt       DateTime
+  completedAt     DateTime?
+  durationMs      Int?      // completedAt - startedAt
+
+  status          String    // "in_progress", "completed", "unresolved"
+  notes           String?
+
+  createdAt       DateTime  @default(now())
+
+  @@index([deviceId, activityType])
+  @@index([createdAt])
 }

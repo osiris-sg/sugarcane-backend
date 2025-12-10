@@ -1,0 +1,78 @@
+"use client";
+
+import { useUser } from "@clerk/nextjs";
+import { Settings, TrendingUp, Globe } from "lucide-react";
+import { ManagementBox } from "@/components/dashboard/management-box";
+import { NavHeader } from "@/components/layout/nav-header";
+
+export default function DashboardPage() {
+  const { user, isLoaded } = useUser();
+
+  // Get role from user metadata (default to franchisee)
+  const role = user?.publicMetadata?.role || "franchisee";
+  const isOwner = role === "owner";
+
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
+        <div className="flex items-center gap-2">
+          <span className="text-xl font-bold text-primary">Sugarcane</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <Globe className="h-4 w-4" />
+            English
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-12">
+        <div className="mb-12 text-center">
+          <h1 className="text-3xl font-bold">Sugarcane Vending Dashboard</h1>
+          <p className="mt-2 text-muted-foreground">
+            Welcome back, {user?.firstName || "User"}
+          </p>
+        </div>
+
+        {/* Management Boxes */}
+        <div className="mx-auto grid max-w-3xl gap-6 md:grid-cols-2">
+          {/* Operations - Owner only */}
+          {isOwner && (
+            <ManagementBox
+              title="Operations"
+              description="Manage devices, stock levels, and maintenance alerts."
+              href="/dashboard/operations"
+              icon={Settings}
+            />
+          )}
+
+          {/* Sales - All users */}
+          <ManagementBox
+            title="Sales"
+            description="View sales data, revenue analytics, and customer insights."
+            href="/dashboard/sales"
+            icon={TrendingUp}
+            className={!isOwner ? "md:col-span-2 max-w-md mx-auto" : ""}
+          />
+        </div>
+
+        {/* Role indicator for dev purposes */}
+        <div className="mt-12 text-center">
+          <p className="text-xs text-muted-foreground">
+            Logged in as: <span className="font-medium">{role}</span>
+          </p>
+        </div>
+      </main>
+    </div>
+  );
+}
