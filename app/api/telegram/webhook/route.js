@@ -36,8 +36,12 @@ I'm the <b>Sugarcane Alert Bot</b>. I can notify you about:
 <b>Stock Commands:</b>
 /stock - View all device stock levels
 /stock [deviceId] - View specific device
-/stock 5075 - Devices with 50-75% stock
-/stock 75100 - Devices with 75-100% stock
+/stock 100 - Devices with 75-100% stock
+/stock 75 - Devices with 50-75% stock
+/stock 50 - Devices with 25-50% stock
+/stock 25 - Devices with 15-25% stock
+/stock 15 - Devices with 0-15% stock
+/stock 0 - Empty devices (0%)
 /storage - All machines with stock
 /history - Recent stock changes
 /setmax [deviceId] [max] - Set max stock
@@ -69,11 +73,22 @@ function getStockInfo(quantity, maxStock) {
 }
 
 // Handle /stock command - show device stock levels
-// Formats: /stock, /stock [deviceId], /stock 5075, /stock 75100
+// Formats: /stock, /stock [deviceId], /stock 100, /stock 75, /stock 50, /stock 25, /stock 15, /stock 0
 async function handleStock(chatId, arg = null) {
   try {
-    // Check if arg is a range filter (5075 or 75100)
-    if (arg === '5075' || arg === '75100') {
+    // Define percentage ranges: /stock X shows devices where (X-bracket) < percent <= X
+    const percentRanges = {
+      '100': { min: 75, max: 100, label: '75-100%' },
+      '75': { min: 50, max: 75, label: '50-75%' },
+      '50': { min: 25, max: 50, label: '25-50%' },
+      '25': { min: 15, max: 25, label: '15-25%' },
+      '15': { min: 0, max: 15, label: '0-15%' },
+      '0': { min: -1, max: 0, label: '0% (Empty)' },
+    };
+
+    // Check if arg is a percentage filter
+    if (arg && percentRanges[arg]) {
+      const range = percentRanges[arg];
       const stocks = await db.stock.findMany({
         orderBy: { deviceName: 'asc' },
       });
@@ -83,29 +98,30 @@ async function handleStock(chatId, arg = null) {
         return;
       }
 
-      const minPercent = arg === '5075' ? 50 : 75;
-      const maxPercent = arg === '5075' ? 75 : 100;
-
       const filtered = stocks.filter(stock => {
-        const percent = (stock.quantity / stock.maxStock) * 100;
-        return percent >= minPercent && percent <= maxPercent;
+        const percent = Math.round((stock.quantity / stock.maxStock) * 100);
+        if (arg === '0') {
+          return percent === 0;
+        }
+        return percent > range.min && percent <= range.max;
       });
 
       if (filtered.length === 0) {
-        await sendMessage(chatId, `📭 No devices with ${minPercent}-${maxPercent}% stock.`);
+        await sendMessage(chatId, `📭 No devices with ${range.label} stock.`);
         return;
       }
 
-      let message = `📦 <b>Stock Levels (${minPercent}-${maxPercent}%)</b>\n\n`;
+      let message = `📊 <b>Stock Level: ${range.label}</b>\n\n`;
 
       for (const stock of filtered) {
         const { percent, emoji } = getStockInfo(stock.quantity, stock.maxStock);
         message += `${emoji} <b>${stock.deviceName}</b>\n`;
-        message += `   ${stock.quantity}/${stock.maxStock} pcs (<b>${percent}%</b>)\n\n`;
+        message += `   Device: ${stock.deviceId}\n`;
+        message += `   Stock: ${stock.quantity}/${stock.maxStock} (<b>${percent}%</b>)\n\n`;
       }
 
       message += `━━━━━━━━━━━━━━━━\n`;
-      message += `🏪 <b>Devices:</b> ${filtered.length}`;
+      message += `Total: <b>${filtered.length}</b> machine${filtered.length !== 1 ? 's' : ''}`;
 
       await sendMessage(chatId, message);
       return;
