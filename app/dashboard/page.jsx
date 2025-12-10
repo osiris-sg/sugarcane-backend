@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useUser } from "@clerk/nextjs";
 import { Settings, TrendingUp, Globe } from "lucide-react";
 import { ManagementBox } from "@/components/dashboard/management-box";

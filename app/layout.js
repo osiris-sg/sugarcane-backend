@@ -5,6 +5,9 @@ import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
+// Force dynamic rendering for all pages (Clerk requires runtime env vars)
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Sugarcane Dashboard',
   description: 'Vending Machine Management Dashboard',

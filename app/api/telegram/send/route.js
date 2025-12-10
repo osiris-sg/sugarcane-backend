@@ -3,6 +3,39 @@ import { db } from '../../../../lib/db/index.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+// Helper function to send stock/maintenance alerts
+// Can be imported by other routes
+export async function sendStockAlert(message, category = 'STOCK') {
+  try {
+    const subscribers = await db.subscriber.findMany({
+      where: {
+        categories: {
+          has: category,
+        },
+      },
+      select: {
+        chatId: true,
+      },
+    });
+
+    if (subscribers.length === 0) {
+      console.log(`[Telegram] No subscribers for ${category}`);
+      return { sent: 0, total: 0 };
+    }
+
+    let successCount = 0;
+    for (const subscriber of subscribers) {
+      const sent = await sendTelegramMessage(subscriber.chatId, message);
+      if (sent) successCount++;
+    }
+
+    return { sent: successCount, total: subscribers.length };
+  } catch (error) {
+    console.error('[sendStockAlert] Error:', error);
+    throw error;
+  }
+}
+
 // Send message to a single chat
 async function sendTelegramMessage(chatId, text) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
