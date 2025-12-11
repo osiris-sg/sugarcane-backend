@@ -15,6 +15,16 @@ export async function POST(request) {
       );
     }
 
+    // Skip Z014 fault code - don't store in database
+    if (faultCode === 'Z014') {
+      console.log(`[Issue] Skipping Z014 fault code for ${deviceName}`);
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: 'Z014 fault code filtered'
+      });
+    }
+
     // Check for existing open issue of same type for this device
     const existingIssue = await db.issue.findFirst({
       where: {
