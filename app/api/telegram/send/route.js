@@ -3,6 +3,11 @@ import { db } from '../../../../lib/db/index.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+// In-memory cache for E50D debounce tracking
+// Format: { "deviceId": timestamp }
+const e50dLastSeen = new Map();
+const E50D_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
+
 // Helper function to send stock/maintenance alerts
 // Can be imported by other routes
 export async function sendStockAlert(message, category = 'STOCK') {
@@ -82,6 +87,29 @@ export async function POST(request) {
         skipped: true,
         reason: 'Z014 fault code filtered',
       });
+    }
+
+    // E50D debounce - only send if confirmed (second occurrence within 5 min)
+    if (message.includes('E50D') && deviceId) {
+      const now = Date.now();
+      const lastSeen = e50dLastSeen.get(deviceId);
+
+      if (lastSeen && (now - lastSeen) <= E50D_DEBOUNCE_MS) {
+        // Second occurrence within 5 minutes - proceed to send
+        console.log(`[Telegram] E50D confirmed for ${deviceId} (second occurrence within 5 min)`);
+        e50dLastSeen.delete(deviceId);
+      } else {
+        // First occurrence or too long ago - just record and skip
+        e50dLastSeen.set(deviceId, now);
+        console.log(`[Telegram] E50D first occurrence for ${deviceId} - waiting for confirmation`);
+        return NextResponse.json({
+          success: true,
+          sent: 0,
+          skipped: true,
+          reason: 'E50D requires confirmation within 5 minutes',
+          waitingForConfirmation: true,
+        });
+      }
     }
 
     const cat = category.toUpperCase();

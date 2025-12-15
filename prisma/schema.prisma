@@ -53,17 +53,30 @@ model NotificationLog {
   @@index([type, createdAt])
 }
 
+// Franchisee groups
+model Group {
+  id          String   @id @default(cuid())
+  name        String   @unique  // Franchisee name (e.g., "Jeffrey", "Trevors")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  devices     Device[]
+}
+
 // Device configuration (price, name linked to device ID)
 model Device {
   id          String   @id @default(cuid())
   deviceId    String   @unique  // Terminal ID from the vending machine
-  deviceName  String            // Display name (e.g., "116 Jln Tenteram")
+  deviceName  String            // Display name (e.g., "VY06 The Octagon")
+  location    String?           // Location (e.g., "116 Jln Tenteram")
   price       Int               // Price in cents (e.g., 250 = $2.50)
   isActive    Boolean  @default(true)
+  groupId     String?           // Foreign key to Group
+  group       Group?   @relation(fields: [groupId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([deviceId])
+  @@index([groupId])
 }
 
 // Stock levels for each device
@@ -191,6 +204,18 @@ model Issue {
   @@index([type, status])
   @@index([triggeredAt])
   @@index([status, lastReminderAt])
+}
+
+// Location history for tracking device movements
+model LocationHistory {
+  id          String   @id @default(cuid())
+  deviceId    String
+  location    String            // Location name
+  startedAt   DateTime @default(now())  // When device was placed at this location
+  endedAt     DateTime?         // When device was moved (null if current)
+  durationMs  Int?              // How long it was at this location
+
+  @@index([deviceId, startedAt])
 }
 
 // Maintenance activity log (for clean/wash down and customer feedback)

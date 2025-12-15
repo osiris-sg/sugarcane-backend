@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { sendStockAlert } from '@/app/api/telegram/send/route';
 
+// In-memory cache for E50D debounce tracking
+// Format: { "deviceId": timestamp }
+const e50dLastSeen = new Map();
+const E50D_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
+
 // POST /api/maintenance/issue - Create a new issue
 export async function POST(request) {
   try {
@@ -23,6 +28,28 @@ export async function POST(request) {
         skipped: true,
         reason: 'Z014 fault code filtered'
       });
+    }
+
+    // Special handling for E50D (out of cups) - only report if seen twice within 5 minutes
+    if (faultCode === 'E50D') {
+      const now = Date.now();
+      const lastSeen = e50dLastSeen.get(deviceId);
+
+      if (lastSeen && (now - lastSeen) <= E50D_DEBOUNCE_MS) {
+        // Second occurrence within 5 minutes - proceed to create issue
+        console.log(`[Issue] E50D confirmed for ${deviceName} (second occurrence within 5 min)`);
+        e50dLastSeen.delete(deviceId); // Clear after confirmed
+      } else {
+        // First occurrence or too long ago - just record timestamp and skip
+        e50dLastSeen.set(deviceId, now);
+        console.log(`[Issue] E50D first occurrence for ${deviceName} - waiting for confirmation within 5 min`);
+        return NextResponse.json({
+          success: true,
+          skipped: true,
+          reason: 'E50D requires confirmation within 5 minutes',
+          waitingForConfirmation: true
+        });
+      }
     }
 
     // Check for existing open issue of same type for this device

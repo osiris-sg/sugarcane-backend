@@ -39,12 +39,12 @@ const sidebarItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Equipment Management",
+    title: "Device Management",
     icon: Monitor,
     children: [
-      { title: "Equipment List", href: "/dashboard/sales/equipment", icon: List },
-      { title: "Equipment Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers },
-      { title: "Equipment Status", href: "/dashboard/sales/equipment/status", icon: Activity },
+      { title: "Device List", href: "/dashboard/sales/equipment", icon: List },
+      { title: "Device Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers },
+      { title: "Device Status", href: "/dashboard/sales/equipment/status", icon: Activity },
       { title: "Cash Records", href: "/dashboard/sales/equipment/cash", icon: Wallet },
     ],
   },

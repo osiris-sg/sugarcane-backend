@@ -2,95 +2,341 @@
 
 export const dynamic = "force-dynamic";
 
-import { BarChart3, TrendingUp, TrendingDown } from "lucide-react";
+import { useState, useEffect } from "react";
+import { BarChart3, Calendar, Filter, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const mockSummary = {
-  today: { orders: 45, revenue: 171.00, change: 12.5 },
-  week: { orders: 312, revenue: 1185.60, change: -3.2 },
-  month: { orders: 1248, revenue: 4742.40, change: 8.7 },
-};
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function OrderSummaryPage() {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const [period, setPeriod] = useState("day");
+  const [groupId, setGroupId] = useState("all");
+  const [deviceId, setDeviceId] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("period", period);
+      if (groupId && groupId !== "all") params.set("groupId", groupId);
+      if (deviceId && deviceId !== "all") params.set("deviceId", deviceId);
+      if (period === "custom") {
+        if (startDate) params.set("startDate", startDate);
+        if (endDate) params.set("endDate", endDate);
+      }
+
+      const res = await fetch(`/api/admin/orders/summary?${params.toString()}`);
+      const json = await res.json();
+      if (json.success) {
+        setData(json);
+      }
+    } catch (error) {
+      console.error("Error fetching summary:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [period, groupId, deviceId]);
+
+  const handleCustomDateApply = () => {
+    if (period === "custom") {
+      fetchData();
+    }
+  };
+
+  const formatCurrency = (cents) => {
+    return `$${(cents / 100).toFixed(2)}`;
+  };
+
+  const exportCSV = () => {
+    if (!data?.summary) return;
+
+    const headers = ["Device ID", "Device Name", "Location", "Group", "Total Sales", "Total Cups", "Orders"];
+    const rows = data.summary.map(item => [
+      item.deviceId,
+      item.deviceName,
+      item.location || "",
+      item.groupName || "",
+      (item.totalSales / 100).toFixed(2),
+      item.totalCups,
+      item.orderCount,
+    ]);
+
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `order-summary-${period}-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+  };
+
+  // Filter devices by selected group
+  const filteredDevices = data?.filters?.devices?.filter(d =>
+    groupId === "all" || d.groupId === groupId
+  ) || [];
+
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 flex h-16 items-center border-b bg-background px-6">
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
         <div>
           <h1 className="text-xl font-semibold">Order Summary</h1>
-          <p className="text-sm text-muted-foreground">Sales performance overview</p>
+          <p className="text-sm text-muted-foreground">Sales by device</p>
         </div>
+        <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.summary?.length}>
+          <Download className="mr-2 h-4 w-4" />
+          Export CSV
+        </Button>
       </header>
 
-      <main className="p-6">
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Today */}
+      <main className="p-6 space-y-6">
+        {/* Filters */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              {/* Period Filter */}
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">Period</label>
+                <Select value={period} onValueChange={setPeriod}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="day">Today</SelectItem>
+                    <SelectItem value="week">This Week</SelectItem>
+                    <SelectItem value="month">This Month</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Custom Date Range */}
+              {period === "custom" && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">Start Date</label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-[160px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">End Date</label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-[160px]"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button onClick={handleCustomDateApply} size="sm">
+                      Apply
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* Group Filter */}
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">Group</label>
+                <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="All Groups" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Groups</SelectItem>
+                    {data?.filters?.groups?.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Device Filter */}
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">Device</label>
+                <Select value={deviceId} onValueChange={setDeviceId}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Devices" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Devices</SelectItem>
+                    {filteredDevices.map((device) => (
+                      <SelectItem key={device.deviceId} value={device.deviceId}>
+                        {device.deviceName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">Today</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Sales
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-bold">SGD {mockSummary.today.revenue.toFixed(2)}</span>
-                  <span className={`flex items-center text-sm ${mockSummary.today.change > 0 ? "text-green-500" : "text-red-500"}`}>
-                    {mockSummary.today.change > 0 ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
-                    {Math.abs(mockSummary.today.change)}%
-                  </span>
+              {loading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <div className="text-2xl font-bold">
+                  {formatCurrency(data?.totals?.totalSales || 0)}
                 </div>
-                <p className="text-sm text-muted-foreground">{mockSummary.today.orders} orders</p>
-              </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* This Week */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">This Week</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Cups
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-bold">SGD {mockSummary.week.revenue.toFixed(2)}</span>
-                  <span className={`flex items-center text-sm ${mockSummary.week.change > 0 ? "text-green-500" : "text-red-500"}`}>
-                    {mockSummary.week.change > 0 ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
-                    {Math.abs(mockSummary.week.change)}%
-                  </span>
+              {loading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <div className="text-2xl font-bold">
+                  {data?.totals?.totalCups || 0}
                 </div>
-                <p className="text-sm text-muted-foreground">{mockSummary.week.orders} orders</p>
-              </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* This Month */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">This Month</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Orders
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-bold">SGD {mockSummary.month.revenue.toFixed(2)}</span>
-                  <span className={`flex items-center text-sm ${mockSummary.month.change > 0 ? "text-green-500" : "text-red-500"}`}>
-                    {mockSummary.month.change > 0 ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
-                    {Math.abs(mockSummary.month.change)}%
-                  </span>
+              {loading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <div className="text-2xl font-bold">
+                  {data?.totals?.totalOrders || 0}
                 </div>
-                <p className="text-sm text-muted-foreground">{mockSummary.month.orders} orders</p>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Chart Placeholder */}
-        <Card className="mt-6">
+        {/* Data Table */}
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="text-base flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Sales Trend
+              Sales by Device
             </CardTitle>
           </CardHeader>
-          <CardContent className="h-64 flex items-center justify-center">
-            <p className="text-muted-foreground">Sales chart will be displayed here</p>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : data?.summary?.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No orders found for the selected period
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Device</TableHead>
+                    <TableHead>Group</TableHead>
+                    <TableHead className="text-right">Total Sales</TableHead>
+                    <TableHead className="text-right">Total Cups</TableHead>
+                    <TableHead className="text-right">Orders</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data?.summary?.map((item) => (
+                    <TableRow key={item.deviceId}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{item.deviceName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.deviceId}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {item.groupName || (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(item.totalSales)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.totalCups}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.orderCount}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* Totals Row */}
+                  {data?.summary?.length > 1 && (
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell>Total</TableCell>
+                      <TableCell></TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(data?.totals?.totalSales || 0)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {data?.totals?.totalCups || 0}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {data?.totals?.totalOrders || 0}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </main>

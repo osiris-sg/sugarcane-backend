@@ -12,13 +12,13 @@ const checkAdminKey = (request) => {
 };
 
 // GET /api/admin/devices - List all devices
+// No auth required for GET (dashboard uses Clerk auth at page level)
 export async function GET(request) {
-  if (!checkAdminKey(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
     const devices = await db.device.findMany({
+      include: {
+        group: true,  // Include group relation
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -35,13 +35,9 @@ export async function GET(request) {
 
 // POST /api/admin/devices - Create or update a device
 export async function POST(request) {
-  if (!checkAdminKey(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
     const body = await request.json();
-    const { deviceId, deviceName, price, isActive } = body;
+    const { deviceId, deviceName, location, price, isActive, groupId } = body;
 
     if (!deviceId) {
       return NextResponse.json(
@@ -50,19 +46,64 @@ export async function POST(request) {
       );
     }
 
+    // Check if device exists and if location is changing
+    const existingDevice = await db.device.findUnique({
+      where: { deviceId },
+    });
+
+    const now = new Date();
+    const locationChanged = existingDevice &&
+      location !== undefined &&
+      existingDevice.location !== location;
+
+    // If location is changing, update location history
+    if (locationChanged && existingDevice.location) {
+      // End the previous location record
+      const previousRecord = await db.locationHistory.findFirst({
+        where: { deviceId, endedAt: null },
+        orderBy: { startedAt: 'desc' },
+      });
+
+      if (previousRecord) {
+        const durationMs = now.getTime() - new Date(previousRecord.startedAt).getTime();
+        await db.locationHistory.update({
+          where: { id: previousRecord.id },
+          data: { endedAt: now, durationMs },
+        });
+      }
+    }
+
+    // Create new location history record if location is set/changed
+    if (location && (!existingDevice || locationChanged)) {
+      await db.locationHistory.create({
+        data: {
+          deviceId,
+          location,
+          startedAt: now,
+        },
+      });
+    }
+
     // Upsert - create if not exists, update if exists
     const device = await db.device.upsert({
       where: { deviceId: deviceId },
       update: {
-        ...(deviceName && { deviceName }),
+        ...(deviceName !== undefined && { deviceName }),
+        ...(location !== undefined && { location }),
         ...(price !== undefined && { price: parseInt(price) }),
         ...(isActive !== undefined && { isActive }),
+        ...(groupId !== undefined && { groupId: groupId || null }),
       },
       create: {
         deviceId: deviceId,
         deviceName: deviceName || `Device ${deviceId}`,
+        location: location || null,
         price: price ? parseInt(price) : 250, // Default $2.50
         isActive: isActive !== undefined ? isActive : true,
+        groupId: groupId || null,
+      },
+      include: {
+        group: true,
       },
     });
 

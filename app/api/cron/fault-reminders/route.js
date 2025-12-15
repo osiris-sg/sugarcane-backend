@@ -3,6 +3,16 @@ import { db } from '../../../../lib/db/index.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+// Check if current time is within quiet hours (8pm to 8am Singapore time)
+function isQuietHours() {
+  const now = new Date();
+  // Get Singapore time (UTC+8)
+  const sgTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const sgHour = sgTime.getUTCHours();
+  // Quiet hours: 20:00 (8pm) to 08:00 (8am)
+  return sgHour >= 20 || sgHour < 8;
+}
+
 // Send message to Telegram
 async function sendTelegramMessage(chatId, text) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
@@ -65,6 +75,17 @@ export async function GET(request) {
 
   const now = new Date();
   console.log(`[FaultReminders] Cron job started at ${now.toISOString()}`);
+
+  // Skip during quiet hours (8pm to 8am Singapore time)
+  if (isQuietHours()) {
+    console.log('[FaultReminders] Skipping - quiet hours (8pm-8am SGT)');
+    return NextResponse.json({
+      success: true,
+      message: 'Skipped - quiet hours',
+      remindersSent: 0,
+      timestamp: now.toISOString(),
+    });
+  }
 
   try {
     const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
