@@ -447,11 +447,174 @@ async function handlePasswordVerification(chatId, password, user) {
   return true;
 }
 
+// Handle callback query from inline buttons
+async function handleCallbackQuery(callbackQuery) {
+  const chatId = callbackQuery.message.chat.id;
+  const messageId = callbackQuery.message.message_id;
+  const data = callbackQuery.data;
+  const user = callbackQuery.from;
+
+  console.log(`[Webhook] Callback query: ${data} from ${user.first_name}`);
+
+  // Parse callback data: "resolve:issueId" or "unresolved:issueId"
+  const [action, issueId] = data.split(':');
+
+  if (!issueId) {
+    await answerCallbackQuery(callbackQuery.id, '❌ Invalid action');
+    return;
+  }
+
+  try {
+    const issue = await db.issue.findUnique({ where: { id: issueId } });
+
+    if (!issue) {
+      await answerCallbackQuery(callbackQuery.id, '❌ Issue not found');
+      return;
+    }
+
+    if (issue.status === 'RESOLVED' || issue.status === 'UNRESOLVED') {
+      await answerCallbackQuery(callbackQuery.id, '⚠️ Issue already closed');
+      return;
+    }
+
+    const now = new Date();
+    const respondedAt = issue.respondedAt || now;
+    const resolutionTimeMs = now.getTime() - new Date(respondedAt).getTime();
+
+    if (action === 'resolve') {
+      await db.issue.update({
+        where: { id: issueId },
+        data: {
+          status: 'RESOLVED',
+          resolution: 'resolved',
+          resolvedAt: now,
+          respondedAt: issue.respondedAt || now,
+          resolutionTimeMs,
+        }
+      });
+
+      // Update the message to show it's resolved
+      await editMessageText(chatId, messageId,
+        callbackQuery.message.text + `\n\n✅ <b>RESOLVED</b> by ${user.first_name} at ${now.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}`
+      );
+      await answerCallbackQuery(callbackQuery.id, '✅ Marked as Resolved!');
+
+    } else if (action === 'unresolved') {
+      await db.issue.update({
+        where: { id: issueId },
+        data: {
+          status: 'UNRESOLVED',
+          resolution: 'unresolved',
+          resolvedAt: now,
+          respondedAt: issue.respondedAt || now,
+          resolutionTimeMs,
+          priority: Math.min(issue.priority + 1, 3), // Escalate priority
+        }
+      });
+
+      // Update the message to show it's unresolved
+      await editMessageText(chatId, messageId,
+        callbackQuery.message.text + `\n\n❌ <b>UNRESOLVED</b> by ${user.first_name} at ${now.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}\n⚠️ Escalated to LVL ${Math.min(issue.priority + 1, 3)}`
+      );
+      await answerCallbackQuery(callbackQuery.id, '❌ Marked as Unresolved - Escalated');
+
+    } else if (action === 'checking') {
+      await db.issue.update({
+        where: { id: issueId },
+        data: {
+          status: 'CHECKING',
+          respondedAt: issue.respondedAt || now,
+          responseTimeMs: issue.responseTimeMs || (now.getTime() - new Date(issue.triggeredAt).getTime()),
+        }
+      });
+
+      // Update the message to show someone is checking
+      await editMessageText(chatId, messageId,
+        callbackQuery.message.text + `\n\n👀 <b>CHECKING</b> - ${user.first_name} is on it`,
+        getIssueButtons(issueId, true) // Show resolve/unresolved buttons
+      );
+      await answerCallbackQuery(callbackQuery.id, '👀 Marked as Checking');
+    }
+
+  } catch (error) {
+    console.error('[Webhook] Callback error:', error);
+    await answerCallbackQuery(callbackQuery.id, '❌ Error updating issue');
+  }
+}
+
+// Answer callback query (removes loading state from button)
+async function answerCallbackQuery(callbackQueryId, text) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text,
+        show_alert: false,
+      }),
+    });
+  } catch (error) {
+    console.error('Error answering callback:', error);
+  }
+}
+
+// Edit message text (to update after button click)
+async function editMessageText(chatId, messageId, text, replyMarkup = null) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`;
+  const body = {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    parse_mode: 'HTML',
+  };
+  if (replyMarkup) {
+    body.reply_markup = replyMarkup;
+  }
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error('Error editing message:', error);
+  }
+}
+
+// Get inline keyboard buttons for an issue
+function getIssueButtons(issueId, isChecking = false) {
+  if (isChecking) {
+    // Show resolve/unresolved buttons
+    return {
+      inline_keyboard: [[
+        { text: '✅ Resolved', callback_data: `resolve:${issueId}` },
+        { text: '❌ Unresolved', callback_data: `unresolved:${issueId}` },
+      ]]
+    };
+  }
+  // Show checking button first
+  return {
+    inline_keyboard: [[
+      { text: '👀 Checking', callback_data: `checking:${issueId}` },
+      { text: '✅ Resolved', callback_data: `resolve:${issueId}` },
+      { text: '❌ Unresolved', callback_data: `unresolved:${issueId}` },
+    ]]
+  };
+}
+
 // Main webhook handler
 export async function POST(request) {
   try {
     const body = await request.json();
     console.log('Telegram webhook received:', JSON.stringify(body, null, 2));
+
+    // Handle callback queries from inline buttons
+    if (body.callback_query) {
+      await handleCallbackQuery(body.callback_query);
+      return NextResponse.json({ ok: true });
+    }
 
     const message = body.message;
     if (!message) {

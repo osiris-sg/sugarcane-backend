@@ -41,6 +41,70 @@ export async function sendStockAlert(message, category = 'STOCK') {
   }
 }
 
+// Send message with inline keyboard buttons (for issue resolution)
+export async function sendIssueAlert(message, issueId, category = 'STOCK') {
+  try {
+    const subscribers = await db.subscriber.findMany({
+      where: {
+        categories: {
+          has: category,
+        },
+      },
+      select: {
+        chatId: true,
+      },
+    });
+
+    if (subscribers.length === 0) {
+      console.log(`[Telegram] No subscribers for ${category}`);
+      return { sent: 0, total: 0 };
+    }
+
+    const replyMarkup = {
+      inline_keyboard: [[
+        { text: '👀 Checking', callback_data: `checking:${issueId}` },
+        { text: '✅ Resolved', callback_data: `resolve:${issueId}` },
+        { text: '❌ Unresolved', callback_data: `unresolved:${issueId}` },
+      ]]
+    };
+
+    let successCount = 0;
+    for (const subscriber of subscribers) {
+      const sent = await sendTelegramMessageWithButtons(subscriber.chatId, message, replyMarkup);
+      if (sent) successCount++;
+    }
+
+    return { sent: successCount, total: subscribers.length };
+  } catch (error) {
+    console.error('[sendIssueAlert] Error:', error);
+    throw error;
+  }
+}
+
+// Send message with inline keyboard
+async function sendTelegramMessageWithButtons(chatId, text, replyMarkup) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup,
+      }),
+    });
+
+    const result = await response.json();
+    return result.ok;
+  } catch (error) {
+    console.error(`Error sending to ${chatId}:`, error);
+    return false;
+  }
+}
+
 // Send message to a single chat
 async function sendTelegramMessage(chatId, text) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;

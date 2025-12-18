@@ -189,13 +189,18 @@ model Issue {
   responseTimeMs    Int?        // respondedAt - triggeredAt
   resolutionTimeMs  Int?        // resolvedAt - respondedAt
 
+  // Priority level: 1=Low, 2=Medium, 3=High
+  priority          Int         @default(1)
+
   // Resolution info
   status            IssueStatus @default(OPEN)
   resolution        String?     // "resolved" or "unresolved"
 
-  // Reminder tracking (3hr KPI, then hourly)
-  lastReminderAt    DateTime?   // For hourly reminders after 3 hours
-  reminderCount     Int         @default(0)
+  // Reminder tracking (max 3 per day, then escalate to priority 2)
+  lastReminderAt      DateTime?   // When last reminder was sent
+  reminderCount       Int         @default(0)  // Total reminders sent
+  remindersTodayCount Int         @default(0)  // Reminders sent today (resets daily)
+  reminderResetDate   DateTime?   // Date when remindersTodayCount was last reset
 
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
@@ -236,4 +241,16 @@ model MaintenanceActivity {
 
   @@index([deviceId, activityType])
   @@index([createdAt])
+}
+
+// Temperature readings from devices (reported on D002 - door closed)
+model Temperature {
+  id                  String   @id @default(cuid())
+  deviceId            String
+  deviceName          String
+  refrigerationTemp   Float    // Refrigeration compartment temperature
+  machineTemp         Float    // Machine/ambient temperature
+  createdAt           DateTime @default(now())
+
+  @@index([deviceId, createdAt])
 }

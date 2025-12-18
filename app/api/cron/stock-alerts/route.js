@@ -3,14 +3,14 @@ import { db } from '../../../../lib/db/index.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-// Check if current time is within quiet hours (8pm to 8am Singapore time)
+// Check if current time is within quiet hours (10pm to 8am Singapore time)
 function isQuietHours() {
   const now = new Date();
   // Get Singapore time (UTC+8)
   const sgTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   const sgHour = sgTime.getUTCHours();
-  // Quiet hours: 20:00 (8pm) to 08:00 (8am)
-  return sgHour >= 20 || sgHour < 8;
+  // Quiet hours: 22:00 (10pm) to 08:00 (8am)
+  return sgHour >= 22 || sgHour < 8;
 }
 
 // Send message to Telegram
@@ -132,17 +132,23 @@ export async function GET(request) {
         const emoji = getAlertEmoji(alertLevel);
         const intervalText = alertLevel === '0' ? '30 min' : alertLevel === '15' ? '1 hour' : '2 hours';
 
-        let urgency = 'LOW STOCK';
-        if (alertLevel === '0') urgency = 'OUT OF STOCK';
-        else if (alertLevel === '15') urgency = 'CRITICAL';
+        // Priority level based on stock level: 0% = HIGH (3), 15% = MED (2), 25% = LOW (1)
+        let priority = 1;
+        let urgency = 'Low Stock';
+        if (alertLevel === '0') {
+          urgency = 'Out of Stock';
+          priority = 3;
+        } else if (alertLevel === '15') {
+          urgency = 'Critical Stock';
+          priority = 2;
+        }
 
-        const message = `${emoji} <b>${urgency} REMINDER</b>
+        const message = `${emoji} ${urgency} (REMINDER) LVL ${priority}
 
-📍 <b>${stock.deviceName}</b>
 🎯 Device ID: ${stock.deviceId}
-📊 Stock: <b>${stock.quantity}/${stock.maxStock}</b> pcs (<b>${percent}%</b>)
-
-⏰ Reminder every ${intervalText} until restocked`;
+📍 Device Name: ${stock.deviceName}
+📊 Stock: ${stock.quantity}/${stock.maxStock} pcs (${percent}%)
+⏰ Next reminder: ${intervalText}`;
 
         await sendStockAlert(message);
         alertsSent++;

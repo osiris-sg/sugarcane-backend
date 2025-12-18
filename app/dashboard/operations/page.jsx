@@ -2,8 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { redirect } from "next/navigation";
 import {
   AlertTriangle,
   Bell,
@@ -12,8 +12,8 @@ import {
   Package,
   RefreshCw,
   Plus,
-  Users
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,57 +27,119 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-// Mock data - will be replaced with real data from API
-const mockAlerts = {
-  high: 2,
-  medium: 5,
-  low: 12,
-};
+// Helper to format relative time
+function formatLastSeen(dateString) {
+  if (!dateString) return "Never";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
 
-const mockDevices = [
-  { id: "852259", name: "Pacman Sentosa Event 259", status: "ON", stock: 85, lastSeen: "2 min ago" },
-  { id: "852283", name: "Pacman Sentosa Event 283", status: "ON", stock: 45, lastSeen: "5 min ago" },
-  { id: "852286", name: "Pacman Sentosa Event 286", status: "OFF", stock: 20, lastSeen: "1 hour ago" },
-  { id: "852277", name: "Pacman Sentosa Event 277", status: "ON", stock: 60, lastSeen: "1 min ago" },
-  { id: "852279", name: "Pacman Sentosa Event 279", status: "ON", stock: 15, lastSeen: "3 min ago" },
-  { id: "852309", name: "Pacman Sentosa Event 309", status: "ON", stock: 90, lastSeen: "30 sec ago" },
-];
-
-const lowestStock = mockDevices
-  .sort((a, b) => a.stock - b.stock)
-  .slice(0, 3);
+  if (diffSec < 60) return `${diffSec} sec ago`;
+  if (diffMin < 60) return `${diffMin} min ago`;
+  if (diffHour < 24) return `${diffHour} hour${diffHour > 1 ? "s" : ""} ago`;
+  return `${diffDay} day${diffDay > 1 ? "s" : ""} ago`;
+}
 
 export default function OperationsPage() {
-  const { user, isLoaded } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
+  const { user } = useUser();
 
-  // Redirect non-owners
-  if (isLoaded && role !== "owner") {
-    redirect("/dashboard");
+  const [devices, setDevices] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filterText, setFilterText] = useState("");
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    try {
+      // Fetch devices and issues in parallel
+      const [devicesRes, issuesRes] = await Promise.all([
+        fetch("/api/admin/devices"),
+        fetch("/api/maintenance/issue?status=OPEN,CHECKING"),
+      ]);
+
+      const devicesData = await devicesRes.json();
+      const issuesData = await issuesRes.json();
+
+      if (devicesData.devices) {
+        setDevices(devicesData.devices);
+      }
+
+      if (issuesData.issues) {
+        setIssues(issuesData.issues);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }
 
-  const activeDevices = mockDevices.filter(d => d.status === "ON").length;
-  const totalDevices = mockDevices.length;
+  function handleRefresh() {
+    setRefreshing(true);
+    fetchData();
+  }
+
+  // Calculate alert counts by priority
+  const alertCounts = {
+    high: issues.filter((i) => i.priority === 3).length,
+    medium: issues.filter((i) => i.priority === 2).length,
+    low: issues.filter((i) => i.priority === 1).length,
+  };
+
+  // Calculate active devices (using isActive boolean from Device table)
+  const activeDevices = devices.filter((d) => d.isActive).length;
+
+  // Get devices with lowest stock (using cupStock as percentage)
+  const devicesWithStock = devices
+    .map((d) => ({
+      ...d,
+      stockPercent: d.cupStock != null ? Math.round((d.cupStock / 100) * 100) : null,
+    }))
+    .filter((d) => d.stockPercent !== null)
+    .sort((a, b) => a.stockPercent - b.stockPercent)
+    .slice(0, 3);
+
+  // Filter devices by search text
+  const filteredDevices = devices.filter(
+    (d) =>
+      d.deviceId.toLowerCase().includes(filterText.toLowerCase()) ||
+      (d.deviceName && d.deviceName.toLowerCase().includes(filterText.toLowerCase()))
+  );
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
         <div>
-          <h1 className="text-xl font-semibold">Sugarcane Operations Dashboard</h1>
+          <h1 className="text-xl font-semibold">Operations Overview</h1>
           <p className="text-sm text-muted-foreground">Real-time overview of all vending units</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="default" size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Device
-          </Button>
-          <Button variant="outline" size="sm">
-            <Users className="mr-2 h-4 w-4" />
-            Users Management
-          </Button>
-          <Button variant="outline" size="sm">
-            <RefreshCw className="mr-2 h-4 w-4" />
+          <Link href="/dashboard/sales/equipment">
+            <Button variant="default" size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Device
+            </Button>
+          </Link>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
@@ -97,7 +159,7 @@ export default function OperationsPage() {
                   </div>
                   <span className="font-medium">High Priority</span>
                 </div>
-                <span className="text-2xl font-bold">{mockAlerts.high}</span>
+                <span className="text-2xl font-bold">{alertCounts.high}</span>
               </CardContent>
             </Card>
 
@@ -109,7 +171,7 @@ export default function OperationsPage() {
                   </div>
                   <span className="font-medium">Medium Priority</span>
                 </div>
-                <span className="text-2xl font-bold">{mockAlerts.medium}</span>
+                <span className="text-2xl font-bold">{alertCounts.medium}</span>
               </CardContent>
             </Card>
 
@@ -121,7 +183,7 @@ export default function OperationsPage() {
                   </div>
                   <span className="font-medium">Low Priority</span>
                 </div>
-                <span className="text-2xl font-bold">{mockAlerts.low}</span>
+                <span className="text-2xl font-bold">{alertCounts.low}</span>
               </CardContent>
             </Card>
 
@@ -135,7 +197,7 @@ export default function OperationsPage() {
                   <span className="font-medium">Active Units</span>
                 </div>
                 <span className="text-2xl font-bold">
-                  {activeDevices} <span className="text-lg text-muted-foreground">/ {totalDevices}</span>
+                  {activeDevices} <span className="text-lg text-muted-foreground">/ {devices.length}</span>
                 </span>
               </CardContent>
             </Card>
@@ -149,16 +211,28 @@ export default function OperationsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {lowestStock.map((device) => (
-                  <div key={device.id} className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground hover:text-foreground cursor-pointer hover:underline">
-                      {device.name}
-                    </span>
-                    <span className={device.stock < 25 ? "text-red-500 font-medium" : device.stock < 50 ? "text-yellow-500 font-medium" : ""}>
-                      {device.stock}%
-                    </span>
-                  </div>
-                ))}
+                {devicesWithStock.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No stock data available</p>
+                ) : (
+                  devicesWithStock.map((device) => (
+                    <div key={device.deviceId} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground hover:text-foreground cursor-pointer hover:underline truncate max-w-[200px]">
+                        {device.deviceName || device.deviceId}
+                      </span>
+                      <span
+                        className={
+                          device.stockPercent < 25
+                            ? "text-red-500 font-medium"
+                            : device.stockPercent < 50
+                            ? "text-yellow-500 font-medium"
+                            : ""
+                        }
+                      >
+                        {device.stockPercent}%
+                      </span>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
@@ -180,12 +254,14 @@ export default function OperationsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <Input
-                placeholder="Filter by ID..."
+                placeholder="Filter by ID or name..."
                 className="max-w-xs"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
               />
-              <Button variant="outline" size="sm">
-                Columns
-              </Button>
+              <span className="text-sm text-muted-foreground">
+                {filteredDevices.length} device{filteredDevices.length !== 1 ? "s" : ""}
+              </span>
             </div>
           </CardHeader>
           <CardContent>
@@ -201,38 +277,68 @@ export default function OperationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockDevices.map((device) => (
-                  <TableRow key={device.id}>
-                    <TableCell className="font-medium">{device.id}</TableCell>
-                    <TableCell>{device.name}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="default">View</Button>
-                        <Button size="sm" variant="outline">Edit</Button>
-                      </div>
+                {filteredDevices.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      No devices found
                     </TableCell>
-                    <TableCell>
-                      <Badge variant={device.status === "ON" ? "success" : "destructive"}>
-                        {device.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-16 rounded-full bg-secondary">
-                          <div
-                            className={`h-2 rounded-full ${
-                              device.stock < 25 ? "bg-red-500" :
-                              device.stock < 50 ? "bg-yellow-500" : "bg-green-500"
-                            }`}
-                            style={{ width: `${device.stock}%` }}
-                          />
-                        </div>
-                        <span className="text-sm">{device.stock}%</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{device.lastSeen}</TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredDevices.map((device) => {
+                    const stockPercent =
+                      device.cupStock != null ? Math.round((device.cupStock / 100) * 100) : null;
+
+                    return (
+                      <TableRow key={device.deviceId}>
+                        <TableCell className="font-medium">{device.deviceId}</TableCell>
+                        <TableCell>{device.deviceName || "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Link href={`/dashboard/sales/equipment/${device.id}`}>
+                              <Button size="sm" variant="default">
+                                View
+                              </Button>
+                            </Link>
+                            <Link href={`/dashboard/sales/equipment/${device.id}`}>
+                              <Button size="sm" variant="outline">
+                                Edit
+                              </Button>
+                            </Link>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={device.isActive ? "success" : "destructive"}>
+                            {device.isActive ? "ON" : "OFF"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {stockPercent !== null ? (
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-16 rounded-full bg-secondary">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    stockPercent < 25
+                                      ? "bg-red-500"
+                                      : stockPercent < 50
+                                      ? "bg-yellow-500"
+                                      : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(stockPercent, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-sm">{stockPercent}%</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatLastSeen(device.lastSeenAt)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </CardContent>

@@ -22,10 +22,36 @@ export async function GET(request) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Get stock data for all devices
+    const stockData = await db.stock.findMany({
+      select: {
+        deviceId: true,
+        quantity: true,
+        maxStock: true,
+        lastSaleAt: true,
+      },
+    });
+
+    // Create a map for quick lookup
+    const stockMap = new Map();
+    stockData.forEach((s) => {
+      stockMap.set(s.deviceId, s);
+    });
+
+    // Merge stock data with devices
+    const devicesWithStock = devices.map((device) => {
+      const stock = stockMap.get(device.deviceId);
+      return {
+        ...device,
+        cupStock: stock ? Math.round((stock.quantity / stock.maxStock) * 100) : null,
+        lastSeenAt: stock?.lastSaleAt || null,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      devices: devices,
-      count: devices.length,
+      devices: devicesWithStock,
+      count: devicesWithStock.length,
     });
   } catch (error) {
     console.error('Error fetching devices:', error);

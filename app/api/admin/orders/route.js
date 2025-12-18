@@ -10,6 +10,8 @@ export async function GET(request) {
     const payWay = searchParams.get('payWay'); // Filter by payment method (cash, card, etc.)
     const deviceId = searchParams.get('deviceId');
     const limit = parseInt(searchParams.get('limit') || '100');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     // Build where clause
     const where = { isSuccess: true };
@@ -18,6 +20,17 @@ export async function GET(request) {
     }
     if (deviceId) {
       where.deviceId = deviceId;
+    }
+
+    // Add date range filter
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.createdAt.lte = new Date(endDate);
+      }
     }
 
     // Fetch orders

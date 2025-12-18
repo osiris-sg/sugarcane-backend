@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -10,7 +10,7 @@ import {
   XCircle,
   RotateCcw,
   Calendar,
-  ChevronDown,
+  Monitor,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,40 +22,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Mock data - will be replaced with real API data
-const mockData = {
-  payments: {
-    succeeded: 156,
-    refunded: 3,
-    failed: 2,
-    total: 161,
-  },
-  grossVolume: {
-    amount: 6010.75,
-    change: 2.8,
-    isPositive: true,
-    data: [4200, 4800, 5100, 4900, 5500, 5800, 6010],
-  },
-  netVolume: {
-    amount: 3677.42,
-    change: -16.75,
-    isPositive: false,
-    data: [3800, 4100, 4300, 4000, 3900, 3800, 3677],
-  },
-  failedPayments: [
-    { id: "PAY-001", amount: 8.00, date: "2 hours ago", reason: "Card declined" },
-    { id: "PAY-002", amount: 8.00, date: "5 hours ago", reason: "Insufficient funds" },
-  ],
-  newCustomers: {
-    count: 0,
-    data: [5, 8, 3, 12, 7, 4, 0],
-  },
-  topCustomers: [
-    { name: "Customer A", email: "a@email.com", spend: 3034.50 },
-    { name: "Customer B", email: "b@email.com", spend: 2122.00 },
-    { name: "Customer C", email: "c@email.com", spend: 854.25 },
-  ],
-};
+// Helper to get date range based on filter
+function getDateRange(dateRange) {
+  const now = new Date();
+  let days = 7;
+  switch (dateRange) {
+    case "24h": days = 1; break;
+    case "7d": days = 7; break;
+    case "30d": days = 30; break;
+    case "90d": days = 90; break;
+    default: days = 7;
+  }
+  const startDate = new Date(now);
+  startDate.setDate(now.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
+  return { startDate, endDate: now, days };
+}
 
 function MiniLineChart({ data, color = "#22c55e", height = 40 }) {
   const max = Math.max(...data);
@@ -128,6 +110,133 @@ export default function SalesOverviewPage() {
   const [dateRange, setDateRange] = useState("7d");
   const [interval, setInterval] = useState("daily");
   const [compareEnabled, setCompareEnabled] = useState(false);
+  const [devices, setDevices] = useState([]);
+  const [selectedDevice, setSelectedDevice] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [salesData, setSalesData] = useState({
+    grossVolume: { amount: 0, change: 0, isPositive: true, data: [] },
+    netVolume: { amount: 0, change: 0, isPositive: true, data: [] },
+    payments: { succeeded: 0, refunded: 0, failed: 0, total: 0 },
+    dailyData: [],
+  });
+
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  useEffect(() => {
+    fetchSalesData();
+  }, [dateRange, selectedDevice]);
+
+  async function fetchDevices() {
+    try {
+      const res = await fetch("/api/admin/devices");
+      const data = await res.json();
+      if (data.devices) {
+        setDevices(data.devices);
+      }
+    } catch (error) {
+      console.error("Error fetching devices:", error);
+    }
+  }
+
+  async function fetchSalesData() {
+    setLoading(true);
+    try {
+      const { startDate, endDate, days } = getDateRange(dateRange);
+
+      // Build query params
+      const params = new URLSearchParams({
+        period: "custom",
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+      if (selectedDevice !== "all") {
+        params.set("deviceId", selectedDevice);
+      }
+
+      // Fetch current period orders
+      const res = await fetch(`/api/admin/orders?${params.toString()}&limit=10000`);
+      const data = await res.json();
+
+      if (data.success) {
+        const orders = data.orders || [];
+
+        // Calculate gross volume (total successful sales)
+        const grossAmount = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
+
+        // Group orders by date for chart
+        const dailyTotals = {};
+        orders.forEach(order => {
+          const date = new Date(order.createdAt).toISOString().split('T')[0];
+          if (!dailyTotals[date]) {
+            dailyTotals[date] = 0;
+          }
+          dailyTotals[date] += order.amount || 0;
+        });
+
+        // Create array of daily data for chart (last N days)
+        const chartData = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toISOString().split('T')[0];
+          chartData.push(dailyTotals[dateStr] || 0);
+        }
+
+        // Fetch previous period for comparison
+        const prevStartDate = new Date(startDate);
+        prevStartDate.setDate(prevStartDate.getDate() - days);
+        const prevParams = new URLSearchParams({
+          period: "custom",
+          startDate: prevStartDate.toISOString(),
+          endDate: startDate.toISOString(),
+        });
+        if (selectedDevice !== "all") {
+          prevParams.set("deviceId", selectedDevice);
+        }
+
+        const prevRes = await fetch(`/api/admin/orders?${prevParams.toString()}&limit=10000`);
+        const prevData = await prevRes.json();
+        const prevOrders = prevData.orders || [];
+        const prevGrossAmount = prevOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+
+        // Calculate change percentage
+        let changePercent = 0;
+        if (prevGrossAmount > 0) {
+          changePercent = ((grossAmount - prevGrossAmount) / prevGrossAmount) * 100;
+        } else if (grossAmount > 0) {
+          changePercent = 100;
+        }
+
+        setSalesData({
+          grossVolume: {
+            amount: grossAmount / 100, // Convert cents to dollars
+            change: Math.abs(changePercent).toFixed(1),
+            isPositive: changePercent >= 0,
+            data: chartData.map(v => v / 100), // Convert to dollars
+          },
+          netVolume: {
+            amount: grossAmount / 100, // Same as gross for now (no refunds tracked)
+            change: Math.abs(changePercent).toFixed(1),
+            isPositive: changePercent >= 0,
+            data: chartData.map(v => v / 100),
+          },
+          payments: {
+            succeeded: orders.length,
+            refunded: 0,
+            failed: 0,
+            total: orders.length,
+          },
+          dailyData: chartData,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching sales data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,6 +253,23 @@ export default function SalesOverviewPage() {
 
         {/* Filters */}
         <div className="flex items-center gap-4 border-t bg-muted/30 px-6 py-3">
+          <div className="flex items-center gap-2">
+            <Monitor className="h-4 w-4 text-muted-foreground" />
+            <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select device" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Devices</SelectItem>
+                {devices.map((device) => (
+                  <SelectItem key={device.deviceId} value={device.deviceId}>
+                    {device.deviceName || device.deviceId}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <Select value={dateRange} onValueChange={setDateRange}>
@@ -192,7 +318,7 @@ export default function SalesOverviewPage() {
               <CardTitle className="text-base font-medium">Payments</CardTitle>
             </CardHeader>
             <CardContent>
-              <PaymentStatusBar {...mockData.payments} />
+              <PaymentStatusBar {...salesData.payments} />
             </CardContent>
           </Card>
 
@@ -204,30 +330,38 @@ export default function SalesOverviewPage() {
             <CardContent>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold">
-                  SGD {mockData.grossVolume.amount.toLocaleString("en-SG", {
+                  SGD {salesData.grossVolume.amount.toLocaleString("en-SG", {
                     minimumFractionDigits: 2,
                   })}
                 </span>
-                <span
-                  className={`flex items-center text-sm ${
-                    mockData.grossVolume.isPositive
-                      ? "text-green-500"
-                      : "text-red-500"
-                  }`}
-                >
-                  {mockData.grossVolume.isPositive ? (
-                    <TrendingUp className="mr-1 h-4 w-4" />
-                  ) : (
-                    <TrendingDown className="mr-1 h-4 w-4" />
-                  )}
-                  {mockData.grossVolume.change}%
-                </span>
+                {salesData.grossVolume.change > 0 && (
+                  <span
+                    className={`flex items-center text-sm ${
+                      salesData.grossVolume.isPositive
+                        ? "text-green-500"
+                        : "text-red-500"
+                    }`}
+                  >
+                    {salesData.grossVolume.isPositive ? (
+                      <TrendingUp className="mr-1 h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="mr-1 h-4 w-4" />
+                    )}
+                    {salesData.grossVolume.change}%
+                  </span>
+                )}
               </div>
               <div className="mt-4">
-                <MiniLineChart
-                  data={mockData.grossVolume.data}
-                  color={mockData.grossVolume.isPositive ? "#22c55e" : "#ef4444"}
-                />
+                {salesData.grossVolume.data.length > 0 ? (
+                  <MiniLineChart
+                    data={salesData.grossVolume.data}
+                    color={salesData.grossVolume.isPositive ? "#22c55e" : "#ef4444"}
+                  />
+                ) : (
+                  <div className="h-10 flex items-center justify-center text-sm text-muted-foreground">
+                    No data
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -240,30 +374,38 @@ export default function SalesOverviewPage() {
             <CardContent>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold">
-                  SGD {mockData.netVolume.amount.toLocaleString("en-SG", {
+                  SGD {salesData.netVolume.amount.toLocaleString("en-SG", {
                     minimumFractionDigits: 2,
                   })}
                 </span>
-                <span
-                  className={`flex items-center text-sm ${
-                    mockData.netVolume.isPositive
-                      ? "text-green-500"
-                      : "text-red-500"
-                  }`}
-                >
-                  {mockData.netVolume.isPositive ? (
-                    <TrendingUp className="mr-1 h-4 w-4" />
-                  ) : (
-                    <TrendingDown className="mr-1 h-4 w-4" />
-                  )}
-                  {Math.abs(mockData.netVolume.change)}%
-                </span>
+                {salesData.netVolume.change > 0 && (
+                  <span
+                    className={`flex items-center text-sm ${
+                      salesData.netVolume.isPositive
+                        ? "text-green-500"
+                        : "text-red-500"
+                    }`}
+                  >
+                    {salesData.netVolume.isPositive ? (
+                      <TrendingUp className="mr-1 h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="mr-1 h-4 w-4" />
+                    )}
+                    {salesData.netVolume.change}%
+                  </span>
+                )}
               </div>
               <div className="mt-4">
-                <MiniLineChart
-                  data={mockData.netVolume.data}
-                  color={mockData.netVolume.isPositive ? "#22c55e" : "#ef4444"}
-                />
+                {salesData.netVolume.data.length > 0 ? (
+                  <MiniLineChart
+                    data={salesData.netVolume.data}
+                    color={salesData.netVolume.isPositive ? "#22c55e" : "#ef4444"}
+                  />
+                ) : (
+                  <div className="h-10 flex items-center justify-center text-sm text-muted-foreground">
+                    No data
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -278,87 +420,54 @@ export default function SalesOverviewPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockData.failedPayments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No failed payments in this period
-                  </p>
-                ) : (
-                  mockData.failedPayments.map((payment) => (
-                    <div
-                      key={payment.id}
-                      className="flex items-center justify-between rounded-lg border p-3"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">
-                          SGD {payment.amount.toFixed(2)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {payment.reason}
-                        </p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {payment.date}
-                      </span>
-                    </div>
-                  ))
-                )}
+                <p className="text-sm text-muted-foreground">
+                  No failed payments tracked
+                </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* New Customers */}
+          {/* Orders by Payment Method */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">New Customers</CardTitle>
+              <CardTitle className="text-base font-medium">Payment Methods</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold">
-                  {mockData.newCustomers.count}
+                  {salesData.payments.succeeded}
                 </span>
-                <span className="text-sm text-muted-foreground">this period</span>
+                <span className="text-sm text-muted-foreground">total orders</span>
               </div>
-              <div className="mt-4">
-                <MiniLineChart
-                  data={mockData.newCustomers.data}
-                  color="#3b82f6"
-                />
-              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Cash & card payments combined
+              </p>
             </CardContent>
           </Card>
 
-          {/* Top Customers */}
+          {/* Top Devices */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-medium">
-                Top Customers by Spend
+                Selected Device
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockData.topCustomers.map((customer, index) => (
-                  <div
-                    key={customer.email}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{customer.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {customer.email}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="font-medium">
-                      SGD {customer.spend.toLocaleString("en-SG", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </span>
+                {selectedDevice === "all" ? (
+                  <p className="text-sm text-muted-foreground">
+                    Showing all devices. Select a specific device to see details.
+                  </p>
+                ) : (
+                  <div className="rounded-lg bg-muted/50 p-3">
+                    <p className="font-medium">
+                      {devices.find(d => d.deviceId === selectedDevice)?.deviceName || selectedDevice}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {salesData.payments.succeeded} orders · SGD {salesData.grossVolume.amount.toFixed(2)}
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -373,24 +482,28 @@ export default function SalesOverviewPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg bg-muted/50 p-4">
                 <p className="text-sm text-muted-foreground">Total Transactions</p>
-                <p className="text-2xl font-bold">{mockData.payments.total}</p>
+                <p className="text-2xl font-bold">{salesData.payments.total}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-4">
                 <p className="text-sm text-muted-foreground">Success Rate</p>
                 <p className="text-2xl font-bold">
-                  {((mockData.payments.succeeded / mockData.payments.total) * 100).toFixed(1)}%
+                  {salesData.payments.total > 0
+                    ? ((salesData.payments.succeeded / salesData.payments.total) * 100).toFixed(1)
+                    : 0}%
                 </p>
               </div>
               <div className="rounded-lg bg-muted/50 p-4">
                 <p className="text-sm text-muted-foreground">Avg Transaction</p>
                 <p className="text-2xl font-bold">
-                  SGD {(mockData.grossVolume.amount / mockData.payments.succeeded).toFixed(2)}
+                  SGD {salesData.payments.succeeded > 0
+                    ? (salesData.grossVolume.amount / salesData.payments.succeeded).toFixed(2)
+                    : "0.00"}
                 </p>
               </div>
               <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Refund Rate</p>
+                <p className="text-sm text-muted-foreground">Total Cups</p>
                 <p className="text-2xl font-bold">
-                  {((mockData.payments.refunded / mockData.payments.total) * 100).toFixed(1)}%
+                  {salesData.payments.succeeded}
                 </p>
               </div>
             </div>

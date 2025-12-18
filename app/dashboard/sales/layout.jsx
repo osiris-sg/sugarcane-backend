@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useClerk } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Monitor,
@@ -16,13 +16,14 @@ import {
   ClipboardList,
   FileText,
   RotateCcw,
-  AlertTriangle,
   BarChart3,
-  Package,
-  Menu as MenuIcon,
   ChevronLeft,
   ChevronDown,
   ChevronRight,
+  Users,
+  UserPlus,
+  Shield,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ const sidebarItems = [
     icon: Monitor,
     children: [
       { title: "Device List", href: "/dashboard/sales/equipment", icon: List },
-      { title: "Device Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers },
+      { title: "Device Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers, ownerOnly: true },
       { title: "Device Status", href: "/dashboard/sales/equipment/status", icon: Activity },
       { title: "Cash Records", href: "/dashboard/sales/equipment/cash", icon: Wallet },
     ],
@@ -58,28 +59,25 @@ const sidebarItems = [
     ],
   },
   {
-    title: "Fault Management",
-    icon: AlertTriangle,
+    title: "User Management",
+    icon: Users,
+    ownerOnly: true,
     children: [
-      { title: "Fault Log", href: "/dashboard/sales/faults", icon: FileText },
-      { title: "Fault Summary", href: "/dashboard/sales/faults/summary", icon: BarChart3 },
-    ],
-  },
-  {
-    title: "Sales Management",
-    icon: Package,
-    children: [
-      { title: "Product Management", href: "/dashboard/sales/products", icon: Package },
-      { title: "Sales Menu", href: "/dashboard/sales/menu", icon: MenuIcon },
+      { title: "User List", href: "/dashboard/sales/users", icon: List },
+      { title: "Add User", href: "/dashboard/sales/users/add", icon: UserPlus },
+      { title: "Roles", href: "/dashboard/sales/users/roles", icon: Shield },
     ],
   },
 ];
 
-function SidebarItem({ item, isCollapsed }) {
+function SidebarItem({ item, isCollapsed, isOwner }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const isActive = pathname === item.href;
-  const hasActiveChild = item.children?.some((child) => pathname === child.href);
+
+  // Filter children based on role
+  const visibleChildren = item.children?.filter(child => !child.ownerOnly || isOwner);
+  const hasActiveChild = visibleChildren?.some((child) => pathname === child.href);
 
   if (item.children) {
     return (
@@ -109,7 +107,7 @@ function SidebarItem({ item, isCollapsed }) {
         </CollapsibleTrigger>
         {!isCollapsed && (
           <CollapsibleContent className="pl-4 pt-1">
-            {item.children.map((child) => (
+            {visibleChildren.map((child) => (
               <Link
                 key={child.href}
                 href={child.href}
@@ -149,6 +147,12 @@ function SidebarItem({ item, isCollapsed }) {
 export default function SalesLayout({ children }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useUser();
+  const { signOut } = useClerk();
+  const role = user?.publicMetadata?.role || "franchisee";
+  const isOwner = role === "owner";
+
+  // Filter sidebar items based on role
+  const filteredItems = sidebarItems.filter(item => !item.ownerOnly || isOwner);
 
   return (
     <div className="flex min-h-screen">
@@ -182,13 +186,13 @@ export default function SalesLayout({ children }) {
 
         {/* Navigation */}
         <nav className="space-y-1 p-3">
-          {sidebarItems.map((item) => (
-            <SidebarItem key={item.title} item={item} isCollapsed={isCollapsed} />
+          {filteredItems.map((item) => (
+            <SidebarItem key={item.title} item={item} isCollapsed={isCollapsed} isOwner={isOwner} />
           ))}
         </nav>
 
-        {/* Back to Dashboard */}
-        <div className="absolute bottom-4 left-0 right-0 px-3">
+        {/* Bottom Section */}
+        <div className="absolute bottom-4 left-0 right-0 space-y-1 px-3">
           <Link
             href="/dashboard"
             className={cn(
@@ -199,6 +203,16 @@ export default function SalesLayout({ children }) {
             <ChevronLeft className="h-4 w-4" />
             {!isCollapsed && <span>Back to Dashboard</span>}
           </Link>
+          <button
+            onClick={() => signOut({ redirectUrl: "/sign-in" })}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600",
+              isCollapsed && "justify-center"
+            )}
+          >
+            <LogOut className="h-4 w-4" />
+            {!isCollapsed && <span>Logout</span>}
+          </button>
         </div>
       </aside>
 

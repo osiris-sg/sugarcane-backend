@@ -2,13 +2,15 @@
 
 export const dynamic = "force-dynamic";
 
-import { useUser } from "@clerk/nextjs";
-import { Settings, TrendingUp, Globe } from "lucide-react";
+import { useUser, useClerk } from "@clerk/nextjs";
+import { Settings, TrendingUp, Globe, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ManagementBox } from "@/components/dashboard/management-box";
 import { NavHeader } from "@/components/layout/nav-header";
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
 
   // Get role from user metadata (default to franchisee)
   const role = user?.publicMetadata?.role || "franchisee";
@@ -34,6 +36,15 @@ export default function DashboardPage() {
             <Globe className="h-4 w-4" />
             English
           </button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => signOut({ redirectUrl: "/sign-in" })}
+            className="text-red-600 hover:bg-red-100 hover:text-red-600"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Logout
+          </Button>
         </div>
       </header>
 

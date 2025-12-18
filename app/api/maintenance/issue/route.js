@@ -2,6 +2,29 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { sendStockAlert } from '@/app/api/telegram/send/route';
 
+// Fault code to name mapping (from TelegramHelper.smali)
+const FAULT_CODE_NAMES = {
+  'E316': 'Fruits out of stock',
+  'E40F': 'Juice sprout is always off in downward position',
+  'E410': 'Orange juice level sensor is always on',
+  'E411': 'Juice sensor keeps going OFF',
+  'E416': 'Lifting level motor reset sensor remains off',
+  'E41B': 'Sugarcane breakage and blockage',
+  'E41C': 'Sugarcane breaks during juicer processing',
+  'E50D': 'Out of Cups',
+  'E801': 'Initial position of sealer error',
+  'E802': 'Sealer did not finish sealing the cups',
+  'E803': 'Two sealing failures',
+  // Legacy/other codes
+  'E317': 'Delivery Error',
+  'E31C': 'Cup Sensor Error',
+  'E51A': 'Cup Drop Error',
+  'E909': 'Communication Error',
+  'AL48': 'Temperature Alarm',
+  'Z005': 'Door Open',
+  'Z014': 'Idle Status', // Filtered out
+};
+
 // In-memory cache for E50D debounce tracking
 // Format: { "deviceId": timestamp }
 const e50dLastSeen = new Map();
@@ -11,7 +34,7 @@ const E50D_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, type, faultCode, faultName, orderId, timeBlock } = body;
+    const { deviceId, deviceName, type, faultCode, faultName, orderId, timeBlock, priority } = body;
 
     if (!deviceId || !deviceName || !type) {
       return NextResponse.json(
@@ -69,6 +92,12 @@ export async function POST(request) {
       }, { status: 409 });
     }
 
+    // Use lookup table if faultName is missing or same as faultCode
+    let resolvedFaultName = faultName;
+    if (faultCode && (!faultName || faultName === faultCode)) {
+      resolvedFaultName = FAULT_CODE_NAMES[faultCode] || faultCode;
+    }
+
     // Create the issue
     const issue = await db.issue.create({
       data: {
@@ -76,9 +105,10 @@ export async function POST(request) {
         deviceName,
         type,
         faultCode,
-        faultName,
+        faultName: resolvedFaultName,
         orderId,
         timeBlock,
+        priority: priority || 1, // Default to low priority
         status: 'OPEN',
         triggeredAt: new Date()
       }
@@ -107,6 +137,7 @@ export async function GET(request) {
     const deviceId = searchParams.get('deviceId');
     const status = searchParams.get('status');
     const type = searchParams.get('type');
+    const priority = searchParams.get('priority');
 
     const where = {};
 
@@ -128,9 +159,13 @@ export async function GET(request) {
       where.type = type;
     }
 
+    if (priority) {
+      where.priority = parseInt(priority);
+    }
+
     const issues = await db.issue.findMany({
       where,
-      orderBy: { triggeredAt: 'desc' },
+      orderBy: [{ priority: 'desc' }, { triggeredAt: 'desc' }], // Sort by priority first, then by time
       take: 100
     });
 
