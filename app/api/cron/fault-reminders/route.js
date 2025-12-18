@@ -71,7 +71,7 @@ async function sendIssueAlert(message, issueId) {
 
   const replyMarkup = {
     inline_keyboard: [[
-      { text: '👀 Checking', callback_data: `checking:${issueId}` },
+      { text: '🟢 Machine OK', callback_data: `machine_ok:${issueId}` },
       { text: '✅ Resolved', callback_data: `resolve:${issueId}` },
       { text: '❌ Unresolved', callback_data: `unresolved:${issueId}` },
     ]]
@@ -146,8 +146,16 @@ export async function GET(request) {
     });
 
     // === 8AM DAILY SUMMARY ===
-    if (isFirstRunOfDay() && allUnresolvedIssues.length > 0) {
-      console.log(`[FaultReminders] Sending daily summary for ${allUnresolvedIssues.length} unresolved issues`);
+    // Get low stock items for summary
+    const lowStockItems = await db.stock.findMany({
+      where: { isLowStock: true },
+      orderBy: [{ priority: 'desc' }, { lowStockTriggeredAt: 'asc' }]
+    });
+
+    const totalUnresolved = allUnresolvedIssues.length + lowStockItems.length;
+
+    if (isFirstRunOfDay() && totalUnresolved > 0) {
+      console.log(`[FaultReminders] Sending daily summary for ${allUnresolvedIssues.length} issues + ${lowStockItems.length} low stock`);
 
       // Escalate LVL 2 issues to LVL 3 (they've been unresolved for another day)
       const lvl2Issues = allUnresolvedIssues.filter(i => i.priority === 2);
@@ -172,14 +180,14 @@ export async function GET(request) {
       const deviceErrors = allUnresolvedIssues.filter(i => i.type === 'DEVICE_ERROR');
       const zeroSales = allUnresolvedIssues.filter(i => i.type === 'ZERO_SALES');
 
-      // Count by priority for summary header
-      const lvl3Count = allUnresolvedIssues.filter(i => i.priority === 3).length;
-      const lvl2Count = allUnresolvedIssues.filter(i => i.priority === 2).length;
-      const lvl1Count = allUnresolvedIssues.filter(i => i.priority === 1).length;
+      // Count by priority for summary header (including low stock)
+      const lvl3Count = allUnresolvedIssues.filter(i => i.priority === 3).length + lowStockItems.filter(s => s.priority === 3).length;
+      const lvl2Count = allUnresolvedIssues.filter(i => i.priority === 2).length + lowStockItems.filter(s => s.priority === 2).length;
+      const lvl1Count = allUnresolvedIssues.filter(i => i.priority === 1).length + lowStockItems.filter(s => s.priority === 1).length;
 
       // Build summary message
       let summary = `📋 Daily Summary - Unresolved Issues\n\n`;
-      summary += `Total: ${allUnresolvedIssues.length} issue(s)`;
+      summary += `Total: ${totalUnresolved} issue(s)`;
       if (lvl3Count > 0) summary += ` | 🔴 ${lvl3Count} HIGH`;
       if (lvl2Count > 0) summary += ` | 🟠 ${lvl2Count} MED`;
       if (lvl1Count > 0) summary += ` | 🟡 ${lvl1Count} LOW`;
@@ -199,6 +207,16 @@ export async function GET(request) {
         for (const issue of zeroSales) {
           const lvlEmoji = issue.priority === 3 ? '🔴' : issue.priority === 2 ? '🟠' : '🟡';
           summary += `${lvlEmoji} ${issue.deviceName} - ${issue.timeBlock || 'Unknown'} [LVL ${issue.priority}]\n`;
+        }
+        summary += `\n`;
+      }
+
+      if (lowStockItems.length > 0) {
+        summary += `📦 Low Stock (${lowStockItems.length})\n`;
+        for (const stock of lowStockItems) {
+          const lvlEmoji = stock.priority === 3 ? '🔴' : stock.priority === 2 ? '🟠' : '🟡';
+          const percent = Math.round((stock.quantity / stock.maxStock) * 100);
+          summary += `${lvlEmoji} ${stock.deviceName} - ${percent}% (${stock.quantity}/${stock.maxStock}) [LVL ${stock.priority}]\n`;
         }
         summary += `\n`;
       }
@@ -223,7 +241,7 @@ export async function GET(request) {
       await db.notificationLog.create({
         data: {
           type: 'daily_summary',
-          message: `Daily summary: ${allUnresolvedIssues.length} unresolved issues`,
+          message: `Daily summary: ${allUnresolvedIssues.length} issues, ${lowStockItems.length} low stock`,
           recipients: 1,
         },
       });
@@ -232,6 +250,7 @@ export async function GET(request) {
         success: true,
         type: 'daily_summary',
         issuesCount: allUnresolvedIssues.length,
+        lowStockCount: lowStockItems.length,
         timestamp: now.toISOString(),
       });
     }

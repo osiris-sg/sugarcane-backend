@@ -62,7 +62,7 @@ export async function sendIssueAlert(message, issueId, category = 'STOCK') {
 
     const replyMarkup = {
       inline_keyboard: [[
-        { text: '👀 Checking', callback_data: `checking:${issueId}` },
+        { text: '🟢 Machine OK', callback_data: `machine_ok:${issueId}` },
         { text: '✅ Resolved', callback_data: `resolve:${issueId}` },
         { text: '❌ Unresolved', callback_data: `unresolved:${issueId}` },
       ]]

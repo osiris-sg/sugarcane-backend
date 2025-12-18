@@ -472,7 +472,7 @@ async function handleCallbackQuery(callbackQuery) {
       return;
     }
 
-    if (issue.status === 'RESOLVED' || issue.status === 'UNRESOLVED') {
+    if (issue.status === 'RESOLVED' || issue.status === 'UNRESOLVED' || issue.status === 'MACHINE_OK') {
       await answerCallbackQuery(callbackQuery.id, '⚠️ Issue already closed');
       return;
     }
@@ -518,22 +518,23 @@ async function handleCallbackQuery(callbackQuery) {
       );
       await answerCallbackQuery(callbackQuery.id, '❌ Marked as Unresolved - Escalated');
 
-    } else if (action === 'checking') {
+    } else if (action === 'machine_ok') {
       await db.issue.update({
         where: { id: issueId },
         data: {
-          status: 'CHECKING',
+          status: 'MACHINE_OK',
+          resolution: 'machine_ok',
+          resolvedAt: now,
           respondedAt: issue.respondedAt || now,
-          responseTimeMs: issue.responseTimeMs || (now.getTime() - new Date(issue.triggeredAt).getTime()),
+          resolutionTimeMs,
         }
       });
 
-      // Update the message to show someone is checking
+      // Update the message to show machine is OK
       await editMessageText(chatId, messageId,
-        callbackQuery.message.text + `\n\n👀 <b>CHECKING</b> - ${user.first_name} is on it`,
-        getIssueButtons(issueId, true) // Show resolve/unresolved buttons
+        callbackQuery.message.text + `\n\n🟢 <b>MACHINE OK</b> by ${user.first_name} at ${now.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}`
       );
-      await answerCallbackQuery(callbackQuery.id, '👀 Marked as Checking');
+      await answerCallbackQuery(callbackQuery.id, '🟢 Marked as Machine OK!');
     }
 
   } catch (error) {
@@ -584,20 +585,10 @@ async function editMessageText(chatId, messageId, text, replyMarkup = null) {
 }
 
 // Get inline keyboard buttons for an issue
-function getIssueButtons(issueId, isChecking = false) {
-  if (isChecking) {
-    // Show resolve/unresolved buttons
-    return {
-      inline_keyboard: [[
-        { text: '✅ Resolved', callback_data: `resolve:${issueId}` },
-        { text: '❌ Unresolved', callback_data: `unresolved:${issueId}` },
-      ]]
-    };
-  }
-  // Show checking button first
+function getIssueButtons(issueId) {
   return {
     inline_keyboard: [[
-      { text: '👀 Checking', callback_data: `checking:${issueId}` },
+      { text: '🟢 Machine OK', callback_data: `machine_ok:${issueId}` },
       { text: '✅ Resolved', callback_data: `resolve:${issueId}` },
       { text: '❌ Unresolved', callback_data: `unresolved:${issueId}` },
     ]]

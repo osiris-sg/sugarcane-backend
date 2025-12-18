@@ -89,6 +89,14 @@ model Stock {
   lastAlertAt DateTime?              // When last recurring alert was sent
   alertLevel  String?                // Current alert level (25/15/0)
   lastSaleAt  DateTime?              // When last sale occurred (for zero sales alert)
+
+  // Low stock tracking (same escalation as issues)
+  isLowStock          Boolean   @default(false)  // Currently in low stock state
+  lowStockTriggeredAt DateTime?                  // When low stock was first detected
+  priority            Int       @default(1)      // 1=Low, 2=Med, 3=High
+  remindersTodayCount Int       @default(0)      // Reminders sent today (max 3)
+  reminderResetDate   DateTime?                  // Date when counter was last reset
+
   updatedAt   DateTime  @updatedAt
   createdAt   DateTime  @default(now())
 
@@ -163,6 +171,7 @@ enum IssueStatus {
   CHECKING        // Staff is checking (responded)
   RESOLVED        // Issue resolved
   UNRESOLVED      // Issue not resolved, escalated to manager
+  MACHINE_OK      // Machine is working fine (false alarm)
 }
 
 // Issue tracking for device errors and zero sales
