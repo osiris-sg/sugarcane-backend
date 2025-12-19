@@ -62,7 +62,7 @@ export default function UsersPage() {
   // Redirect non-owners
   const role = user?.publicMetadata?.role || "franchisee";
   if (isLoaded && role !== "owner") {
-    redirect("/dashboard/sales");
+    redirect("/dashboard/operations");
   }
 
   useEffect(() => {

@@ -10,6 +10,9 @@ import { redirect } from "next/navigation";
 import {
   LayoutDashboard,
   AlertTriangle,
+  Wrench,
+  Users,
+  Truck,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -27,6 +30,21 @@ const sidebarItems = [
     title: "Faults",
     href: "/dashboard/operations/faults",
     icon: AlertTriangle,
+  },
+  {
+    title: "Maintenance Logs",
+    href: "/dashboard/operations/maintenance-logs",
+    icon: Wrench,
+  },
+  {
+    title: "Driver Assignment",
+    href: "/dashboard/operations/driver-assignment",
+    icon: Truck,
+  },
+  {
+    title: "User Management",
+    href: "/dashboard/operations/users",
+    icon: Users,
   },
 ];
 

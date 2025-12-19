@@ -9,8 +9,12 @@
       "schedule": "0 2,4,6,8,10,12 * * *"
     },
     {
-      "path": "/api/cron/fault-reminders",
+      "path": "/api/cron/hourly-summary",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-summary",
+      "schedule": "0 0 * * *"
     }
   ]
 }

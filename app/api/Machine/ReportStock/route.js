@@ -24,8 +24,8 @@ async function sendTelegramMessage(chatId, text) {
 
 // Send stock change notification to STOCK subscribers
 async function sendStockChangeNotification(deviceName, deviceId, previousQty, newQty, change, reason, maxStock = 80) {
-  // Only notify for non-sale changes (topup, remove, convert, adjustment)
-  if (reason === 'sale') return;
+  // Only notify for non-sale and non-convert changes (convert uses ReportConversion endpoint)
+  if (reason === 'sale' || reason === 'convert') return;
 
   const subscribers = await db.subscriber.findMany({
     where: {
@@ -35,38 +35,34 @@ async function sendStockChangeNotification(deviceName, deviceId, previousQty, ne
 
   if (subscribers.length === 0) return;
 
-  const percent = Math.round((newQty / maxStock) * 100);
+  // Format timestamp in Singapore timezone
+  const now = new Date();
+  const timestamp = now.toLocaleString('en-SG', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).replace(',', '');
 
-  // Determine emoji and title based on reason
-  let emoji = '📦';
-  let title = 'STOCK CHANGE';
-  let changeText = `${change > 0 ? '+' : ''}${change}`;
-
-  switch (reason) {
-    case 'topup':
-      emoji = '📦';
-      title = 'STOCK ADDED';
-      break;
-    case 'remove':
-      emoji = '📤';
-      title = 'STOCK REMOVED';
-      break;
-    case 'convert':
-      emoji = '🔄';
-      title = 'STOCK CONVERTED';
-      break;
-    case 'adjustment':
-      emoji = '🔧';
-      title = 'STOCK ADJUSTED';
-      break;
+  // Determine change line based on positive/negative
+  let changeLine;
+  if (change > 0) {
+    changeLine = `➕ Added: +${change} pcs`;
+  } else {
+    changeLine = `➖ Removed: ${change} pcs`;
   }
 
-  const message = `${emoji} <b>${title}</b>
+  const message = `✅ <b>Stock Level Updated</b>
 
-📍 <b>${deviceName}</b>
 🎯 Device ID: ${deviceId}
-📊 Stock: <b>${previousQty} → ${newQty}</b> (${changeText})
-📈 Level: <b>${percent}%</b> (${newQty}/${maxStock})`;
+📍 Device Name: ${deviceName}
+${changeLine}
+📦 New Total: ${newQty} pcs
+🕒 Time: ${timestamp}`;
 
   console.log(`[ReportStock] Sending ${reason} notification to ${subscribers.length} subscribers`);
 
@@ -80,7 +76,7 @@ async function sendStockChangeNotification(deviceName, deviceId, previousQty, ne
       type: `stock_${reason}`,
       deviceId: String(deviceId),
       deviceName,
-      message: `${title}: ${previousQty} → ${newQty}`,
+      message: `Stock ${change > 0 ? 'Added' : 'Removed'}: ${change > 0 ? '+' : ''}${change}, New Total: ${newQty}`,
       recipients: subscribers.length,
     },
   });

@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { db } from '../../../../lib/db/index.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const MAINTENANCE_PASSWORD = process.env.MAINTENANCE_PASSWORD || 'admin123';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+// Valid roles
+const VALID_ROLES = ['ADMIN', 'OPSMANAGER', 'DAYOPS', 'NIGHTOPS'];
 
 // Send message to Telegram
 async function sendMessage(chatId, text, options = {}) {
@@ -28,10 +31,7 @@ async function sendMessage(chatId, text, options = {}) {
 async function handleStart(chatId, firstName) {
   const message = `👋 Welcome ${firstName || 'there'}!
 
-I'm the <b>Sugarcane Alert Bot</b>. I can notify you about:
-
-📦 <b>Stock Alerts</b> - Low stock & fault notifications
-🔧 <b>Maintenance Alerts</b> - Maintenance login activity (admin only)
+I'm the <b>Sugarcane Alert Bot</b>. I can notify you about device alerts, stock levels, and more.
 
 <b>Stock Commands:</b>
 /stock - View all device stock levels
@@ -46,12 +46,17 @@ I'm the <b>Sugarcane Alert Bot</b>. I can notify you about:
 /history - Recent stock changes
 /setmax [deviceId] [max] - Set max stock
 
-<b>Subscription Commands:</b>
-/subscribe stock - Get stock & fault alerts
-/subscribe maintenance - Get maintenance alerts
-/unsubscribe stock - Stop stock alerts
-/unsubscribe maintenance - Stop maintenance alerts
-/status - View your subscriptions
+<b>Role Commands:</b>
+/subscribe [role] - Subscribe with a role
+/unsubscribe - Remove your subscription
+/status - View your current role
+
+<b>Available Roles:</b>
+• admin - Full access (requires password)
+• opsmanager - Operations manager
+• dayops - Day shift operations
+• nightops - Night shift operations
+
 /help - Show this help message`;
 
   await sendMessage(chatId, message);
@@ -285,38 +290,39 @@ async function handleStatus(chatId) {
     where: { chatId: String(chatId) },
   });
 
-  if (!subscriber || subscriber.categories.length === 0) {
-    await sendMessage(chatId, '📭 You are not subscribed to any alerts.\n\nUse /subscribe stock or /subscribe maintenance to get started.');
+  if (!subscriber || !subscriber.role) {
+    await sendMessage(chatId, '📭 You are not subscribed.\n\nUse /subscribe [role] to get started.\n\nAvailable roles: admin, opsmanager, dayops, nightops');
     return;
   }
 
-  const categories = subscriber.categories.map(c => {
-    if (c === 'STOCK') return '📦 Stock & Fault Alerts';
-    if (c === 'MAINTENANCE') return '🔧 Maintenance Alerts';
-    return c;
-  });
+  const roleNames = {
+    'ADMIN': '👑 Admin - Full access',
+    'OPSMANAGER': '📊 Operations Manager',
+    'DAYOPS': '☀️ Day Ops',
+    'NIGHTOPS': '🌙 Night Ops'
+  };
 
-  await sendMessage(chatId, `✅ <b>Your Subscriptions:</b>\n\n${categories.join('\n')}`);
+  await sendMessage(chatId, `✅ <b>Your Role:</b>\n\n${roleNames[subscriber.role] || subscriber.role}`);
 }
 
 // Handle /subscribe command
-async function handleSubscribe(chatId, category, user) {
+async function handleSubscribe(chatId, role, user) {
   const chatIdStr = String(chatId);
 
-  if (!category) {
-    await sendMessage(chatId, '❓ Please specify a category:\n\n/subscribe stock\n/subscribe maintenance');
+  if (!role) {
+    await sendMessage(chatId, '❓ Please specify a role:\n\n/subscribe admin\n/subscribe opsmanager\n/subscribe dayops\n/subscribe nightops');
     return;
   }
 
-  const cat = category.toUpperCase();
+  const roleUpper = role.toUpperCase();
 
-  if (cat !== 'STOCK' && cat !== 'MAINTENANCE') {
-    await sendMessage(chatId, '❌ Invalid category. Use:\n\n/subscribe stock\n/subscribe maintenance');
+  if (!VALID_ROLES.includes(roleUpper)) {
+    await sendMessage(chatId, '❌ Invalid role. Use:\n\n/subscribe admin\n/subscribe opsmanager\n/subscribe dayops\n/subscribe nightops');
     return;
   }
 
-  // For maintenance, require password
-  if (cat === 'MAINTENANCE') {
+  // For admin, require password
+  if (roleUpper === 'ADMIN') {
     // Create pending verification
     await db.pendingVerification.deleteMany({ where: { chatId: chatIdStr } });
     await db.pendingVerification.create({
@@ -326,22 +332,22 @@ async function handleSubscribe(chatId, category, user) {
       },
     });
 
-    await sendMessage(chatId, '🔐 <b>Maintenance subscription requires admin password.</b>\n\nPlease reply with the password:');
+    await sendMessage(chatId, '🔐 <b>Admin role requires password.</b>\n\nPlease reply with the password:');
     return;
   }
 
-  // Subscribe to STOCK
+  // Subscribe with role
   let subscriber = await db.subscriber.findUnique({ where: { chatId: chatIdStr } });
 
   if (subscriber) {
-    if (subscriber.categories.includes(cat)) {
-      await sendMessage(chatId, '✅ You are already subscribed to stock alerts.');
+    if (subscriber.role === roleUpper) {
+      await sendMessage(chatId, `✅ You already have the ${role} role.`);
       return;
     }
 
     await db.subscriber.update({
       where: { chatId: chatIdStr },
-      data: { categories: { push: cat } },
+      data: { role: roleUpper },
     });
   } else {
     await db.subscriber.create({
@@ -350,53 +356,40 @@ async function handleSubscribe(chatId, category, user) {
         username: user.username,
         firstName: user.first_name,
         lastName: user.last_name,
-        categories: [cat],
+        role: roleUpper,
       },
     });
   }
 
-  await sendMessage(chatId, '✅ <b>Subscribed to Stock & Fault Alerts!</b>\n\nYou will receive notifications about:\n• Low stock warnings (50% and 25%)\n• Device faults');
+  const roleNames = {
+    'OPSMANAGER': 'Operations Manager',
+    'DAYOPS': 'Day Ops',
+    'NIGHTOPS': 'Night Ops'
+  };
+
+  await sendMessage(chatId, `✅ <b>Subscribed as ${roleNames[roleUpper]}!</b>\n\nYou will receive notifications based on your role.`);
 }
 
 // Handle /unsubscribe command
-async function handleUnsubscribe(chatId, category) {
+async function handleUnsubscribe(chatId) {
   const chatIdStr = String(chatId);
-
-  if (!category) {
-    await sendMessage(chatId, '❓ Please specify a category:\n\n/unsubscribe stock\n/unsubscribe maintenance');
-    return;
-  }
-
-  const cat = category.toUpperCase();
-
-  if (cat !== 'STOCK' && cat !== 'MAINTENANCE') {
-    await sendMessage(chatId, '❌ Invalid category. Use:\n\n/unsubscribe stock\n/unsubscribe maintenance');
-    return;
-  }
 
   const subscriber = await db.subscriber.findUnique({ where: { chatId: chatIdStr } });
 
-  if (!subscriber || !subscriber.categories.includes(cat)) {
-    await sendMessage(chatId, `❌ You are not subscribed to ${category.toLowerCase()} alerts.`);
+  if (!subscriber || !subscriber.role) {
+    await sendMessage(chatId, '❌ You are not subscribed.');
     return;
   }
 
-  const newCategories = subscriber.categories.filter(c => c !== cat);
+  await db.subscriber.update({
+    where: { chatId: chatIdStr },
+    data: { role: null },
+  });
 
-  if (newCategories.length === 0) {
-    await db.subscriber.delete({ where: { chatId: chatIdStr } });
-  } else {
-    await db.subscriber.update({
-      where: { chatId: chatIdStr },
-      data: { categories: newCategories },
-    });
-  }
-
-  const name = cat === 'STOCK' ? 'Stock & Fault' : 'Maintenance';
-  await sendMessage(chatId, `✅ Unsubscribed from ${name} alerts.`);
+  await sendMessage(chatId, '✅ You have been unsubscribed. You will no longer receive notifications.');
 }
 
-// Handle password verification for maintenance
+// Handle password verification for admin role
 async function handlePasswordVerification(chatId, password, user) {
   const chatIdStr = String(chatId);
 
@@ -412,25 +405,23 @@ async function handlePasswordVerification(chatId, password, user) {
   await db.pendingVerification.delete({ where: { chatId: chatIdStr } });
 
   if (pending.expiresAt < new Date()) {
-    await sendMessage(chatId, '⏰ Verification expired. Please use /subscribe maintenance again.');
+    await sendMessage(chatId, '⏰ Verification expired. Please use /subscribe admin again.');
     return true;
   }
 
-  if (password !== MAINTENANCE_PASSWORD) {
-    await sendMessage(chatId, '❌ Incorrect password. Please use /subscribe maintenance to try again.');
+  if (password !== ADMIN_PASSWORD) {
+    await sendMessage(chatId, '❌ Incorrect password. Please use /subscribe admin to try again.');
     return true;
   }
 
-  // Subscribe to maintenance
+  // Subscribe as admin
   let subscriber = await db.subscriber.findUnique({ where: { chatId: chatIdStr } });
 
   if (subscriber) {
-    if (!subscriber.categories.includes('MAINTENANCE')) {
-      await db.subscriber.update({
-        where: { chatId: chatIdStr },
-        data: { categories: { push: 'MAINTENANCE' } },
-      });
-    }
+    await db.subscriber.update({
+      where: { chatId: chatIdStr },
+      data: { role: 'ADMIN' },
+    });
   } else {
     await db.subscriber.create({
       data: {
@@ -438,12 +429,12 @@ async function handlePasswordVerification(chatId, password, user) {
         username: user.username,
         firstName: user.first_name,
         lastName: user.last_name,
-        categories: ['MAINTENANCE'],
+        role: 'ADMIN',
       },
     });
   }
 
-  await sendMessage(chatId, '✅ <b>Subscribed to Maintenance Alerts!</b>\n\nYou will receive notifications about:\n• Maintenance mode logins\n• Stock top-ups');
+  await sendMessage(chatId, '✅ <b>Subscribed as Admin!</b>\n\nYou will receive all notifications.');
   return true;
 }
 
@@ -465,6 +456,16 @@ async function handleCallbackQuery(callbackQuery) {
   }
 
   try {
+    // Check if user has permission to use buttons (ADMIN or OPSMANAGER only)
+    const subscriber = await db.subscriber.findUnique({
+      where: { chatId: String(chatId) },
+    });
+
+    if (!subscriber || (subscriber.role !== 'ADMIN' && subscriber.role !== 'OPSMANAGER')) {
+      await answerCallbackQuery(callbackQuery.id, '⛔ Only Admin or OpsManager can resolve issues');
+      return;
+    }
+
     const issue = await db.issue.findUnique({ where: { id: issueId } });
 
     if (!issue) {
@@ -636,9 +637,7 @@ export async function POST(request) {
       const category = parts[1];
       await handleSubscribe(chatId, category, user);
     } else if (text.startsWith('/unsubscribe')) {
-      const parts = text.split(/\s+/);
-      const category = parts[1];
-      await handleUnsubscribe(chatId, category);
+      await handleUnsubscribe(chatId);
     } else if (text.startsWith('/stock')) {
       const parts = text.split(/\s+/);
       const arg = parts[1];

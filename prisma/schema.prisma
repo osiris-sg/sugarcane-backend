@@ -10,24 +10,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Telegram subscriber categories
-enum SubscriptionCategory {
-  STOCK       // Stock level and fault alerts
-  MAINTENANCE // Maintenance activity (requires password)
+// Telegram subscriber roles
+enum SubscriberRole {
+  ADMIN       // Full access to all notifications
+  OPSMANAGER  // Operations manager
+  DAYOPS      // Day shift operations
+  NIGHTOPS    // Night shift operations
 }
 
 // Telegram subscribers
 model Subscriber {
-  id           String               @id @default(cuid())
-  chatId       String               @unique
+  id           String          @id @default(cuid())
+  chatId       String          @unique
   username     String?
   firstName    String?
   lastName     String?
-  categories   SubscriptionCategory[]
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  role         SubscriberRole?  // null = pending approval
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   @@index([chatId])
+  @@index([role])
 }
 
 // Pending password verification for maintenance subscription
@@ -70,13 +73,15 @@ model Device {
   location    String?           // Location (e.g., "116 Jln Tenteram")
   price       Int               // Price in cents (e.g., 250 = $2.50)
   isActive    Boolean  @default(true)
-  groupId     String?           // Foreign key to Group
+  groupId     String?           // Foreign key to Group (Franchisee)
   group       Group?   @relation(fields: [groupId], references: [id])
+  driverId    String?           // Clerk user ID for assigned driver
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([deviceId])
   @@index([groupId])
+  @@index([driverId])
 }
 
 // Stock levels for each device

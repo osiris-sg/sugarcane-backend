@@ -31,21 +31,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-// Helper to format relative time
-function formatTime(dateString) {
+// Helper to format date/time in Singapore timezone
+function formatDateTime(dateString) {
   if (!dateString) return "-";
   const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-
-  if (diffSec < 60) return `${diffSec} sec ago`;
-  if (diffMin < 60) return `${diffMin} min ago`;
-  if (diffHour < 24) return `${diffHour} hour${diffHour > 1 ? "s" : ""} ago`;
-  return `${diffDay} day${diffDay > 1 ? "s" : ""} ago`;
+  return date.toLocaleString("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 // Priority badge component
@@ -334,12 +332,13 @@ export default function FaultsPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Triggered</TableHead>
+                  <TableHead>Resolved At</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredIssues.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       No faults found
                     </TableCell>
                   </TableRow>
@@ -365,8 +364,11 @@ export default function FaultsPage() {
                       <TableCell>
                         <StatusBadge status={issue.status} />
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatTime(issue.triggeredAt)}
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatDateTime(issue.triggeredAt)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatDateTime(issue.resolvedAt)}
                       </TableCell>
                     </TableRow>
                   ))

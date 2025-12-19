@@ -54,6 +54,36 @@ export async function POST(request) {
       });
 
       console.log(`[UploadOrder] Updated lastSaleAt for device ${deviceId}`);
+
+      // Auto-resolve any open ZERO_SALES issues for this device
+      const openZeroSalesIssues = await db.issue.findMany({
+        where: {
+          deviceId,
+          type: 'ZERO_SALES',
+          status: { in: ['OPEN', 'CHECKING'] },
+        },
+      });
+
+      if (openZeroSalesIssues.length > 0) {
+        const now = new Date();
+        for (const issue of openZeroSalesIssues) {
+          const resolutionTimeMs = issue.respondedAt
+            ? now.getTime() - new Date(issue.respondedAt).getTime()
+            : null;
+
+          await db.issue.update({
+            where: { id: issue.id },
+            data: {
+              status: 'RESOLVED',
+              resolution: 'auto_resolved_by_sale',
+              resolvedAt: now,
+              resolutionTimeMs,
+            },
+          });
+
+          console.log(`[UploadOrder] Auto-resolved zero sales issue for ${deviceId} (${issue.timeBlock})`);
+        }
+      }
     }
 
     console.log('[UploadOrder] Order saved:', saved.id);

@@ -24,6 +24,9 @@ async function sendTelegramMessage(chatId, text) {
 
 // Send storage change notification to STOCK subscribers
 async function sendStorageChangeNotification(deviceName, deviceId, previousQty, newQty, change, reason) {
+  // Skip convert notifications (handled by ReportConversion endpoint)
+  if (reason === 'convert') return;
+
   const subscribers = await db.subscriber.findMany({
     where: {
       categories: { has: 'STOCK' },
@@ -32,31 +35,34 @@ async function sendStorageChangeNotification(deviceName, deviceId, previousQty, 
 
   if (subscribers.length === 0) return;
 
-  // Determine emoji and title based on reason
-  let emoji = '🗃️';
-  let title = 'STORAGE CHANGE';
-  let changeText = `${change > 0 ? '+' : ''}${change}`;
+  // Format timestamp in Singapore timezone
+  const now = new Date();
+  const timestamp = now.toLocaleString('en-SG', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).replace(',', '');
 
-  switch (reason) {
-    case 'add':
-      emoji = '🗃️';
-      title = 'STORAGE ADDED';
-      break;
-    case 'remove':
-      emoji = '📤';
-      title = 'STORAGE REMOVED';
-      break;
-    case 'convert':
-      emoji = '🔄';
-      title = 'STORAGE CONVERTED';
-      break;
+  // Determine change line based on positive/negative
+  let changeLine;
+  if (change > 0) {
+    changeLine = `➕ Added: +${change} pcs`;
+  } else {
+    changeLine = `➖ Removed: ${change} pcs`;
   }
 
-  const message = `${emoji} <b>${title}</b>
+  const message = `✅ <b>Storage Level Updated</b>
 
-📍 <b>${deviceName}</b>
 🎯 Device ID: ${deviceId}
-📦 Storage: <b>${previousQty} → ${newQty}</b> (${changeText})`;
+📍 Device Name: ${deviceName}
+${changeLine}
+📦 New Total: ${newQty} pcs
+🕒 Time: ${timestamp}`;
 
   console.log(`[ReportStorage] Sending ${reason} notification to ${subscribers.length} subscribers`);
 
@@ -70,7 +76,7 @@ async function sendStorageChangeNotification(deviceName, deviceId, previousQty, 
       type: `storage_${reason}`,
       deviceId: String(deviceId),
       deviceName,
-      message: `${title}: ${previousQty} → ${newQty}`,
+      message: `Storage ${change > 0 ? 'Added' : 'Removed'}: ${change > 0 ? '+' : ''}${change}, New Total: ${newQty}`,
       recipients: subscribers.length,
     },
   });
