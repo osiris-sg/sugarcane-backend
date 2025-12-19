@@ -76,6 +76,12 @@ model Device {
   groupId     String?           // Foreign key to Group (Franchisee)
   group       Group?   @relation(fields: [groupId], references: [id])
   driverId    String?           // Clerk user ID for assigned driver
+
+  // Temperature readings (updated on each D002 event)
+  refrigerationTemp   Float?    // Refrigeration compartment temperature
+  machineTemp         Float?    // Machine/ambient temperature
+  tempUpdatedAt       DateTime? // When temperature was last updated
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -267,4 +273,37 @@ model Temperature {
   createdAt           DateTime @default(now())
 
   @@index([deviceId, createdAt])
+}
+
+// Temperature alert types
+enum TemperatureAlertType {
+  TEMPERATURE_RISING    // Temp still rising after 5 min post Z008->D002
+  THRESHOLD_EXCEEDED    // Temp above configured threshold
+}
+
+// Temperature alert status
+enum TemperatureAlertStatus {
+  OPEN        // Alert created, needs attention
+  ACKNOWLEDGED // Staff has seen it
+  RESOLVED    // Issue resolved
+}
+
+// Temperature alerts (when temp anomaly detected)
+model TemperatureAlert {
+  id              String                   @id @default(cuid())
+  deviceId        String
+  deviceName      String
+  currentTemp1    Float                    // Current refrigeration temp
+  currentTemp2    Float                    // Current machine temp
+  initialTemp1    Float                    // Initial temp at Z008
+  initialTemp2    Float                    // Initial temp at Z008
+  reason          String                   // Description of why alert triggered
+  alertType       String                   // TEMPERATURE_RISING or THRESHOLD_EXCEEDED
+  status          String                   @default("OPEN")
+  acknowledgedAt  DateTime?
+  resolvedAt      DateTime?
+  createdAt       DateTime                 @default(now())
+
+  @@index([deviceId, status])
+  @@index([createdAt])
 }

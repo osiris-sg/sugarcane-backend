@@ -43,8 +43,14 @@ export async function GET(request) {
       const stock = stockMap.get(device.deviceId);
       return {
         ...device,
+        stockQuantity: stock?.quantity ?? null,
+        stockMax: stock?.maxStock ?? null,
         cupStock: stock ? Math.round((stock.quantity / stock.maxStock) * 100) : null,
         lastSeenAt: stock?.lastSaleAt || null,
+        // Temperature data (already in device table)
+        refrigerationTemp: device.refrigerationTemp,
+        machineTemp: device.machineTemp,
+        tempUpdatedAt: device.tempUpdatedAt,
       };
     });
 

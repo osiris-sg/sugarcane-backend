@@ -100,12 +100,8 @@ export default function OperationsPage() {
 
   // Get devices with lowest stock (using cupStock as percentage)
   const devicesWithStock = devices
-    .map((d) => ({
-      ...d,
-      stockPercent: d.cupStock != null ? Math.round((d.cupStock / 100) * 100) : null,
-    }))
-    .filter((d) => d.stockPercent !== null)
-    .sort((a, b) => a.stockPercent - b.stockPercent)
+    .filter((d) => d.cupStock !== null)
+    .sort((a, b) => a.cupStock - b.cupStock)
     .slice(0, 3);
 
   // Filter devices by search text
@@ -216,19 +212,19 @@ export default function OperationsPage() {
                 ) : (
                   devicesWithStock.map((device) => (
                     <div key={device.deviceId} className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground hover:text-foreground cursor-pointer hover:underline truncate max-w-[200px]">
+                      <span className="text-muted-foreground hover:text-foreground cursor-pointer hover:underline truncate max-w-[180px]">
                         {device.deviceName || device.deviceId}
                       </span>
                       <span
                         className={
-                          device.stockPercent < 25
+                          device.cupStock < 25
                             ? "text-red-500 font-medium"
-                            : device.stockPercent < 50
+                            : device.cupStock < 50
                             ? "text-yellow-500 font-medium"
                             : ""
                         }
                       >
-                        {device.stockPercent}%
+                        {device.stockQuantity}/{device.stockMax} ({device.cupStock}%)
                       </span>
                     </div>
                   ))
@@ -273,21 +269,19 @@ export default function OperationsPage() {
                   <TableHead>Actions</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Stock</TableHead>
+                  <TableHead>Temp (°C)</TableHead>
                   <TableHead>Last Seen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredDevices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       No devices found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredDevices.map((device) => {
-                    const stockPercent =
-                      device.cupStock != null ? Math.round((device.cupStock / 100) * 100) : null;
-
                     return (
                       <TableRow key={device.deviceId}>
                         <TableCell className="font-medium">{device.deviceId}</TableCell>
@@ -312,21 +306,35 @@ export default function OperationsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {stockPercent !== null ? (
+                          {device.stockQuantity !== null ? (
                             <div className="flex items-center gap-2">
                               <div className="h-2 w-16 rounded-full bg-secondary">
                                 <div
                                   className={`h-2 rounded-full ${
-                                    stockPercent < 25
+                                    device.cupStock < 25
                                       ? "bg-red-500"
-                                      : stockPercent < 50
+                                      : device.cupStock < 50
                                       ? "bg-yellow-500"
                                       : "bg-green-500"
                                   }`}
-                                  style={{ width: `${Math.min(stockPercent, 100)}%` }}
+                                  style={{ width: `${Math.min(device.cupStock, 100)}%` }}
                                 />
                               </div>
-                              <span className="text-sm">{stockPercent}%</span>
+                              <span className="text-sm">{device.stockQuantity}/{device.stockMax} ({device.cupStock}%)</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {device.refrigerationTemp !== null ? (
+                            <div className="text-sm">
+                              <span className={device.refrigerationTemp > 10 ? "text-red-500 font-medium" : ""}>
+                                {device.refrigerationTemp?.toFixed(1)}
+                              </span>
+                              {device.machineTemp !== null && (
+                                <span className="text-muted-foreground"> / {device.machineTemp?.toFixed(1)}</span>
+                              )}
                             </div>
                           ) : (
                             <span className="text-muted-foreground">-</span>
