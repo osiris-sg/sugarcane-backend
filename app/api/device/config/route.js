@@ -28,7 +28,7 @@ export async function GET(request) {
         success: true,
         found: false,
         deviceId: deviceId,
-        deviceName: "Unknown Device",
+        location: "Unknown Device",
         price: 250, // Default $2.50
         message: "Device not registered, using defaults"
       });
@@ -38,7 +38,7 @@ export async function GET(request) {
       success: true,
       found: true,
       deviceId: device.deviceId,
-      deviceName: device.deviceName,
+      location: device.location || device.deviceName,
       price: device.price,
       isActive: device.isActive,
     });
