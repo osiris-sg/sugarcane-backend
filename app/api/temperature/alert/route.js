@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../../../lib/prisma';
+import { db } from '@/lib/db';
 
 // POST /api/temperature/alert - Receive temperature alert from device
 export async function POST(request) {
@@ -24,7 +24,7 @@ export async function POST(request) {
     }
 
     // Create temperature alert record
-    const alert = await prisma.temperatureAlert.create({
+    const alert = await db.temperatureAlert.create({
       data: {
         deviceId: String(deviceId),
         deviceName: deviceName || 'Unknown',

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../../lib/prisma';
+import { db } from '@/lib/db';
 
 // GET /api/temperature - Get latest temperature for all devices (from Device table)
 export async function GET(request) {
@@ -9,7 +9,7 @@ export async function GET(request) {
 
     // If deviceId provided, get temp for specific device
     if (deviceId) {
-      const device = await prisma.device.findUnique({
+      const device = await db.device.findUnique({
         where: { deviceId: String(deviceId) },
         select: {
           deviceId: true,
@@ -35,7 +35,7 @@ export async function GET(request) {
     }
 
     // Get temperature for all active devices
-    const devices = await prisma.device.findMany({
+    const devices = await db.device.findMany({
       where: { isActive: true },
       select: {
         deviceId: true,
@@ -77,7 +77,7 @@ export async function POST(request) {
     }
 
     // Update device temperature
-    const device = await prisma.device.update({
+    const device = await db.device.update({
       where: { deviceId: String(deviceId) },
       data: {
         refrigerationTemp: refrigerationTemp ?? null,
