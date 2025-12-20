@@ -22,14 +22,35 @@ async function sendTelegramMessage(chatId, text) {
   }
 }
 
-// Send storage change notification to STOCK subscribers
+// Helper: Get current Singapore hour
+function getSGHour() {
+  const now = new Date();
+  const sgTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+  return sgTime.getHours();
+}
+
+// Helper: Check if day shift (8am-10pm)
+function isDayShift() {
+  const hour = getSGHour();
+  return hour >= 8 && hour < 22;
+}
+
+// Send storage change notification to ops staff
 async function sendStorageChangeNotification(deviceName, deviceId, previousQty, newQty, change, reason) {
   // Skip convert notifications (handled by ReportConversion endpoint)
   if (reason === 'convert') return;
 
+  // Build role filter based on shift
+  const roles = ['ADMIN'];
+  if (isDayShift()) {
+    roles.push('OPSMANAGER', 'DAYOPS');
+  } else {
+    roles.push('NIGHTOPS');
+  }
+
   const subscribers = await db.subscriber.findMany({
     where: {
-      categories: { has: 'STOCK' },
+      role: { in: roles },
     },
   });
 
