@@ -22,13 +22,23 @@ export async function POST(request) {
 
     console.log(`[ReportTemperature] Device ${deviceId} (${deviceName}): refrigeration=${temp1}C, machine=${temp2}C`);
 
-    // Store temperature reading
+    // Store temperature reading in Temperature table
     const temperature = await db.temperature.create({
       data: {
         deviceId: String(deviceId),
         deviceName: deviceName || `Device ${deviceId}`,
         refrigerationTemp: temp1,
         machineTemp: temp2,
+      },
+    });
+
+    // Also update Device table with latest temperature
+    await db.device.updateMany({
+      where: { deviceId: String(deviceId) },
+      data: {
+        refrigerationTemp: temp1,
+        machineTemp: temp2,
+        tempUpdatedAt: new Date(),
       },
     });
 
