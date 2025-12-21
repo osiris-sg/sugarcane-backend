@@ -208,7 +208,7 @@ export async function GET(request) {
     const lvl1Count = allItems.filter(i => i.priority === 1).length;
 
     // === Build summary message ===
-    let message = `📋 Hourly Summary (${sgHour}:00 SGT)\n\n`;
+    let message = `📋 Hourly Summary (${sgHour}:00)\n\n`;
     message += `Total: ${totalOpen} open issue(s)`;
     if (lvl3Count > 0) message += ` | 🔴 ${lvl3Count}`;
     if (lvl2Count > 0) message += ` | 🟠 ${lvl2Count}`;
@@ -221,7 +221,17 @@ export async function GET(request) {
       for (const issue of deviceAlarms) {
         const emoji = getPriorityEmoji(issue.priority);
         const duration = formatDuration(now.getTime() - new Date(issue.triggeredAt).getTime());
-        message += `${emoji} ${escapeHtml(issue.deviceName)} - ${escapeHtml(issue.faultCode) || '-'} (${duration})\n`;
+        const triggeredTime = new Date(issue.triggeredAt).toLocaleString('en-SG', {
+          timeZone: 'Asia/Singapore',
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+        message += `${emoji} <b>${escapeHtml(issue.deviceName)}</b>\n`;
+        message += `   ${escapeHtml(issue.faultName) || 'Unknown fault'} (${escapeHtml(issue.faultCode) || '-'})\n`;
+        message += `   📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
       }
     }
 
