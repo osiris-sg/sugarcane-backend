@@ -241,7 +241,17 @@ export async function GET(request) {
       for (const issue of zeroSales) {
         const emoji = getPriorityEmoji(issue.priority);
         const duration = formatDuration(now.getTime() - new Date(issue.triggeredAt).getTime());
-        message += `${emoji} ${escapeHtml(issue.deviceName)} - ${escapeHtml(issue.timeBlock) || '-'} (${duration})\n`;
+        const triggeredTime = new Date(issue.triggeredAt).toLocaleString('en-SG', {
+          timeZone: 'Asia/Singapore',
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+        message += `${emoji} <b>${escapeHtml(issue.deviceName)}</b>\n`;
+        message += `   Time Block: ${escapeHtml(issue.timeBlock) || '-'}\n`;
+        message += `   📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
       }
     }
 
@@ -254,7 +264,19 @@ export async function GET(request) {
         const duration = stock.lowStockTriggeredAt
           ? formatDuration(now.getTime() - new Date(stock.lowStockTriggeredAt).getTime())
           : '-';
-        message += `${emoji} ${escapeHtml(stock.deviceName)} - ${percent}% (${duration})\n`;
+        const triggeredTime = stock.lowStockTriggeredAt
+          ? new Date(stock.lowStockTriggeredAt).toLocaleString('en-SG', {
+              timeZone: 'Asia/Singapore',
+              day: '2-digit',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false,
+            })
+          : '-';
+        message += `${emoji} <b>${escapeHtml(stock.deviceName)}</b>\n`;
+        message += `   ${stock.quantity}/${stock.maxStock} (${percent}%)\n`;
+        message += `   📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
       }
     }
 
