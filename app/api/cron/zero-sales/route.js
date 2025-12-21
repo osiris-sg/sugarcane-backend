@@ -242,32 +242,16 @@ export async function GET(request) {
 
       message += `━━━━━━━━━━━━━━━━━━━━━━`;
 
-      // Build device selection buttons (2 per row)
-      const deviceButtons = [];
-      for (let i = 0; i < zeroSalesDevices.length; i += 2) {
-        const row = [];
-        // First button
-        const device1 = zeroSalesDevices[i];
-        const shortName1 = device1.deviceName.length > 20
-          ? device1.deviceName.substring(0, 18) + '...'
-          : device1.deviceName;
-        row.push({
-          text: `📍 ${shortName1}`,
-          callback_data: `zs_select:${device1.issueId}`
-        });
-        // Second button if exists
-        if (i + 1 < zeroSalesDevices.length) {
-          const device2 = zeroSalesDevices[i + 1];
-          const shortName2 = device2.deviceName.length > 20
-            ? device2.deviceName.substring(0, 18) + '...'
-            : device2.deviceName;
-          row.push({
-            text: `📍 ${shortName2}`,
-            callback_data: `zs_select:${device2.issueId}`
-          });
-        }
-        deviceButtons.push(row);
-      }
+      // Build device selection buttons (1 per row)
+      const deviceButtons = zeroSalesDevices.map(device => {
+        const shortName = device.deviceName.length > 30
+          ? device.deviceName.substring(0, 28) + '...'
+          : device.deviceName;
+        return [{
+          text: `📍 ${shortName}`,
+          callback_data: `zs_select:${device.issueId}`
+        }];
+      });
 
       const replyMarkup = {
         inline_keyboard: deviceButtons

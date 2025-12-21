@@ -230,8 +230,8 @@ export async function GET(request) {
           hour12: false,
         });
         message += `${emoji} <b>${escapeHtml(issue.deviceName)}</b>\n`;
-        message += `   ${escapeHtml(issue.faultName) || 'Unknown fault'} (${escapeHtml(issue.faultCode) || '-'})\n`;
-        message += `   📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
+        message += `${escapeHtml(issue.faultName) || 'Unknown fault'} (${escapeHtml(issue.faultCode) || '-'})\n`;
+        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
       }
     }
 
@@ -252,9 +252,9 @@ export async function GET(request) {
         message += `${emoji} <b>${escapeHtml(issue.deviceName)}</b>\n`;
         if (issue.stockQuantity !== null && issue.stockMax !== null) {
           const percent = Math.round((issue.stockQuantity / issue.stockMax) * 100);
-          message += `   📦 ${issue.stockQuantity}/${issue.stockMax} (${percent}%)\n`;
+          message += `📦 ${issue.stockQuantity}/${issue.stockMax} (${percent}%)\n`;
         }
-        message += `   📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
+        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
       }
     }
 
@@ -278,8 +278,8 @@ export async function GET(request) {
             })
           : '-';
         message += `${emoji} <b>${escapeHtml(stock.deviceName)}</b>\n`;
-        message += `   ${stock.quantity}/${stock.maxStock} (${percent}%)\n`;
-        message += `   📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
+        message += `${stock.quantity}/${stock.maxStock} (${percent}%)\n`;
+        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
       }
     }
 
