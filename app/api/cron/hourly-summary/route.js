@@ -249,7 +249,7 @@ export async function GET(request) {
     }
 
     message += `\n━━━━━━━━━━━━━━━━━━━━━━`;
-    message += `\n🔴 >48h | 🟠 >24h | 🟡 <24h`;
+    message += `\n🔴 &gt;48h | 🟠 &gt;24h | 🟡 &lt;24h`;
 
     // Get subscribers based on time of day
     const subscribers = await getSubscribersForHourlySummary();
