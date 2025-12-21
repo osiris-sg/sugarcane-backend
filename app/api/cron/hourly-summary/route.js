@@ -278,7 +278,7 @@ export async function GET(request) {
             })
           : '-';
         message += `${emoji} <b>${escapeHtml(stock.deviceName)}</b>\n`;
-        message += `${stock.quantity}/${stock.maxStock} (${percent}%)\n`;
+        message += `📦 ${stock.quantity}/${stock.maxStock} (${percent}%)\n`;
         message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
       }
     }
