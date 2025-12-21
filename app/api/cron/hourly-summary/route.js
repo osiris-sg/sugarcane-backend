@@ -3,6 +3,15 @@ import { db } from '../../../../lib/db/index.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+// Escape HTML special characters for Telegram
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // Check if current time is within day shift hours (8am to 10pm Singapore time)
 function isDayShift() {
   const now = new Date();
@@ -31,7 +40,7 @@ async function sendTelegramMessage(chatId, text) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
   try {
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -40,8 +49,16 @@ async function sendTelegramMessage(chatId, text) {
         parse_mode: 'HTML',
       }),
     });
+    const result = await response.json();
+    if (!result.ok) {
+      console.error(`[HourlySummary] Telegram error for ${chatId}:`, result.description);
+    } else {
+      console.log(`[HourlySummary] Sent to ${chatId}`);
+    }
+    return result.ok;
   } catch (error) {
-    console.error('Error sending Telegram message:', error);
+    console.error(`[HourlySummary] Error sending to ${chatId}:`, error);
+    return false;
   }
 }
 
@@ -204,7 +221,7 @@ export async function GET(request) {
       for (const issue of deviceAlarms) {
         const emoji = getPriorityEmoji(issue.priority);
         const duration = formatDuration(now.getTime() - new Date(issue.triggeredAt).getTime());
-        message += `${emoji} ${issue.deviceName} - ${issue.faultCode || '-'} (${duration})\n`;
+        message += `${emoji} ${escapeHtml(issue.deviceName)} - ${escapeHtml(issue.faultCode) || '-'} (${duration})\n`;
       }
     }
 
@@ -214,7 +231,7 @@ export async function GET(request) {
       for (const issue of zeroSales) {
         const emoji = getPriorityEmoji(issue.priority);
         const duration = formatDuration(now.getTime() - new Date(issue.triggeredAt).getTime());
-        message += `${emoji} ${issue.deviceName} - ${issue.timeBlock || '-'} (${duration})\n`;
+        message += `${emoji} ${escapeHtml(issue.deviceName)} - ${escapeHtml(issue.timeBlock) || '-'} (${duration})\n`;
       }
     }
 
@@ -227,7 +244,7 @@ export async function GET(request) {
         const duration = stock.lowStockTriggeredAt
           ? formatDuration(now.getTime() - new Date(stock.lowStockTriggeredAt).getTime())
           : '-';
-        message += `${emoji} ${stock.deviceName} - ${percent}% (${duration})\n`;
+        message += `${emoji} ${escapeHtml(stock.deviceName)} - ${percent}% (${duration})\n`;
       }
     }
 
