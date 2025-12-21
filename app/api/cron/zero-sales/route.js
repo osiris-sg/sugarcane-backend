@@ -47,6 +47,32 @@ async function sendTelegramMessage(chatId, text) {
   }
 }
 
+// Send message with inline keyboard buttons
+async function sendTelegramMessageWithButtons(chatId, text, replyMarkup) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup,
+      }),
+    });
+    const result = await response.json();
+    if (!result.ok) {
+      console.error(`[ZeroSales] Telegram error for ${chatId}:`, result.description);
+    }
+    return result.ok;
+  } catch (error) {
+    console.error('Error sending Telegram message with buttons:', error);
+    return false;
+  }
+}
+
 // Helper: Get current Singapore hour
 function getSGHour() {
   const now = new Date();
@@ -161,7 +187,6 @@ export async function GET(request) {
             deviceName: stock.deviceName,
             type: 'ZERO_SALES',
             status: 'OPEN',
-            timeBlock: timeBlock.label,
             stockQuantity: stock.quantity,
             stockMax: stock.maxStock,
             triggeredAt: new Date()
@@ -184,18 +209,60 @@ export async function GET(request) {
 
     // Send consolidated summary if there are any zero sales
     if (zeroSalesDevices.length > 0) {
+      // Format current time for header
+      const headerTime = now.toLocaleString('en-SG', {
+        timeZone: 'Asia/Singapore',
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+
       // Build summary message
-      let message = `📉 <b>Zero Sales Summary (${timeBlock.label})</b>\n\n`;
+      let message = `📉 <b>Zero Sales Summary</b>\n`;
+      message += `📅 ${headerTime}\n\n`;
       message += `${zeroSalesDevices.length} device(s) with no sales:\n`;
       message += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
       for (const device of zeroSalesDevices) {
         const percent = Math.round((device.quantity / device.maxStock) * 100);
         message += `📍 <b>${escapeHtml(device.deviceName)}</b>\n`;
-        message += `   📦 ${device.quantity}/${device.maxStock} (${percent}%)\n\n`;
+        message += `📦 ${device.quantity}/${device.maxStock} (${percent}%)\n\n`;
       }
 
       message += `━━━━━━━━━━━━━━━━━━━━━━`;
+
+      // Build device selection buttons (2 per row)
+      const deviceButtons = [];
+      for (let i = 0; i < zeroSalesDevices.length; i += 2) {
+        const row = [];
+        // First button
+        const device1 = zeroSalesDevices[i];
+        const shortName1 = device1.deviceName.length > 20
+          ? device1.deviceName.substring(0, 18) + '...'
+          : device1.deviceName;
+        row.push({
+          text: `📍 ${shortName1}`,
+          callback_data: `zs_select:${device1.issueId}`
+        });
+        // Second button if exists
+        if (i + 1 < zeroSalesDevices.length) {
+          const device2 = zeroSalesDevices[i + 1];
+          const shortName2 = device2.deviceName.length > 20
+            ? device2.deviceName.substring(0, 18) + '...'
+            : device2.deviceName;
+          row.push({
+            text: `📍 ${shortName2}`,
+            callback_data: `zs_select:${device2.issueId}`
+          });
+        }
+        deviceButtons.push(row);
+      }
+
+      const replyMarkup = {
+        inline_keyboard: deviceButtons
+      };
 
       // Get subscribers and send
       const roles = ['ADMIN'];
@@ -212,7 +279,12 @@ export async function GET(request) {
       console.log(`[ZeroSales] Sending summary to ${subscribers.length} subscribers`);
 
       for (const subscriber of subscribers) {
-        await sendTelegramMessage(subscriber.chatId, message);
+        // ADMIN and OPSMANAGER get buttons, others get view-only
+        if (subscriber.role === 'ADMIN' || subscriber.role === 'OPSMANAGER') {
+          await sendTelegramMessageWithButtons(subscriber.chatId, message, replyMarkup);
+        } else {
+          await sendTelegramMessage(subscriber.chatId, message);
+        }
       }
 
       // Log notification

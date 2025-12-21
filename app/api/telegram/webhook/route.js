@@ -447,7 +447,7 @@ async function handleCallbackQuery(callbackQuery) {
 
   console.log(`[Webhook] Callback query: ${data} from ${user.first_name}`);
 
-  // Parse callback data: "resolve:issueId" or "unresolved:issueId"
+  // Parse callback data: "resolve:issueId" or "unresolved:issueId" or "zs_select:issueId"
   const [action, issueId] = data.split(':');
 
   if (!issueId) {
@@ -470,6 +470,45 @@ async function handleCallbackQuery(callbackQuery) {
 
     if (!issue) {
       await answerCallbackQuery(callbackQuery.id, '❌ Issue not found');
+      return;
+    }
+
+    // Handle device selection from zero sales summary - show action buttons
+    if (action === 'zs_select') {
+      if (issue.status === 'RESOLVED' || issue.status === 'UNRESOLVED' || issue.status === 'MACHINE_OK') {
+        await answerCallbackQuery(callbackQuery.id, '⚠️ Issue already closed');
+        return;
+      }
+
+      const percent = issue.stockMax > 0
+        ? Math.round((issue.stockQuantity / issue.stockMax) * 100)
+        : 0;
+
+      const triggeredTime = issue.triggeredAt.toLocaleString('en-SG', {
+        timeZone: 'Asia/Singapore',
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+
+      const message = `📉 <b>Zero Sales Issue</b>\n\n` +
+        `📍 <b>${issue.deviceName}</b>\n` +
+        `📦 Stock: ${issue.stockQuantity || 0}/${issue.stockMax || 80} (${percent}%)\n` +
+        `📅 Detected: ${triggeredTime}\n\n` +
+        `Select an action:`;
+
+      const replyMarkup = {
+        inline_keyboard: [[
+          { text: '🟢 Machine OK', callback_data: `machine_ok:${issueId}` },
+          { text: '✅ Resolved', callback_data: `resolve:${issueId}` },
+          { text: '❌ Unresolved', callback_data: `unresolved:${issueId}` },
+        ]]
+      };
+
+      await editMessageText(chatId, messageId, message, replyMarkup);
+      await answerCallbackQuery(callbackQuery.id, `Selected: ${issue.deviceName}`);
       return;
     }
 
