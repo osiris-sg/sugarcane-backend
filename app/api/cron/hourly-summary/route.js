@@ -250,7 +250,6 @@ export async function GET(request) {
           hour12: false,
         });
         message += `${emoji} <b>${escapeHtml(issue.deviceName)}</b>\n`;
-        message += `   Time Block: ${escapeHtml(issue.timeBlock) || '-'}\n`;
         message += `   📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
       }
     }
