@@ -327,15 +327,10 @@ export default function OperationsPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {device.refrigerationTemp !== null ? (
-                            <div className="text-sm">
-                              <span className={device.refrigerationTemp > 10 ? "text-red-500 font-medium" : ""}>
-                                {device.refrigerationTemp?.toFixed(1)}
-                              </span>
-                              {device.machineTemp !== null && (
-                                <span className="text-muted-foreground"> / {device.machineTemp?.toFixed(1)}</span>
-                              )}
-                            </div>
+                          {device.machineTemp !== null ? (
+                            <span className={device.machineTemp > 35 ? "text-red-500 font-medium" : "text-sm"}>
+                              {device.machineTemp?.toFixed(1)}°
+                            </span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
