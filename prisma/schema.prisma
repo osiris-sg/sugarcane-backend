@@ -199,6 +199,8 @@ model Issue {
 
   // For ZERO_SALES type
   timeBlock         String?     // E.g., "8am-10am"
+  stockQuantity     Int?        // Stock level when zero sales detected
+  stockMax          Int?        // Max stock capacity
 
   // Timestamps for KPI tracking
   triggeredAt       DateTime    @default(now())  // When issue was detected

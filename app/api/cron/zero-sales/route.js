@@ -13,12 +13,21 @@ const TIME_BLOCKS = [
   { start: 18, end: 20, label: '6pm-8pm' },
 ];
 
+// Escape HTML special characters for Telegram
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // Send message to Telegram
 async function sendTelegramMessage(chatId, text) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
   try {
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -27,8 +36,14 @@ async function sendTelegramMessage(chatId, text) {
         parse_mode: 'HTML',
       }),
     });
+    const result = await response.json();
+    if (!result.ok) {
+      console.error(`[ZeroSales] Telegram error for ${chatId}:`, result.description);
+    }
+    return result.ok;
   } catch (error) {
     console.error('Error sending Telegram message:', error);
+    return false;
   }
 }
 
@@ -43,31 +58,6 @@ function getSGHour() {
 function isDayShift() {
   const hour = getSGHour();
   return hour >= 8 && hour < 22;
-}
-
-// Send alert to ops staff based on shift
-async function sendStockAlert(message) {
-  // Build role filter based on shift
-  const roles = ['ADMIN'];
-  if (isDayShift()) {
-    roles.push('OPSMANAGER', 'DAYOPS');
-  } else {
-    roles.push('NIGHTOPS');
-  }
-
-  const subscribers = await db.subscriber.findMany({
-    where: {
-      role: { in: roles },
-    },
-  });
-
-  console.log(`[ZeroSales] Sending to ${subscribers.length} subscribers`);
-
-  for (const subscriber of subscribers) {
-    await sendTelegramMessage(subscriber.chatId, message);
-  }
-
-  return subscribers.length;
 }
 
 // Get Singapore time (UTC+8)
@@ -134,7 +124,7 @@ export async function GET(request) {
 
     // Get all active devices
     const stocks = await db.stock.findMany();
-    let alertsSent = 0;
+    const zeroSalesDevices = [];
 
     for (const stock of stocks) {
       // Check if there were any orders for this device in the time block
@@ -164,18 +154,6 @@ export async function GET(request) {
           continue;
         }
 
-        // No sales in this time block - send alert
-        const message = `⚠️ <b>ZERO SALES ALERT</b>
-
-📍 <b>${stock.deviceName}</b>
-🎯 Device ID: ${stock.deviceId}
-⏰ Time Block: <b>${timeBlock.label}</b>
-📊 Current Stock: ${stock.quantity}/${stock.maxStock} pcs
-
-No sales recorded during this period.`;
-
-        await sendStockAlert(message);
-
         // Create Issue record for tracking
         const issue = await db.issue.create({
           data: {
@@ -184,34 +162,75 @@ No sales recorded during this period.`;
             type: 'ZERO_SALES',
             status: 'OPEN',
             timeBlock: timeBlock.label,
+            stockQuantity: stock.quantity,
+            stockMax: stock.maxStock,
             triggeredAt: new Date()
           }
         });
 
-        alertsSent++;
-        console.log(`[ZeroSales] Sent alert for ${stock.deviceName} - no sales in ${timeBlock.label}. Issue ID: ${issue.id}`);
+        zeroSalesDevices.push({
+          deviceName: stock.deviceName,
+          deviceId: stock.deviceId,
+          quantity: stock.quantity,
+          maxStock: stock.maxStock,
+          issueId: issue.id
+        });
+
+        console.log(`[ZeroSales] Created issue for ${stock.deviceName} - no sales in ${timeBlock.label}. Issue ID: ${issue.id}`);
       } else {
         console.log(`[ZeroSales] ${stock.deviceName} had ${orders.length} orders in ${timeBlock.label}`);
       }
     }
 
-    // Log notification
-    if (alertsSent > 0) {
+    // Send consolidated summary if there are any zero sales
+    if (zeroSalesDevices.length > 0) {
+      // Build summary message
+      let message = `📉 <b>Zero Sales Summary (${timeBlock.label})</b>\n\n`;
+      message += `${zeroSalesDevices.length} device(s) with no sales:\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      for (const device of zeroSalesDevices) {
+        const percent = Math.round((device.quantity / device.maxStock) * 100);
+        message += `📍 <b>${escapeHtml(device.deviceName)}</b>\n`;
+        message += `   📦 ${device.quantity}/${device.maxStock} (${percent}%)\n\n`;
+      }
+
+      message += `━━━━━━━━━━━━━━━━━━━━━━`;
+
+      // Get subscribers and send
+      const roles = ['ADMIN'];
+      if (isDayShift()) {
+        roles.push('OPSMANAGER', 'DAYOPS');
+      } else {
+        roles.push('NIGHTOPS');
+      }
+
+      const subscribers = await db.subscriber.findMany({
+        where: { role: { in: roles } },
+      });
+
+      console.log(`[ZeroSales] Sending summary to ${subscribers.length} subscribers`);
+
+      for (const subscriber of subscribers) {
+        await sendTelegramMessage(subscriber.chatId, message);
+      }
+
+      // Log notification
       await db.notificationLog.create({
         data: {
           type: 'zero_sales',
-          message: `Sent ${alertsSent} zero sales alerts for ${timeBlock.label}`,
-          recipients: alertsSent,
+          message: `Zero sales summary: ${zeroSalesDevices.length} devices in ${timeBlock.label}`,
+          recipients: subscribers.length,
         },
       });
     }
 
-    console.log(`[ZeroSales] Cron job completed. Alerts sent: ${alertsSent}`);
+    console.log(`[ZeroSales] Cron job completed. Devices with zero sales: ${zeroSalesDevices.length}`);
 
     return NextResponse.json({
       success: true,
       timeBlock: timeBlock.label,
-      alertsSent,
+      zeroSalesCount: zeroSalesDevices.length,
       timestamp: now.toISOString(),
     });
   } catch (error) {
