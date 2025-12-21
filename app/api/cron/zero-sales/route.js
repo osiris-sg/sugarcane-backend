@@ -107,6 +107,7 @@ function getPreviousTimeBlock(sgHour) {
 
 // Main cron handler - runs at the end of each time block
 // Should run at: 10:00, 12:00, 14:00, 16:00, 18:00, 20:00 Singapore time
+// Add ?force=true to force check the current/previous time block for testing
 export async function GET(request) {
   // Verify cron secret (optional security)
   const authHeader = request.headers.get('authorization');
@@ -114,14 +115,22 @@ export async function GET(request) {
     console.log('[ZeroSales] Warning: No valid CRON_SECRET provided');
   }
 
+  const { searchParams } = new URL(request.url);
+  const forceRun = searchParams.get('force') === 'true';
+
   const now = new Date();
   const sgTime = getSingaporeTime();
   const sgHour = sgTime.getUTCHours();
 
-  console.log(`[ZeroSales] Cron job started at ${now.toISOString()} (SG: ${sgHour}:00)`);
+  console.log(`[ZeroSales] Cron job started at ${now.toISOString()} (SG: ${sgHour}:00, force: ${forceRun})`);
 
-  // Get the time block that just ended
-  const timeBlock = getPreviousTimeBlock(sgHour);
+  // Get the time block that just ended (or current block if forced)
+  let timeBlock = getPreviousTimeBlock(sgHour);
+
+  // If forced and no previous block, get current block
+  if (forceRun && !timeBlock) {
+    timeBlock = getCurrentTimeBlock(sgHour);
+  }
 
   if (!timeBlock) {
     console.log(`[ZeroSales] No time block ended at ${sgHour}:00 SG time, skipping`);
