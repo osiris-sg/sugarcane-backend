@@ -231,7 +231,7 @@ export async function GET(request) {
         });
         message += `${emoji} <b>${escapeHtml(issue.deviceName)}</b>\n`;
         message += `${escapeHtml(issue.faultName) || 'Unknown fault'} (${escapeHtml(issue.faultCode) || '-'})\n`;
-        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
+        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n\n`;
       }
     }
 
@@ -254,7 +254,7 @@ export async function GET(request) {
           const percent = Math.round((issue.stockQuantity / issue.stockMax) * 100);
           message += `📦 ${issue.stockQuantity}/${issue.stockMax} (${percent}%)\n`;
         }
-        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
+        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n\n`;
       }
     }
 
@@ -279,11 +279,11 @@ export async function GET(request) {
           : '-';
         message += `${emoji} <b>${escapeHtml(stock.deviceName)}</b>\n`;
         message += `📦 ${stock.quantity}/${stock.maxStock} (${percent}%)\n`;
-        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n`;
+        message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n\n`;
       }
     }
 
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━`;
     message += `\n🔴 &gt;48h | 🟠 &gt;24h | 🟡 &lt;24h`;
 
     // Get subscribers based on time of day
