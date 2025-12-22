@@ -3,12 +3,21 @@ import { db } from '../../../../lib/db/index.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+// Escape HTML special characters for Telegram
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // Send message to Telegram
 async function sendTelegramMessage(chatId, text) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
   try {
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -17,8 +26,14 @@ async function sendTelegramMessage(chatId, text) {
         parse_mode: 'HTML',
       }),
     });
+    const result = await response.json();
+    if (!result.ok) {
+      console.error(`[DailySummary] Telegram error for ${chatId}:`, result.description);
+    }
+    return result.ok;
   } catch (error) {
     console.error('Error sending Telegram message:', error);
+    return false;
   }
 }
 
@@ -154,7 +169,17 @@ export async function GET(request) {
         for (const issue of deviceAlarms) {
           const emoji = getPriorityEmoji(issue.priority);
           const duration = formatDuration(now.getTime() - new Date(issue.triggeredAt).getTime());
-          message += `${emoji} ${issue.deviceName} - ${issue.faultCode || '-'} (${duration})\n`;
+          const triggeredTime = new Date(issue.triggeredAt).toLocaleString('en-SG', {
+            timeZone: 'Asia/Singapore',
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+          message += `${emoji} <b>${escapeHtml(issue.deviceName)}</b>\n`;
+          message += `${escapeHtml(issue.faultName) || 'Unknown fault'} (${escapeHtml(issue.faultCode) || '-'})\n`;
+          message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n\n`;
         }
       }
 
@@ -164,7 +189,20 @@ export async function GET(request) {
         for (const issue of zeroSales) {
           const emoji = getPriorityEmoji(issue.priority);
           const duration = formatDuration(now.getTime() - new Date(issue.triggeredAt).getTime());
-          message += `${emoji} ${issue.deviceName} - ${issue.timeBlock || '-'} (${duration})\n`;
+          const triggeredTime = new Date(issue.triggeredAt).toLocaleString('en-SG', {
+            timeZone: 'Asia/Singapore',
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+          message += `${emoji} <b>${escapeHtml(issue.deviceName)}</b>\n`;
+          if (issue.stockQuantity !== null && issue.stockMax !== null) {
+            const percent = Math.round((issue.stockQuantity / issue.stockMax) * 100);
+            message += `📦 ${issue.stockQuantity}/${issue.stockMax} (${percent}%)\n`;
+          }
+          message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n\n`;
         }
       }
 
@@ -177,11 +215,23 @@ export async function GET(request) {
           const duration = stock.lowStockTriggeredAt
             ? formatDuration(now.getTime() - new Date(stock.lowStockTriggeredAt).getTime())
             : '-';
-          message += `${emoji} ${stock.deviceName} - ${percent}% (${duration})\n`;
+          const triggeredTime = stock.lowStockTriggeredAt
+            ? new Date(stock.lowStockTriggeredAt).toLocaleString('en-SG', {
+                timeZone: 'Asia/Singapore',
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              })
+            : '-';
+          message += `${emoji} <b>${escapeHtml(stock.deviceName)}</b>\n`;
+          message += `📦 ${stock.quantity}/${stock.maxStock} (${percent}%)\n`;
+          message += `📅 ${triggeredTime} | 🕐 ${duration} ago\n\n`;
         }
       }
 
-      message += `\n━━━━━━━━━━━━━━━━━━━━━━`;
+      message += `━━━━━━━━━━━━━━━━━━━━━━`;
       message += `\n🔴 &gt;48h | 🟠 &gt;24h | 🟡 &lt;24h`;
     }
 
