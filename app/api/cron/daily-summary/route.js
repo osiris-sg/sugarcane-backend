@@ -182,7 +182,7 @@ export async function GET(request) {
       }
 
       message += `\n━━━━━━━━━━━━━━━━━━━━━━`;
-      message += `\n🔴 >48h | 🟠 >24h | 🟡 <24h`;
+      message += `\n🔴 &gt;48h | 🟠 &gt;24h | 🟡 &lt;24h`;
     }
 
     // Send the summary to ALL roles
