@@ -309,3 +309,18 @@ model TemperatureAlert {
   @@index([deviceId, status])
   @@index([createdAt])
 }
+
+// Maintenance users (drivers with PIN passwords for machine login)
+model MaintenanceUser {
+  id          String   @id @default(cuid())
+  clerkUserId String?  @unique  // Link to Clerk user if applicable
+  name        String             // Driver's display name
+  pin         String             // 4-digit PIN for machine login
+  role        String   @default("driver")  // "driver", "admin", etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([pin])
+  @@index([isActive])
+}
