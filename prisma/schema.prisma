@@ -56,6 +56,22 @@ model NotificationLog {
   @@index([type, createdAt])
 }
 
+// Maintenance login tracking
+model MaintenanceLogin {
+  id          String   @id @default(cuid())
+  deviceId    String            // Terminal ID
+  deviceName  String            // Device display name
+  userId      String?           // User ID if driver login
+  userName    String            // "Kumara Guru", "Maintenance", "Admin"
+  pin         String?           // PIN used (for audit)
+  loginType   String            // "driver", "maintenance", "admin"
+  createdAt   DateTime @default(now())
+
+  @@index([deviceId, createdAt])
+  @@index([userId])
+  @@index([createdAt])
+}
+
 // Franchisee groups
 model Group {
   id          String   @id @default(cuid())
