@@ -31,6 +31,10 @@ export async function GET() {
       success: true,
       drivers: formattedDrivers,
       count: formattedDrivers.length
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      }
     });
 
   } catch (error) {
