@@ -1,12 +1,43 @@
 import { NextResponse } from 'next/server';
 import { clerkClient } from '@clerk/nextjs/server';
+import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+
+// Map role string to enum value
+function mapRoleToEnum(role) {
+  const roleMap = {
+    admin: 'ADMIN',
+    manager: 'MANAGER',
+    franchisee: 'FRANCHISEE',
+    driver: 'DRIVER',
+  };
+  return roleMap[role?.toLowerCase()] || 'FRANCHISEE';
+}
 
 // GET /api/admin/users/[userId] - Get a single user
 export async function GET(request, { params }) {
   try {
     const { userId } = await params;
+
+    // Try to get from DB first
+    const dbUser = await db.user.findFirst({
+      where: {
+        OR: [
+          { id: userId },
+          { clerkId: userId },
+        ],
+      },
+    });
+
+    if (dbUser) {
+      return NextResponse.json({
+        success: true,
+        user: dbUser,
+      });
+    }
+
+    // Fallback to Clerk
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
 
@@ -14,6 +45,7 @@ export async function GET(request, { params }) {
       success: true,
       user: {
         id: user.id,
+        clerkId: user.id,
         email: user.emailAddresses[0]?.emailAddress || '',
         firstName: user.firstName || '',
         lastName: user.lastName || '',
@@ -34,28 +66,53 @@ export async function PATCH(request, { params }) {
   try {
     const { userId } = await params;
     const body = await request.json();
-    const { role, firstName, lastName } = body;
+    const { role, firstName, lastName, phone, isActive } = body;
 
     const client = await clerkClient();
 
-    const updateData = {};
-    if (firstName !== undefined) updateData.firstName = firstName;
-    if (lastName !== undefined) updateData.lastName = lastName;
+    // Find user in DB to get clerkId
+    const dbUser = await db.user.findFirst({
+      where: {
+        OR: [
+          { id: userId },
+          { clerkId: userId },
+        ],
+      },
+    });
+
+    const clerkId = dbUser?.clerkId || userId;
+
+    // Update Clerk
+    const clerkUpdateData = {};
+    if (firstName !== undefined) clerkUpdateData.firstName = firstName;
+    if (lastName !== undefined) clerkUpdateData.lastName = lastName;
     if (role !== undefined) {
-      updateData.publicMetadata = { role };
+      clerkUpdateData.publicMetadata = { role };
     }
 
-    const user = await client.users.updateUser(userId, updateData);
+    if (Object.keys(clerkUpdateData).length > 0) {
+      await client.users.updateUser(clerkId, clerkUpdateData);
+    }
+
+    // Update DB
+    const dbUpdateData = {};
+    if (firstName !== undefined) dbUpdateData.firstName = firstName;
+    if (lastName !== undefined) dbUpdateData.lastName = lastName;
+    if (role !== undefined) dbUpdateData.role = mapRoleToEnum(role);
+    if (phone !== undefined) dbUpdateData.phone = phone;
+    if (isActive !== undefined) dbUpdateData.isActive = isActive;
+
+    let updatedUser;
+    if (dbUser) {
+      updatedUser = await db.user.update({
+        where: { id: dbUser.id },
+        data: dbUpdateData,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        email: user.emailAddresses[0]?.emailAddress,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.publicMetadata?.role,
-      },
+      user: updatedUser || { clerkId, ...dbUpdateData },
     });
   } catch (error) {
     console.error('Error updating user:', error);
@@ -69,7 +126,27 @@ export async function DELETE(request, { params }) {
     const { userId } = await params;
     const client = await clerkClient();
 
-    await client.users.deleteUser(userId);
+    // Find user in DB to get clerkId
+    const dbUser = await db.user.findFirst({
+      where: {
+        OR: [
+          { id: userId },
+          { clerkId: userId },
+        ],
+      },
+    });
+
+    const clerkId = dbUser?.clerkId || userId;
+
+    // Delete from Clerk
+    await client.users.deleteUser(clerkId);
+
+    // Delete from DB
+    if (dbUser) {
+      await db.user.delete({
+        where: { id: dbUser.id },
+      });
+    }
 
     return NextResponse.json({
       success: true,

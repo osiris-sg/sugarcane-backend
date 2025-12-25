@@ -1,28 +1,72 @@
 import { NextResponse } from 'next/server';
 import { clerkClient } from '@clerk/nextjs/server';
+import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/admin/users - List all users
+// Map role string to enum value
+function mapRoleToEnum(role) {
+  const roleMap = {
+    admin: 'ADMIN',
+    manager: 'MANAGER',
+    franchisee: 'FRANCHISEE',
+    driver: 'DRIVER',
+  };
+  return roleMap[role?.toLowerCase()] || 'FRANCHISEE';
+}
+
+// GET /api/admin/users - List all users (from DB, synced with Clerk)
 export async function GET() {
   try {
-    const client = await clerkClient();
-    const users = await client.users.getUserList({ limit: 100 });
+    // Get users from database
+    const dbUsers = await db.user.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
 
-    const formattedUsers = users.data.map(user => ({
-      id: user.id,
-      email: user.emailAddresses[0]?.emailAddress || '',
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      role: user.publicMetadata?.role || 'franchisee',
-      imageUrl: user.imageUrl,
-      createdAt: user.createdAt,
-      lastSignInAt: user.lastSignInAt,
-    }));
+    // If no users in DB, sync from Clerk
+    if (dbUsers.length === 0) {
+      const client = await clerkClient();
+      const clerkUsers = await client.users.getUserList({ limit: 100 });
+
+      // Sync Clerk users to DB
+      for (const user of clerkUsers.data) {
+        await db.user.upsert({
+          where: { clerkId: user.id },
+          update: {
+            email: user.emailAddresses[0]?.emailAddress || '',
+            firstName: user.firstName || null,
+            lastName: user.lastName || null,
+            role: mapRoleToEnum(user.publicMetadata?.role),
+            imageUrl: user.imageUrl || null,
+            lastSignInAt: user.lastSignInAt ? new Date(user.lastSignInAt) : null,
+          },
+          create: {
+            clerkId: user.id,
+            email: user.emailAddresses[0]?.emailAddress || '',
+            firstName: user.firstName || null,
+            lastName: user.lastName || null,
+            role: mapRoleToEnum(user.publicMetadata?.role),
+            imageUrl: user.imageUrl || null,
+            lastSignInAt: user.lastSignInAt ? new Date(user.lastSignInAt) : null,
+          },
+        });
+      }
+
+      // Fetch again after sync
+      const syncedUsers = await db.user.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return NextResponse.json({
+        success: true,
+        users: syncedUsers,
+        synced: true,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      users: formattedUsers,
+      users: dbUsers,
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -30,11 +74,11 @@ export async function GET() {
   }
 }
 
-// POST /api/admin/users - Create a new user
+// POST /api/admin/users - Create a new user (in Clerk and DB)
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { email, firstName, lastName, password, role } = body;
+    const { email, firstName, lastName, password, role, phone, loginPin } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -43,10 +87,31 @@ export async function POST(request) {
       );
     }
 
+    // Validate loginPin for drivers
+    if (role === 'driver' && loginPin) {
+      if (!/^\d{4}$/.test(loginPin)) {
+        return NextResponse.json(
+          { error: 'Login PIN must be exactly 4 digits' },
+          { status: 400 }
+        );
+      }
+
+      // Check if PIN is already in use
+      const existingPin = await db.user.findFirst({
+        where: { loginPin },
+      });
+      if (existingPin) {
+        return NextResponse.json(
+          { error: 'This PIN is already in use by another driver' },
+          { status: 400 }
+        );
+      }
+    }
+
     const client = await clerkClient();
 
     // Create user in Clerk
-    const user = await client.users.createUser({
+    const clerkUser = await client.users.createUser({
       emailAddress: [email],
       firstName: firstName || '',
       lastName: lastName || '',
@@ -56,18 +121,29 @@ export async function POST(request) {
       },
     });
 
+    // Create user in database
+    const dbUser = await db.user.create({
+      data: {
+        clerkId: clerkUser.id,
+        email: clerkUser.emailAddresses[0]?.emailAddress || email,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        role: mapRoleToEnum(role),
+        phone: phone || null,
+        imageUrl: clerkUser.imageUrl || null,
+        loginPin: role === 'driver' ? loginPin || null : null,
+      },
+    });
+
     return NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        email: user.emailAddresses[0]?.emailAddress,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.publicMetadata?.role,
-      },
+      user: dbUser,
     });
   } catch (error) {
     console.error('Error creating user:', error);
+
+    // If Clerk user was created but DB failed, we should handle this
+    // For now, just return the error
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

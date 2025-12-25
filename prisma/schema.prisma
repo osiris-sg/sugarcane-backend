@@ -309,3 +309,33 @@ model TemperatureAlert {
   @@index([deviceId, status])
   @@index([createdAt])
 }
+
+// User roles
+enum UserRole {
+  ADMIN         // Full access
+  MANAGER       // Operations manager
+  FRANCHISEE    // Franchisee owner
+  DRIVER        // Driver/operator
+}
+
+// Users synced from Clerk
+model User {
+  id            String    @id @default(cuid())
+  clerkId       String    @unique              // Clerk user ID
+  email         String    @unique
+  firstName     String?
+  lastName      String?
+  role          UserRole  @default(FRANCHISEE)
+  phone         String?
+  imageUrl      String?
+  isActive      Boolean   @default(true)
+  loginPin      String?                        // 4-digit PIN for driver login
+  lastSignInAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([clerkId])
+  @@index([email])
+  @@index([role])
+  @@index([loginPin])
+}

@@ -15,10 +15,19 @@ import {
   Truck,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogOut,
+  List,
+  UserPlus,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const sidebarItems = [
   {
@@ -43,14 +52,69 @@ const sidebarItems = [
   },
   {
     title: "User Management",
-    href: "/dashboard/operations/users",
     icon: Users,
+    children: [
+      { title: "User List", href: "/dashboard/operations/users", icon: List },
+      { title: "Add User", href: "/dashboard/operations/users/add", icon: UserPlus },
+      { title: "Roles", href: "/dashboard/operations/users/roles", icon: Shield },
+    ],
   },
 ];
 
 function SidebarItem({ item, isCollapsed }) {
   const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(false);
   const isActive = pathname === item.href;
+  const hasActiveChild = item.children?.some((child) => pathname === child.href);
+
+  if (item.children) {
+    return (
+      <Collapsible open={isOpen || hasActiveChild} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            className={cn(
+              "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              hasActiveChild
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <item.icon className="h-4 w-4" />
+              {!isCollapsed && <span>{item.title}</span>}
+            </div>
+            {!isCollapsed && (
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  (isOpen || hasActiveChild) && "rotate-180"
+                )}
+              />
+            )}
+          </button>
+        </CollapsibleTrigger>
+        {!isCollapsed && (
+          <CollapsibleContent className="pl-4 pt-1">
+            {item.children.map((child) => (
+              <Link
+                key={child.href}
+                href={child.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                  pathname === child.href
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+              >
+                <child.icon className="h-4 w-4" />
+                <span>{child.title}</span>
+              </Link>
+            ))}
+          </CollapsibleContent>
+        )}
+      </Collapsible>
+    );
+  }
 
   return (
     <Link
