@@ -1,23 +1,14 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { clerkClient } from '@clerk/nextjs/server';
 
 // GET /api/admin/driver-assignment - Get all drivers and their assigned devices
 export async function GET() {
   try {
-    // Get all users with role="driver" from Clerk
-    const clerk = await clerkClient();
-    const usersResponse = await clerk.users.getUserList({ limit: 100 });
-
-    const drivers = usersResponse.data
-      .filter((u) => u.publicMetadata?.role === 'driver')
-      .map((u) => ({
-        id: u.id,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        email: u.emailAddresses[0]?.emailAddress,
-        imageUrl: u.imageUrl,
-      }));
+    // Get all users with role="DRIVER" from database
+    const drivers = await db.user.findMany({
+      where: { role: 'DRIVER', isActive: true },
+      orderBy: { firstName: 'asc' },
+    });
 
     // Get all devices with their driver assignments
     const devices = await db.device.findMany({
@@ -29,7 +20,7 @@ export async function GET() {
     drivers.forEach((driver) => {
       driverDevices[driver.id] = {
         ...driver,
-        devices: devices.filter((d) => d.driverId === driver.id),
+        devices: devices.filter((d) => d.driverId === driver.id || d.driverId === driver.clerkId),
       };
     });
 
