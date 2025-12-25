@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/drivers - Get all active drivers with their login PINs
 // Used by vending machines to validate driver login
 export async function GET() {
