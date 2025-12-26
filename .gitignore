@@ -9,3 +9,6 @@ node_modules/
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# RSA keys for payment integration (FOMO Pay)
+/keys/

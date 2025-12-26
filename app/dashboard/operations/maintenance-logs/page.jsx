@@ -12,6 +12,10 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  LogIn,
+  User,
+  Truck,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Helper to format date/time in Singapore timezone
 function formatDateTime(dateString) {
@@ -51,17 +56,20 @@ function formatDateTime(dateString) {
 // Helper to format duration
 function formatDuration(ms) {
   if (!ms) return "-";
-  const minutes = Math.floor(ms / (1000 * 60));
-  const hours = Math.floor(minutes / 60);
+  const totalSeconds = Math.floor(ms / 1000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
   const days = Math.floor(hours / 24);
 
   if (days > 0) {
     return `${days}d ${hours % 24}h`;
   }
   if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
+    return `${hours}h ${minutes}m`;
   }
-  return `${minutes}m`;
+  return `${minutes}m ${seconds}s`;
 }
 
 // Activity type badge
@@ -78,6 +86,25 @@ function ActivityTypeBadge({ type }) {
     <Badge variant="outline" className="gap-1">
       <MessageSquare className="h-3 w-3" />
       Customer Feedback
+    </Badge>
+  );
+}
+
+// Login type badge
+function LoginTypeBadge({ type }) {
+  const config = {
+    driver: { icon: Truck, label: "Driver", className: "bg-orange-100 text-orange-800" },
+    maintenance: { icon: Wrench, label: "Maintenance", className: "bg-blue-100 text-blue-800" },
+    admin: { icon: Shield, label: "Admin", className: "bg-purple-100 text-purple-800" },
+  };
+
+  const c = config[type] || { icon: User, label: type, className: "bg-gray-100 text-gray-800" };
+  const Icon = c.icon;
+
+  return (
+    <Badge variant="secondary" className={`gap-1 ${c.className}`}>
+      <Icon className="h-3 w-3" />
+      {c.label}
     </Badge>
   );
 }
@@ -115,14 +142,17 @@ function StatusBadge({ status }) {
 
 export default function MaintenanceLogsPage() {
   const [activities, setActivities] = useState([]);
+  const [logins, setLogins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState("logins");
 
   // Filters
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deviceFilter, setDeviceFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
+  const [loginTypeFilter, setLoginTypeFilter] = useState("all");
 
   useEffect(() => {
     fetchData();
@@ -130,14 +160,22 @@ export default function MaintenanceLogsPage() {
 
   async function fetchData() {
     try {
-      const res = await fetch("/api/maintenance/activity");
-      const data = await res.json();
+      const [activityRes, loginRes] = await Promise.all([
+        fetch("/api/maintenance/activity"),
+        fetch("/api/maintenance/login?limit=200"),
+      ]);
 
-      if (data.activities) {
-        setActivities(data.activities);
+      const activityData = await activityRes.json();
+      const loginData = await loginRes.json();
+
+      if (activityData.activities) {
+        setActivities(activityData.activities);
+      }
+      if (loginData.logins) {
+        setLogins(loginData.logins);
       }
     } catch (error) {
-      console.error("Error fetching activities:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -154,6 +192,7 @@ export default function MaintenanceLogsPage() {
     setStatusFilter("all");
     setDeviceFilter("all");
     setSearchText("");
+    setLoginTypeFilter("all");
   }
 
   // Filter activities
@@ -195,11 +234,39 @@ export default function MaintenanceLogsPage() {
     unresolved: activities.filter((a) => a.status === "unresolved").length,
   };
 
-  // Get unique devices from activities
+  // Count logins by type
+  const loginTypeCounts = {
+    driver: logins.filter((l) => l.loginType === "driver").length,
+    maintenance: logins.filter((l) => l.loginType === "maintenance").length,
+    admin: logins.filter((l) => l.loginType === "admin").length,
+  };
+
+  // Filter logins
+  const filteredLogins = logins.filter((login) => {
+    if (loginTypeFilter !== "all" && login.loginType !== loginTypeFilter) {
+      return false;
+    }
+    if (deviceFilter !== "all" && login.deviceId !== deviceFilter) {
+      return false;
+    }
+    if (searchText) {
+      const search = searchText.toLowerCase();
+      return (
+        login.deviceName?.toLowerCase().includes(search) ||
+        login.deviceId?.toLowerCase().includes(search) ||
+        login.userName?.toLowerCase().includes(search)
+      );
+    }
+    return true;
+  });
+
+  // Get unique devices from activities AND logins
+  const allDevices = [
+    ...activities.map((a) => ({ id: a.deviceId, name: a.deviceName })),
+    ...logins.map((l) => ({ id: l.deviceId, name: l.deviceName })),
+  ];
   const uniqueDevices = [
-    ...new Map(
-      activities.map((a) => [a.deviceId, { id: a.deviceId, name: a.deviceName }])
-    ).values(),
+    ...new Map(allDevices.map((d) => [d.id, d])).values(),
   ];
 
   if (loading) {
@@ -235,219 +302,381 @@ export default function MaintenanceLogsPage() {
 
       {/* Main Content */}
       <main className="p-6">
-        {/* Summary Cards */}
-        <div className="mb-6 grid gap-4 md:grid-cols-4">
-          <Card
-            className={`cursor-pointer transition-colors ${typeFilter === "clean_wash" ? "ring-2 ring-primary" : ""}`}
-            onClick={() =>
-              setTypeFilter(typeFilter === "clean_wash" ? "all" : "clean_wash")
-            }
-          >
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                  <Wrench className="h-5 w-5 text-blue-600" />
-                </div>
-                <span className="font-medium">Clean/Wash</span>
-              </div>
-              <span className="text-2xl font-bold">{typeCounts.clean_wash}</span>
-            </CardContent>
-          </Card>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-6">
+            <TabsTrigger value="logins" className="gap-2">
+              <LogIn className="h-4 w-4" />
+              Login History ({logins.length})
+            </TabsTrigger>
+            <TabsTrigger value="activities" className="gap-2">
+              <Wrench className="h-4 w-4" />
+              Activities ({activities.length})
+            </TabsTrigger>
+          </TabsList>
 
-          <Card
-            className={`cursor-pointer transition-colors ${typeFilter === "customer_feedback" ? "ring-2 ring-primary" : ""}`}
-            onClick={() =>
-              setTypeFilter(
-                typeFilter === "customer_feedback" ? "all" : "customer_feedback"
-              )
-            }
-          >
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-                  <MessageSquare className="h-5 w-5 text-purple-600" />
-                </div>
-                <span className="font-medium">Feedback</span>
-              </div>
-              <span className="text-2xl font-bold">
-                {typeCounts.customer_feedback}
-              </span>
-            </CardContent>
-          </Card>
+          {/* Login History Tab */}
+          <TabsContent value="logins">
+            {/* Login Summary Cards */}
+            <div className="mb-6 grid gap-4 md:grid-cols-4">
+              <Card
+                className={`cursor-pointer transition-colors ${loginTypeFilter === "driver" ? "ring-2 ring-orange-500" : ""}`}
+                onClick={() => setLoginTypeFilter(loginTypeFilter === "driver" ? "all" : "driver")}
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+                      <Truck className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <span className="font-medium">Driver</span>
+                  </div>
+                  <span className="text-2xl font-bold">{loginTypeCounts.driver}</span>
+                </CardContent>
+              </Card>
 
-          <Card
-            className={`cursor-pointer transition-colors ${statusFilter === "in_progress" ? "ring-2 ring-blue-500" : ""}`}
-            onClick={() =>
-              setStatusFilter(
-                statusFilter === "in_progress" ? "all" : "in_progress"
-              )
-            }
-          >
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100">
-                  <Clock className="h-5 w-5 text-yellow-600" />
-                </div>
-                <span className="font-medium">In Progress</span>
-              </div>
-              <span className="text-2xl font-bold">
-                {statusCounts.in_progress}
-              </span>
-            </CardContent>
-          </Card>
+              <Card
+                className={`cursor-pointer transition-colors ${loginTypeFilter === "maintenance" ? "ring-2 ring-blue-500" : ""}`}
+                onClick={() => setLoginTypeFilter(loginTypeFilter === "maintenance" ? "all" : "maintenance")}
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <Wrench className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <span className="font-medium">Maintenance</span>
+                  </div>
+                  <span className="text-2xl font-bold">{loginTypeCounts.maintenance}</span>
+                </CardContent>
+              </Card>
 
-          <Card
-            className={`cursor-pointer transition-colors ${statusFilter === "completed" ? "ring-2 ring-green-500" : ""}`}
-            onClick={() =>
-              setStatusFilter(statusFilter === "completed" ? "all" : "completed")
-            }
-          >
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                </div>
-                <span className="font-medium">Completed</span>
-              </div>
-              <span className="text-2xl font-bold">
-                {statusCounts.completed}
-              </span>
-            </CardContent>
-          </Card>
-        </div>
+              <Card
+                className={`cursor-pointer transition-colors ${loginTypeFilter === "admin" ? "ring-2 ring-purple-500" : ""}`}
+                onClick={() => setLoginTypeFilter(loginTypeFilter === "admin" ? "all" : "admin")}
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+                      <Shield className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <span className="font-medium">Admin</span>
+                  </div>
+                  <span className="text-2xl font-bold">{loginTypeCounts.admin}</span>
+                </CardContent>
+              </Card>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Filter className="h-4 w-4" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-center gap-4">
-              <Input
-                placeholder="Search by device, notes..."
-                className="w-64"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-              />
-
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="clean_wash">Clean/Wash</SelectItem>
-                  <SelectItem value="customer_feedback">Feedback</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="unresolved">Unresolved</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={deviceFilter} onValueChange={setDeviceFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Device" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Devices</SelectItem>
-                  {uniqueDevices.map((device) => (
-                    <SelectItem key={device.id} value={device.id}>
-                      {device.name || device.id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {(typeFilter !== "all" ||
-                statusFilter !== "all" ||
-                deviceFilter !== "all" ||
-                searchText) && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <X className="mr-1 h-4 w-4" />
-                  Clear
-                </Button>
-              )}
-
-              <span className="ml-auto text-sm text-muted-foreground">
-                {filteredActivities.length} of {activities.length} logs
-              </span>
+              <Card>
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
+                      <LogIn className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <span className="font-medium">Total Logins</span>
+                  </div>
+                  <span className="text-2xl font-bold">{logins.length}</span>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Activities Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Device</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Started</TableHead>
-                  <TableHead>Completed</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredActivities.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="py-8 text-center text-muted-foreground"
-                    >
-                      No maintenance logs found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredActivities.map((activity) => (
-                    <TableRow key={activity.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{activity.deviceName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {activity.deviceId}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <ActivityTypeBadge type={activity.activityType} />
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={activity.status} />
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDateTime(activity.startedAt)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDateTime(activity.completedAt)}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatDuration(activity.durationMs)}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                        {activity.notes || "-"}
-                      </TableCell>
+            {/* Filters */}
+            <Card className="mb-6">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Filter className="h-4 w-4" />
+                  Filters
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap items-center gap-4">
+                  <Input
+                    placeholder="Search by device, user..."
+                    className="w-64"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                  />
+
+                  <Select value={loginTypeFilter} onValueChange={setLoginTypeFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Login Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="driver">Driver</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={deviceFilter} onValueChange={setDeviceFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Device" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Devices</SelectItem>
+                      {uniqueDevices.map((device) => (
+                        <SelectItem key={device.id} value={device.id}>
+                          {device.name || device.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {(loginTypeFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                      <X className="mr-1 h-4 w-4" />
+                      Clear
+                    </Button>
+                  )}
+
+                  <span className="ml-auto text-sm text-muted-foreground">
+                    {filteredLogins.length} of {logins.length} logins
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Logins Table */}
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Device</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>PIN</TableHead>
+                      <TableHead>Login Time</TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLogins.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                          No login records found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredLogins.map((login) => (
+                        <TableRow key={login.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{login.deviceName}</div>
+                              <div className="text-xs text-muted-foreground">{login.deviceId}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{login.userName}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <LoginTypeBadge type={login.loginType} />
+                          </TableCell>
+                          <TableCell className="font-mono text-sm text-muted-foreground">
+                            {login.pin || "-"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatDateTime(login.createdAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Activities Tab */}
+          <TabsContent value="activities">
+            {/* Activity Summary Cards */}
+            <div className="mb-6 grid gap-4 md:grid-cols-4">
+              <Card
+                className={`cursor-pointer transition-colors ${typeFilter === "clean_wash" ? "ring-2 ring-primary" : ""}`}
+                onClick={() => setTypeFilter(typeFilter === "clean_wash" ? "all" : "clean_wash")}
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <Wrench className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <span className="font-medium">Clean/Wash</span>
+                  </div>
+                  <span className="text-2xl font-bold">{typeCounts.clean_wash}</span>
+                </CardContent>
+              </Card>
+
+              <Card
+                className={`cursor-pointer transition-colors ${typeFilter === "customer_feedback" ? "ring-2 ring-primary" : ""}`}
+                onClick={() => setTypeFilter(typeFilter === "customer_feedback" ? "all" : "customer_feedback")}
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+                      <MessageSquare className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <span className="font-medium">Feedback</span>
+                  </div>
+                  <span className="text-2xl font-bold">{typeCounts.customer_feedback}</span>
+                </CardContent>
+              </Card>
+
+              <Card
+                className={`cursor-pointer transition-colors ${statusFilter === "in_progress" ? "ring-2 ring-blue-500" : ""}`}
+                onClick={() => setStatusFilter(statusFilter === "in_progress" ? "all" : "in_progress")}
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100">
+                      <Clock className="h-5 w-5 text-yellow-600" />
+                    </div>
+                    <span className="font-medium">In Progress</span>
+                  </div>
+                  <span className="text-2xl font-bold">{statusCounts.in_progress}</span>
+                </CardContent>
+              </Card>
+
+              <Card
+                className={`cursor-pointer transition-colors ${statusFilter === "completed" ? "ring-2 ring-green-500" : ""}`}
+                onClick={() => setStatusFilter(statusFilter === "completed" ? "all" : "completed")}
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                    <span className="font-medium">Completed</span>
+                  </div>
+                  <span className="text-2xl font-bold">{statusCounts.completed}</span>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filters */}
+            <Card className="mb-6">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Filter className="h-4 w-4" />
+                  Filters
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap items-center gap-4">
+                  <Input
+                    placeholder="Search by device, notes..."
+                    className="w-64"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                  />
+
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="clean_wash">Clean/Wash</SelectItem>
+                      <SelectItem value="customer_feedback">Feedback</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="unresolved">Unresolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={deviceFilter} onValueChange={setDeviceFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Device" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Devices</SelectItem>
+                      {uniqueDevices.map((device) => (
+                        <SelectItem key={device.id} value={device.id}>
+                          {device.name || device.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {(typeFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                      <X className="mr-1 h-4 w-4" />
+                      Clear
+                    </Button>
+                  )}
+
+                  <span className="ml-auto text-sm text-muted-foreground">
+                    {filteredActivities.length} of {activities.length} logs
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Activities Table */}
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Device</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Started</TableHead>
+                      <TableHead>Completed</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredActivities.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                          No maintenance logs found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredActivities.map((activity) => (
+                        <TableRow key={activity.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{activity.deviceName}</div>
+                              <div className="text-xs text-muted-foreground">{activity.deviceId}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <ActivityTypeBadge type={activity.activityType} />
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={activity.status} />
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatDateTime(activity.startedAt)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatDateTime(activity.completedAt)}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {formatDuration(activity.durationMs)}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                            {activity.notes || "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
