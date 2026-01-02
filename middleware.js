@@ -43,10 +43,11 @@ export default clerkMiddleware(async (auth, req) => {
         const user = await client.users.getUser(userId);
         const requirePasswordChange = user.publicMetadata?.requirePasswordChange;
 
-        console.log(`[Middleware] requirePasswordChange: ${requirePasswordChange}`);
+        console.log(`[Middleware] requirePasswordChange: ${requirePasswordChange}, type: ${typeof requirePasswordChange}`);
 
-        if (requirePasswordChange === true) {
-          console.log(`[Middleware] User must change password, redirecting...`);
+        // Handle both boolean true and string "true"
+        if (requirePasswordChange === true || requirePasswordChange === "true") {
+          console.log(`[Middleware] User must change password, redirecting to /change-password`);
           return NextResponse.redirect(new URL('/change-password', req.url));
         }
       }

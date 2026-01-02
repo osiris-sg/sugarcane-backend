@@ -60,8 +60,8 @@ export default function ChangePasswordPage() {
 
       if (data.success) {
         toast.success("Password changed successfully!");
-        // Redirect to dashboard
-        router.push("/dashboard");
+        // Force reload to refresh Clerk session data, then redirect
+        window.location.href = "/dashboard";
       } else {
         toast.error(data.error || "Failed to update status");
       }

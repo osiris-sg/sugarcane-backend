@@ -19,53 +19,31 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [logs, setLogs] = useState([]);
-
-  const addLog = (message) => {
-    console.log(`[SignIn] ${message}`);
-    setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    addLog(`Starting sign-in for username: ${username}`);
-    addLog(`Clerk isLoaded: ${isLoaded}`);
-
     if (!isLoaded) {
-      addLog("Clerk not loaded yet");
-      setError("Clerk not loaded yet. Please wait.");
+      setError("Please wait...");
       setLoading(false);
       return;
     }
 
     try {
-      addLog("Calling signIn.create()...");
-
       const result = await signIn.create({
         identifier: username,
         password: password,
       });
 
-      addLog(`signIn.create result status: ${result.status}`);
-      addLog(`Result: ${JSON.stringify(result, null, 2)}`);
-
       if (result.status === "complete") {
-        addLog("Sign-in complete, setting active session...");
         await setActive({ session: result.createdSessionId });
-        addLog("Session set, redirecting to dashboard...");
         router.push("/dashboard");
       } else {
-        addLog(`Unexpected status: ${result.status}`);
         setError(`Sign-in incomplete. Status: ${result.status}`);
       }
     } catch (err) {
-      addLog(`Error: ${err.message}`);
-      addLog(`Error code: ${err.errors?.[0]?.code}`);
-      addLog(`Error details: ${JSON.stringify(err.errors, null, 2)}`);
-
       const errorMessage = err.errors?.[0]?.message || err.message || "Sign-in failed";
       setError(errorMessage);
     } finally {
@@ -75,7 +53,7 @@ export default function SignInPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-4">
+      <div className="w-full max-w-md">
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Sign in to Supercane</CardTitle>
@@ -127,30 +105,6 @@ export default function SignInPage() {
             </form>
           </CardContent>
         </Card>
-
-        {/* Debug Logs */}
-        {logs.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Debug Logs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="max-h-48 overflow-auto rounded bg-muted p-2 font-mono text-xs">
-                {logs.map((log, i) => (
-                  <div key={i} className="py-0.5">{log}</div>
-                ))}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2"
-                onClick={() => setLogs([])}
-              >
-                Clear logs
-              </Button>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );
