@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus, Mail, Lock, User, Crown, ArrowLeft, Briefcase, Truck, KeyRound } from "lucide-react";
+import { UserPlus, Lock, User, Crown, ArrowLeft, Briefcase, Truck, KeyRound, AtSign } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ export default function AddUserPage() {
   const { user, isLoaded } = useUser();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    email: "",
+    username: "",
     firstName: "",
     lastName: "",
     password: "",
@@ -34,9 +34,10 @@ export default function AddUserPage() {
     loginPin: "",
   });
 
-  // Redirect non-owners
+  // Redirect non-admins
   const userRole = user?.publicMetadata?.role || "franchisee";
-  if (isLoaded && userRole !== "owner") {
+  const isAdmin = userRole === "owner" || userRole === "admin";
+  if (isLoaded && !isAdmin) {
     redirect("/dashboard/operations");
   }
 
@@ -72,7 +73,7 @@ export default function AddUserPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: formData.email,
+          username: formData.username,
           firstName: formData.firstName,
           lastName: formData.lastName,
           password: formData.password,
@@ -156,21 +157,24 @@ export default function AddUserPage() {
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email Address</Label>
+                  <Label htmlFor="username">Username</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <AtSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="john@example.com"
+                      id="username"
+                      type="text"
+                      placeholder="johndoe"
                       className="pl-9"
                       required
-                      value={formData.email}
+                      value={formData.username}
                       onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
+                        setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s/g, '') })
                       }
                     />
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Username must be lowercase with no spaces
+                  </p>
                 </div>
 
                 <div className="grid gap-2">
