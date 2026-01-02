@@ -59,9 +59,10 @@ export default function UsersPage() {
   const [deleteUser, setDeleteUser] = useState(null);
   const [newRole, setNewRole] = useState("");
 
-  // Redirect non-owners
+  // Redirect non-admins
   const role = user?.publicMetadata?.role || "franchisee";
-  if (isLoaded && role !== "owner") {
+  const isAdmin = role === "owner" || role === "admin";
+  if (isLoaded && !isAdmin) {
     redirect("/dashboard/operations");
   }
 

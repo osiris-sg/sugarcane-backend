@@ -32,9 +32,10 @@ export default function AddUserPage() {
     role: "franchisee",
   });
 
-  // Redirect non-owners
+  // Redirect non-admins
   const userRole = user?.publicMetadata?.role || "franchisee";
-  if (isLoaded && userRole !== "owner") {
+  const isAdmin = userRole === "owner" || userRole === "admin";
+  if (isLoaded && !isAdmin) {
     redirect("/dashboard/sales");
   }
 

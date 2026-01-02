@@ -83,9 +83,10 @@ const colorClasses = {
 export default function RolesPage() {
   const { user, isLoaded } = useUser();
 
-  // Redirect non-owners
+  // Redirect non-admins
   const role = user?.publicMetadata?.role || "franchisee";
-  if (isLoaded && role !== "owner") {
+  const isAdmin = role === "owner" || role === "admin";
+  if (isLoaded && !isAdmin) {
     redirect("/dashboard/operations");
   }
 
