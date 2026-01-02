@@ -114,6 +114,7 @@ export async function POST(request) {
     const client = await clerkClient();
 
     // Create user in Clerk with username
+    // Set requirePasswordChange to true so user must change password on first login
     const clerkUser = await client.users.createUser({
       username,
       firstName: firstName || '',
@@ -121,6 +122,7 @@ export async function POST(request) {
       password,
       publicMetadata: {
         role: role || 'franchisee',
+        requirePasswordChange: true,
       },
     });
 
