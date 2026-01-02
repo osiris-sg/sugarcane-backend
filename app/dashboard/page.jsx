@@ -14,7 +14,7 @@ export default function DashboardPage() {
 
   // Get role from user metadata (default to franchisee)
   const role = user?.publicMetadata?.role || "franchisee";
-  const isOwner = role === "owner";
+  const isOwnerOrAdmin = role === "owner" || role === "admin";
 
   if (!isLoaded) {
     return (
@@ -29,7 +29,7 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
         <div className="flex items-center gap-2">
-          <span className="text-xl font-bold text-primary">Sugarcane</span>
+          <span className="text-xl font-bold text-primary">Supercane</span>
         </div>
         <div className="flex items-center gap-4">
           <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
@@ -51,7 +51,7 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
         <div className="mb-12 text-center">
-          <h1 className="text-3xl font-bold">Sugarcane Vending Dashboard</h1>
+          <h1 className="text-3xl font-bold">Supercane Vending Dashboard</h1>
           <p className="mt-2 text-muted-foreground">
             Welcome back, {user?.firstName || "User"}
           </p>
@@ -60,7 +60,7 @@ export default function DashboardPage() {
         {/* Management Boxes */}
         <div className="mx-auto grid max-w-3xl gap-6 md:grid-cols-2">
           {/* Operations - Owner only */}
-          {isOwner && (
+          {isOwnerOrAdmin && (
             <ManagementBox
               title="Operations"
               description="Manage devices, stock levels, and maintenance alerts."
@@ -75,7 +75,7 @@ export default function DashboardPage() {
             description="View sales data, revenue analytics, and customer insights."
             href="/dashboard/sales"
             icon={TrendingUp}
-            className={!isOwner ? "md:col-span-2 max-w-md mx-auto" : ""}
+            className={!isOwnerOrAdmin ? "md:col-span-2 max-w-md mx-auto" : ""}
           />
         </div>
 

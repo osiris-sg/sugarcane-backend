@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,53 +18,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export default function EditDevicePage() {
-  const params = useParams();
+export default function AddDevicePage() {
   const router = useRouter();
   const { user } = useUser();
   const role = user?.publicMetadata?.role || "franchisee";
   const isAdmin = role === "owner" || role === "admin";
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [groups, setGroups] = useState([]);
   const [device, setDevice] = useState({
     deviceId: "",
     deviceName: "",
     location: "",
-    price: "",
+    price: "3.00",
     isActive: true,
     groupId: "",
   });
 
   useEffect(() => {
-    fetchDevice();
     fetchGroups();
-  }, [params.id]);
-
-  const fetchDevice = async () => {
-    try {
-      const res = await fetch("/api/admin/devices");
-      const data = await res.json();
-      if (data.devices) {
-        const found = data.devices.find((d) => d.id === params.id);
-        if (found) {
-          setDevice({
-            deviceId: found.deviceId || "",
-            deviceName: found.deviceName || "",
-            location: found.location || "",
-            price: found.price ? (found.price / 100).toFixed(2) : "",
-            isActive: found.isActive,
-            groupId: found.groupId || "",
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching device:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, []);
 
   const fetchGroups = async () => {
     try {
@@ -79,17 +52,21 @@ export default function EditDevicePage() {
   };
 
   const handleSave = async () => {
+    if (!device.deviceId.trim()) {
+      alert("Device ID is required");
+      return;
+    }
+
     setSaving(true);
     try {
-      // Update device
       const res = await fetch("/api/admin/devices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          deviceId: device.deviceId,
-          deviceName: device.deviceName,
-          location: device.location,
-          price: Math.round(parseFloat(device.price) * 100),
+          deviceId: device.deviceId.trim(),
+          deviceName: device.deviceName.trim() || device.deviceId.trim(),
+          location: device.location.trim(),
+          price: Math.round(parseFloat(device.price || "3") * 100),
           isActive: device.isActive,
           groupId: device.groupId || null,
         }),
@@ -99,23 +76,15 @@ export default function EditDevicePage() {
       if (data.success) {
         router.push("/dashboard/sales/equipment");
       } else {
-        alert("Error saving device: " + data.error);
+        alert("Error adding device: " + data.error);
       }
     } catch (error) {
-      console.error("Error saving device:", error);
-      alert("Error saving device");
+      console.error("Error adding device:", error);
+      alert("Error adding device");
     } finally {
       setSaving(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,9 +98,9 @@ export default function EditDevicePage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-xl font-semibold">Edit Device</h1>
+            <h1 className="text-xl font-semibold">Add Device</h1>
             <p className="text-sm text-muted-foreground">
-              Device ID: {device.deviceId}
+              Register a new device
             </p>
           </div>
         </div>
@@ -141,7 +110,7 @@ export default function EditDevicePage() {
           ) : (
             <Save className="mr-2 h-4 w-4" />
           )}
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? "Saving..." : "Add Device"}
         </Button>
       </header>
 
@@ -152,17 +121,19 @@ export default function EditDevicePage() {
               <CardTitle>Device Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Device ID - Read only */}
+              {/* Device ID */}
               <div className="space-y-2">
-                <Label htmlFor="deviceId">Device ID</Label>
+                <Label htmlFor="deviceId">Device ID *</Label>
                 <Input
                   id="deviceId"
                   value={device.deviceId}
-                  disabled
-                  className="bg-muted"
+                  onChange={(e) =>
+                    setDevice({ ...device, deviceId: e.target.value })
+                  }
+                  placeholder="Enter device ID (e.g., VM001)"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Device ID cannot be changed
+                  This ID must match the device's configured ID
                 </p>
               </div>
 
@@ -175,7 +146,7 @@ export default function EditDevicePage() {
                   onChange={(e) =>
                     setDevice({ ...device, deviceName: e.target.value })
                   }
-                  placeholder="Enter device name"
+                  placeholder="Enter device name (e.g., Marina Bay Store)"
                 />
               </div>
 
@@ -188,7 +159,7 @@ export default function EditDevicePage() {
                   onChange={(e) =>
                     setDevice({ ...device, location: e.target.value })
                   }
-                  placeholder="Enter location"
+                  placeholder="Enter location address"
                 />
               </div>
 
@@ -204,7 +175,7 @@ export default function EditDevicePage() {
                   onChange={(e) =>
                     setDevice({ ...device, price: e.target.value })
                   }
-                  placeholder="0.00"
+                  placeholder="3.00"
                 />
               </div>
 

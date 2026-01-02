@@ -33,7 +33,7 @@ export function Sidebar({ items, collapsed, onToggle, logo }) {
         <div className="flex h-16 items-center justify-between border-b px-4">
           {!collapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
-              {logo || <span className="text-lg font-semibold">Sugarcane</span>}
+              {logo || <span className="text-lg font-semibold">Supercane</span>}
             </Link>
           )}
           <Button

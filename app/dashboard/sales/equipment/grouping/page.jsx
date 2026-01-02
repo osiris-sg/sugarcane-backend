@@ -83,7 +83,7 @@ function DroppableGroup({ group, children, isOver }) {
 export default function DeviceGroupingPage() {
   const { user, isLoaded } = useUser();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isOwner = role === "owner";
+  const isAdmin = role === "owner" || role === "admin";
 
   const [groups, setGroups] = useState([]);
   const [devices, setDevices] = useState([]);
@@ -107,8 +107,8 @@ export default function DeviceGroupingPage() {
     })
   );
 
-  // Redirect non-owners
-  if (isLoaded && !isOwner) {
+  // Redirect non-admins
+  if (isLoaded && !isAdmin) {
     redirect("/dashboard/sales");
   }
 

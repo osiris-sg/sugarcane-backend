@@ -137,9 +137,10 @@ export default function OperationsLayout({ children }) {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const role = user?.publicMetadata?.role || "franchisee";
+  const isAdmin = role === "owner" || role === "admin";
 
-  // Redirect non-owners
-  if (isLoaded && role !== "owner") {
+  // Redirect non-admins
+  if (isLoaded && !isAdmin) {
     redirect("/dashboard");
   }
 

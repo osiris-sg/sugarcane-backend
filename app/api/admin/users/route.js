@@ -30,10 +30,13 @@ export async function GET() {
 
       // Sync Clerk users to DB
       for (const user of clerkUsers.data) {
+        // Skip users without username
+        if (!user.username) continue;
+
         await db.user.upsert({
           where: { clerkId: user.id },
           update: {
-            email: user.emailAddresses[0]?.emailAddress || '',
+            username: user.username,
             firstName: user.firstName || null,
             lastName: user.lastName || null,
             role: mapRoleToEnum(user.publicMetadata?.role),
@@ -42,7 +45,7 @@ export async function GET() {
           },
           create: {
             clerkId: user.id,
-            email: user.emailAddresses[0]?.emailAddress || '',
+            username: user.username,
             firstName: user.firstName || null,
             lastName: user.lastName || null,
             role: mapRoleToEnum(user.publicMetadata?.role),
@@ -78,11 +81,11 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { email, firstName, lastName, password, role, phone, loginPin } = body;
+    const { username, firstName, lastName, password, role, phone, loginPin } = body;
 
-    if (!email || !password) {
+    if (!username || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Username and password are required' },
         { status: 400 }
       );
     }
@@ -110,9 +113,9 @@ export async function POST(request) {
 
     const client = await clerkClient();
 
-    // Create user in Clerk
+    // Create user in Clerk with username
     const clerkUser = await client.users.createUser({
-      emailAddress: [email],
+      username,
       firstName: firstName || '',
       lastName: lastName || '',
       password,
@@ -125,7 +128,7 @@ export async function POST(request) {
     const dbUser = await db.user.create({
       data: {
         clerkId: clerkUser.id,
-        email: clerkUser.emailAddresses[0]?.emailAddress || email,
+        username: clerkUser.username || username,
         firstName: firstName || null,
         lastName: lastName || null,
         role: mapRoleToEnum(role),

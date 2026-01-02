@@ -28,7 +28,7 @@ export default function DeviceListPage() {
   const { user } = useUser();
   const router = useRouter();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isOwner = role === "owner";
+  const isAdmin = role === "owner" || role === "admin";
 
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +125,7 @@ export default function DeviceListPage() {
             {activeCount} of {devices.length} devices active
           </p>
         </div>
-        <Button>
+        <Button onClick={() => router.push("/dashboard/sales/equipment/add")}>
           <Plus className="mr-2 h-4 w-4" />
           Add
         </Button>
@@ -159,7 +159,7 @@ export default function DeviceListPage() {
                     <TableHead>Id</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Location</TableHead>
-                    {isOwner && <TableHead>Group</TableHead>}
+                    {isAdmin && <TableHead>Group</TableHead>}
                     <TableHead>Actived</TableHead>
                     <TableHead>Price</TableHead>
                     <TableHead>Create Time</TableHead>
@@ -171,7 +171,7 @@ export default function DeviceListPage() {
                   {filteredDevices.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={isOwner ? 9 : 8}
+                        colSpan={isAdmin ? 9 : 8}
                         className="text-center py-8 text-muted-foreground"
                       >
                         No devices found
@@ -194,7 +194,7 @@ export default function DeviceListPage() {
                             </button>
                           </div>
                         </TableCell>
-                        {isOwner && (
+                        {isAdmin && (
                           <TableCell>{device.group?.name || "-"}</TableCell>
                         )}
                         <TableCell>

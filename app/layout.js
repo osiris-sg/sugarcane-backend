@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ['latin'] });
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Sugarcane Dashboard',
+  title: 'Supercane Dashboard',
   description: 'Vending Machine Management Dashboard',
 };
 

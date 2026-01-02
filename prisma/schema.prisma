@@ -338,7 +338,7 @@ enum UserRole {
 model User {
   id            String    @id @default(cuid())
   clerkId       String    @unique              // Clerk user ID
-  email         String    @unique
+  username      String    @unique
   firstName     String?
   lastName      String?
   role          UserRole  @default(FRANCHISEE)
@@ -351,7 +351,7 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   @@index([clerkId])
-  @@index([email])
+  @@index([username])
   @@index([role])
   @@index([loginPin])
 }

@@ -80,7 +80,7 @@ function DroppableDriver({ driver, children, isOver }) {
 export default function DriverAssignmentPage() {
   const { user, isLoaded } = useUser();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isOwner = role === "owner";
+  const isAdmin = role === "owner" || role === "admin";
 
   const [drivers, setDrivers] = useState([]);
   const [unassignedDevices, setUnassignedDevices] = useState([]);
@@ -102,8 +102,8 @@ export default function DriverAssignmentPage() {
     })
   );
 
-  // Redirect non-owners
-  if (isLoaded && !isOwner) {
+  // Redirect non-admins
+  if (isLoaded && !isAdmin) {
     redirect("/dashboard/operations");
   }
 

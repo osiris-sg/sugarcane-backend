@@ -11,8 +11,6 @@ import {
   Monitor,
   List,
   Layers,
-  Activity,
-  Wallet,
   ClipboardList,
   FileText,
   RotateCcw,
@@ -45,8 +43,6 @@ const sidebarItems = [
     children: [
       { title: "Device List", href: "/dashboard/sales/equipment", icon: List },
       { title: "Device Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers, ownerOnly: true },
-      { title: "Device Status", href: "/dashboard/sales/equipment/status", icon: Activity },
-      { title: "Cash Records", href: "/dashboard/sales/equipment/cash", icon: Wallet },
     ],
   },
   {
@@ -70,13 +66,13 @@ const sidebarItems = [
   },
 ];
 
-function SidebarItem({ item, isCollapsed, isOwner }) {
+function SidebarItem({ item, isCollapsed, isAdmin }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const isActive = pathname === item.href;
 
   // Filter children based on role
-  const visibleChildren = item.children?.filter(child => !child.ownerOnly || isOwner);
+  const visibleChildren = item.children?.filter(child => !child.ownerOnly || isAdmin);
   const hasActiveChild = visibleChildren?.some((child) => pathname === child.href);
 
   if (item.children) {
@@ -149,10 +145,10 @@ export default function SalesLayout({ children }) {
   const { user } = useUser();
   const { signOut } = useClerk();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isOwner = role === "owner";
+  const isAdmin = role === "owner" || role === "admin";
 
   // Filter sidebar items based on role
-  const filteredItems = sidebarItems.filter(item => !item.ownerOnly || isOwner);
+  const filteredItems = sidebarItems.filter(item => !item.ownerOnly || isAdmin);
 
   return (
     <div className="flex min-h-screen">
@@ -167,7 +163,7 @@ export default function SalesLayout({ children }) {
         <div className="flex h-16 items-center justify-between border-b px-4">
           {!isCollapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
-              <span className="text-lg font-bold text-primary">Sugarcane</span>
+              <span className="text-lg font-bold text-primary">Supercane</span>
             </Link>
           )}
           <Button
@@ -187,7 +183,7 @@ export default function SalesLayout({ children }) {
         {/* Navigation */}
         <nav className="space-y-1 p-3">
           {filteredItems.map((item) => (
-            <SidebarItem key={item.title} item={item} isCollapsed={isCollapsed} isOwner={isOwner} />
+            <SidebarItem key={item.title} item={item} isCollapsed={isCollapsed} isAdmin={isAdmin} />
           ))}
         </nav>
 

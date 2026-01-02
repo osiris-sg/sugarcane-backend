@@ -1,7 +1,7 @@
 export default function Home() {
   return (
     <div style={{ padding: '40px', fontFamily: 'monospace', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>Sugarcane Vending Machine Backend</h1>
+      <h1>Supercane Vending Machine Backend</h1>
       <p style={{ color: 'green' }}>Server is running</p>
 
       <h2>Machine Endpoints</h2>

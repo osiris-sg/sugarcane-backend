@@ -15,14 +15,26 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  const url = req.nextUrl.pathname;
+  console.log(`[Middleware] Path: ${url}`);
+  console.log(`[Middleware] isProtected: ${isProtectedRoute(req)}, isSignUp: ${isSignUpRoute(req)}, isPublic: ${isPublicRoute(req)}`);
+
   // Block sign-up routes - redirect to sign-in
   if (isSignUpRoute(req)) {
+    console.log(`[Middleware] Blocking sign-up, redirecting to sign-in`);
     return NextResponse.redirect(new URL('/sign-in', req.url));
   }
 
   // Protect dashboard routes
   if (isProtectedRoute(req)) {
-    await auth.protect();
+    console.log(`[Middleware] Protected route, checking auth...`);
+    try {
+      await auth.protect();
+      console.log(`[Middleware] Auth passed`);
+    } catch (e) {
+      console.log(`[Middleware] Auth failed:`, e.message);
+      throw e;
+    }
   }
 });
 
