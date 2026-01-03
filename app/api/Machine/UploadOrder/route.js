@@ -23,6 +23,23 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'deviceId is required' }, { status: 400 });
     }
 
+    // Look up device to get price for quantity calculation
+    const device = await db.device.findUnique({
+      where: { deviceId },
+      select: { price: true },
+    });
+
+    // Calculate quantity based on amount and device price
+    // If device not found or price is 0, default to quantity from payload or 1
+    let calculatedQuantity = quantity;
+    if (device?.price && device.price > 0 && amount > 0) {
+      calculatedQuantity = Math.round(amount / device.price);
+      // Ensure at least 1 if there's an amount
+      if (calculatedQuantity < 1) calculatedQuantity = 1;
+    }
+
+    console.log(`[UploadOrder] Device price: ${device?.price || 'N/A'}, Amount: ${amount}, Calculated qty: ${calculatedQuantity}`);
+
     // Save order to database
     const saved = await db.order.create({
       data: {
@@ -30,7 +47,7 @@ export async function POST(request) {
         deviceId,
         deviceName: deviceName || deviceId,
         amount: amount || 0,
-        quantity,
+        quantity: calculatedQuantity,
         payWay: payWay || null,
         isSuccess: isSuccess !== false,
       },
