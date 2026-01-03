@@ -15,6 +15,7 @@ export default function ChangePasswordPage() {
   const { signOut } = useClerk();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [formData, setFormData] = useState({
     currentPassword: "",
     newPassword: "",
@@ -74,6 +75,31 @@ export default function ChangePasswordPage() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSkip() {
+    setSkipping(true);
+    try {
+      // Mark password as changed via API (skipping actual change)
+      const res = await fetch("/api/auth/mark-password-changed", {
+        method: "POST",
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success("Continuing with current password");
+        // Force reload to refresh Clerk session data, then redirect
+        window.location.href = "/dashboard";
+      } else {
+        toast.error(data.error || "Failed to continue");
+      }
+    } catch (error) {
+      console.error("Error skipping password change:", error);
+      toast.error("Failed to continue. Please try again.");
+    } finally {
+      setSkipping(false);
     }
   }
 
@@ -166,9 +192,32 @@ export default function ChangePasswordPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || skipping}>
               {loading ? "Changing Password..." : "Change Password"}
             </Button>
+
+            {requirePasswordChange && (
+              <>
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={loading || skipping}
+                  onClick={handleSkip}
+                >
+                  {skipping ? "Continuing..." : "Continue with Current Password"}
+                </Button>
+              </>
+            )}
           </form>
 
           <div className="mt-4 text-center">
