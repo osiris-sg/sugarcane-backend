@@ -271,7 +271,7 @@ export default function OrderListPage() {
 
       <main className="p-6">
         {/* Summary Cards */}
-        <div className="mb-6 grid gap-4 md:grid-cols-2">
+        <div className="mb-6 grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
@@ -301,6 +301,34 @@ export default function OrderListPage() {
                     {filterLabel && <span className="block text-xs">{filterLabel}</span>}
                   </p>
                   <p className="text-xl font-bold">{filteredCount}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+                  <DollarSign className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Monthly Revenue</p>
+                  <p className="text-xl font-bold">{formatCurrency(monthlyTotal)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+                  <ShoppingCart className="h-5 w-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Monthly Orders</p>
+                  <p className="text-xl font-bold">{monthlyCount}</p>
                 </div>
               </div>
             </CardContent>
