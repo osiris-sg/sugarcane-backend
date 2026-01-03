@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,8 +13,26 @@ export async function GET(request) {
     const period = searchParams.get('period') || 'day'; // day, week, month, custom
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const groupId = searchParams.get('groupId');
+    let groupId = searchParams.get('groupId');
     const deviceId = searchParams.get('deviceId');
+
+    // Get current user's role and group for access control
+    const { userId } = await auth();
+    let userGroupId = null;
+
+    if (userId) {
+      const dbUser = await db.user.findUnique({
+        where: { clerkId: userId },
+        select: { role: true, groupId: true },
+      });
+
+      // Franchisees can only see their own group's data
+      if (dbUser?.role === 'FRANCHISEE' && dbUser.groupId) {
+        userGroupId = dbUser.groupId;
+        // Force filter to user's group
+        groupId = userGroupId;
+      }
+    }
 
     // Calculate date range based on period
     const now = new Date();
@@ -92,8 +111,8 @@ export async function GET(request) {
       orderWhere.createdAt.lt = dateTo;
     }
 
-    // If filtering by group or device, only include those device IDs
-    if (groupId || deviceId) {
+    // If filtering by group, device, or user is franchisee, only include allowed device IDs
+    if (groupId || deviceId || userGroupId) {
       orderWhere.deviceId = { in: deviceIds };
     }
 
@@ -128,13 +147,17 @@ export async function GET(request) {
     const grandTotalCups = summary.reduce((sum, item) => sum + item.totalCups, 0);
     const grandTotalOrders = summary.reduce((sum, item) => sum + item.orderCount, 0);
 
-    // Get all groups for filter dropdown
+    // Get groups for filter dropdown (franchisees only see their own group)
+    const groupsWhere = userGroupId ? { id: userGroupId } : {};
     const groups = await db.group.findMany({
+      where: groupsWhere,
       orderBy: { name: 'asc' },
     });
 
-    // Get all devices for filter dropdown
+    // Get devices for filter dropdown (franchisees only see their own devices)
+    const devicesWhere = userGroupId ? { groupId: userGroupId } : {};
     const allDevices = await db.device.findMany({
+      where: devicesWhere,
       orderBy: { deviceName: 'asc' },
       select: {
         deviceId: true,
