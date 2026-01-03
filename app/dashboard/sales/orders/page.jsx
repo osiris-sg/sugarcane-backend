@@ -17,6 +17,7 @@ import {
   Gift,
   ChevronLeft,
   ChevronRight,
+  Calendar,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,6 +89,9 @@ export default function OrderListPage() {
   const [searchText, setSearchText] = useState("");
   const [deviceFilter, setDeviceFilter] = useState("all");
   const [payWayFilter, setPayWayFilter] = useState("all");
+  const [dateRange, setDateRange] = useState("all"); // all, today, week, month, custom
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
 
   useEffect(() => {
     fetchOrders();
@@ -120,21 +124,57 @@ export default function OrderListPage() {
     setSearchText("");
     setDeviceFilter("all");
     setPayWayFilter("all");
+    setDateRange("all");
+    setCustomStartDate("");
+    setCustomEndDate("");
     setCurrentPage(1);
   }
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchText, deviceFilter, payWayFilter]);
+  }, [searchText, deviceFilter, payWayFilter, dateRange, customStartDate, customEndDate]);
+
+  // Get date range boundaries
+  function getDateRangeBounds() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (dateRange) {
+      case "today":
+        return { start: todayStart, end: null };
+      case "week":
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(weekStart.getDate() - 7);
+        return { start: weekStart, end: null };
+      case "month":
+        const monthStart = new Date(todayStart);
+        monthStart.setDate(monthStart.getDate() - 30);
+        return { start: monthStart, end: null };
+      case "custom":
+        return {
+          start: customStartDate ? new Date(customStartDate) : null,
+          end: customEndDate ? new Date(customEndDate + "T23:59:59") : null,
+        };
+      default:
+        return { start: null, end: null };
+    }
+  }
 
   // Filter orders
+  const { start: dateStart, end: dateEnd } = getDateRangeBounds();
   const filteredOrders = orders.filter((order) => {
     if (deviceFilter !== "all" && order.deviceId !== deviceFilter) {
       return false;
     }
     if (payWayFilter !== "all" && order.payWay !== payWayFilter) {
       return false;
+    }
+    // Date range filter
+    if (dateStart || dateEnd) {
+      const orderDate = new Date(order.createdAt);
+      if (dateStart && orderDate < dateStart) return false;
+      if (dateEnd && orderDate > dateEnd) return false;
     }
     if (searchText) {
       const search = searchText.toLowerCase();
@@ -321,7 +361,47 @@ export default function OrderListPage() {
                 </SelectContent>
               </Select>
 
-              {(searchText || deviceFilter !== "all" || payWayFilter !== "all") && (
+              <Select value={dateRange} onValueChange={(v) => {
+                setDateRange(v);
+                if (v !== "custom") {
+                  setCustomStartDate("");
+                  setCustomEndDate("");
+                }
+              }}>
+                <SelectTrigger className="w-40">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Date Range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {dateRange === "custom" && (
+                <>
+                  <Input
+                    type="date"
+                    className="w-36"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    placeholder="Start date"
+                  />
+                  <span className="text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    className="w-36"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    placeholder="End date"
+                  />
+                </>
+              )}
+
+              {(searchText || deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all") && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
                   <X className="mr-1 h-4 w-4" />
                   Clear
