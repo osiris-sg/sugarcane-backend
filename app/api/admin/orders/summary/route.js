@@ -101,6 +101,7 @@ export async function GET(request) {
     // Build order where clause
     const orderWhere = {
       isSuccess: true,
+      payWay: { not: "1000" }, // Exclude free orders
       createdAt: {},
     };
 
