@@ -15,6 +15,8 @@ import {
   CreditCard,
   Banknote,
   Gift,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,12 +74,15 @@ function getPaymentMethod(payWay) {
   return { label: payWay, icon: "card" };
 }
 
+const ITEMS_PER_PAGE = 50;
+
 export default function OrderListPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [monthlyCount, setMonthlyCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -115,7 +120,13 @@ export default function OrderListPage() {
     setSearchText("");
     setDeviceFilter("all");
     setPayWayFilter("all");
+    setCurrentPage(1);
   }
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, deviceFilter, payWayFilter]);
 
   // Filter orders
   const filteredOrders = orders.filter((order) => {
@@ -139,6 +150,12 @@ export default function OrderListPage() {
   // Get unique devices and payment methods for filters
   const uniqueDevices = [...new Map(orders.map((o) => [o.deviceId, { id: o.deviceId, name: o.deviceName }])).values()];
   const uniquePayWays = [...new Set(orders.map((o) => o.payWay).filter(Boolean))];
+
+  // Pagination
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
 
   // Calculate stats (excluding free orders - payWay 1000)
   const todayStart = new Date();
@@ -319,63 +336,97 @@ export default function OrderListPage() {
         </Card>
 
         {/* Orders Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Device</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.length === 0 ? (
+        <Card className="flex flex-col">
+          <CardContent className="flex-1 overflow-hidden p-0">
+            <div className="max-h-[calc(100vh-420px)] overflow-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background">
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                      No orders found
-                    </TableCell>
+                    <TableHead>Order ID</TableHead>
+                    <TableHead>Device</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Date</TableHead>
                   </TableRow>
-                ) : (
-                  filteredOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-mono text-xs">{order.orderId}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{order.deviceName}</div>
-                          <div className="text-xs text-muted-foreground">{order.deviceId}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{formatCurrency(order.amount)}</TableCell>
-                      <TableCell>
-                        {order.payWay ? (
-                          <Badge variant="outline" className="gap-1">
-                            {getPaymentMethod(order.payWay)?.icon === "free" ? (
-                              <Gift className="h-3 w-3" />
-                            ) : getPaymentMethod(order.payWay)?.icon === "cash" ? (
-                              <Banknote className="h-3 w-3" />
-                            ) : (
-                              <CreditCard className="h-3 w-3" />
-                            )}
-                            {getPaymentMethod(order.payWay)?.label}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>{order.quantity || 1}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDateTime(order.createdAt)}
+                </TableHeader>
+                <TableBody>
+                  {paginatedOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                        No orders found
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    paginatedOrders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-mono text-xs">{order.orderId}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{order.deviceName}</div>
+                            <div className="text-xs text-muted-foreground">{order.deviceId}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{formatCurrency(order.amount)}</TableCell>
+                        <TableCell>
+                          {order.payWay ? (
+                            <Badge variant="outline" className="gap-1">
+                              {getPaymentMethod(order.payWay)?.icon === "free" ? (
+                                <Gift className="h-3 w-3" />
+                              ) : getPaymentMethod(order.payWay)?.icon === "cash" ? (
+                                <Banknote className="h-3 w-3" />
+                              ) : (
+                                <CreditCard className="h-3 w-3" />
+                              )}
+                              {getPaymentMethod(order.payWay)?.label}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{order.quantity || 1}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDateTime(order.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t px-4 py-3">
+              <p className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length} orders
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       </main>
     </div>
