@@ -331,6 +331,7 @@ model TemperatureAlert {
 enum UserRole {
   ADMIN         // Full access
   MANAGER       // Operations manager
+  FINANCE       // Finance - sales access only, can see all devices
   FRANCHISEE    // Franchisee owner
   DRIVER        // Driver/operator
 }

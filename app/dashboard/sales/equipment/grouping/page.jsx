@@ -83,7 +83,7 @@ function DroppableGroup({ group, children, isOver }) {
 export default function DeviceGroupingPage() {
   const { user, isLoaded } = useUser();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const isAdmin = role === "owner" || role === "admin" || role === "finance";
 
   const [groups, setGroups] = useState([]);
   const [devices, setDevices] = useState([]);
@@ -284,19 +284,18 @@ export default function DeviceGroupingPage() {
       onDragEnd={handleDragEnd}
     >
       <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
+        <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-4 md:px-6">
           <div>
-            <h1 className="text-xl font-semibold">Device Grouping</h1>
-            <p className="text-sm text-muted-foreground">
-              {groups.length} groups, {unassignedDevices.length} unassigned devices
-              {unassignedDevices.length > 0 && " - Drag devices to assign"}
+            <h1 className="text-lg md:text-xl font-semibold">Device Grouping</h1>
+            <p className="text-xs md:text-sm text-muted-foreground">
+              {groups.length} groups, {unassignedDevices.length} unassigned
             </p>
           </div>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Group
+              <Button size="sm">
+                <Plus className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">New Group</span>
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -322,16 +321,16 @@ export default function DeviceGroupingPage() {
           </Dialog>
         </header>
 
-        <main className="p-6">
-          <div className="grid gap-6 lg:grid-cols-[1fr_350px]">
+        <main className="p-4 md:p-6">
+          <div className="grid gap-4 md:gap-6 lg:grid-cols-[1fr_350px]">
             {/* Groups List */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Users className="h-5 w-5" />
+            <div className="space-y-4 order-2 lg:order-1">
+              <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
+                <Users className="h-4 w-4 md:h-5 md:w-5" />
                 Franchisee Groups
                 {activeId && (
-                  <Badge variant="outline" className="ml-2 animate-pulse">
-                    Drop here to assign
+                  <Badge variant="outline" className="ml-2 animate-pulse text-xs">
+                    Drop here
                   </Badge>
                 )}
               </h2>
@@ -358,36 +357,37 @@ export default function DeviceGroupingPage() {
                           : ""
                       }`}
                     >
-                      <CardHeader className="pb-2">
+                      <CardHeader className="pb-2 px-3 md:px-6">
                         <div className="flex items-center justify-between">
                           <button
                             onClick={() => toggleGroup(group.id)}
-                            className="flex items-center gap-2 hover:text-primary transition-colors"
+                            className="flex items-center gap-1.5 md:gap-2 hover:text-primary transition-colors"
                           >
                             {expandedGroups[group.id] ? (
-                              <ChevronDown className="h-5 w-5" />
+                              <ChevronDown className="h-4 w-4 md:h-5 md:w-5" />
                             ) : (
-                              <ChevronRight className="h-5 w-5" />
+                              <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
                             )}
-                            <CardTitle className="text-base">{group.name}</CardTitle>
-                            <Badge variant="secondary">{group.deviceCount} devices</Badge>
+                            <CardTitle className="text-sm md:text-base">{group.name}</CardTitle>
+                            <Badge variant="secondary" className="text-xs">{group.deviceCount}</Badge>
                           </button>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 md:gap-2">
                             <Button
                               size="sm"
                               variant="outline"
+                              className="h-8 px-2 md:px-3"
                               onClick={() => {
                                 setSelectedGroup(group);
                                 setAssignDialogOpen(true);
                               }}
                             >
-                              <Plus className="h-4 w-4 mr-1" />
-                              Add Device
+                              <Plus className="h-4 w-4 md:mr-1" />
+                              <span className="hidden md:inline">Add Device</span>
                             </Button>
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-destructive hover:text-destructive"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                               onClick={() => deleteGroup(group.id)}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -396,9 +396,9 @@ export default function DeviceGroupingPage() {
                         </div>
                       </CardHeader>
                       {expandedGroups[group.id] && (
-                        <CardContent>
+                        <CardContent className="px-3 md:px-6">
                           {group.devices?.length === 0 ? (
-                            <p className={`text-sm text-muted-foreground py-4 text-center ${
+                            <p className={`text-xs md:text-sm text-muted-foreground py-4 text-center ${
                               overId === group.id ? "text-primary font-medium" : ""
                             }`}>
                               {overId === group.id
@@ -410,24 +410,21 @@ export default function DeviceGroupingPage() {
                               {group.devices?.map((device) => (
                                 <div
                                   key={device.id}
-                                  className="flex items-center justify-between rounded-lg border p-3 bg-muted/30"
+                                  className="flex items-center justify-between rounded-lg border p-2 md:p-3 bg-muted/30"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <Monitor className="h-4 w-4 text-muted-foreground" />
+                                  <div className="flex items-center gap-2 md:gap-3">
+                                    <Monitor className="h-4 w-4 text-muted-foreground hidden md:block" />
                                     <div>
-                                      <p className="font-medium">{device.deviceName}</p>
+                                      <p className="font-medium text-sm">{device.deviceName}</p>
                                       <p className="text-xs text-muted-foreground">
-                                        ID: {device.deviceId}
-                                        {device.location && (
-                                          <span className="ml-2">• {device.location}</span>
-                                        )}
+                                        {device.location || device.deviceId}
                                       </p>
                                     </div>
                                   </div>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="text-muted-foreground hover:text-destructive"
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                     onClick={() => removeDeviceFromGroup(device.id)}
                                   >
                                     <X className="h-4 w-4" />
@@ -445,9 +442,9 @@ export default function DeviceGroupingPage() {
           </div>
 
           {/* Unassigned Devices */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Monitor className="h-5 w-5" />
+            <div className="space-y-4 order-1 lg:order-2">
+              <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
+                <Monitor className="h-4 w-4 md:h-5 md:w-5" />
                 Unassigned Devices
               </h2>
 
@@ -464,32 +461,32 @@ export default function DeviceGroupingPage() {
               <Card>
                 <CardContent className="p-2">
                   {filteredUnassignedDevices.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-8 text-center">
+                    <p className="text-xs md:text-sm text-muted-foreground py-6 md:py-8 text-center">
                       {unassignedDevices.length === 0
-                        ? "All devices are assigned to groups"
+                        ? "All devices are assigned"
                         : "No devices match your search"}
                     </p>
                   ) : (
-                    <div className="space-y-1 max-h-[500px] overflow-y-auto">
+                    <div className="space-y-1 max-h-[300px] md:max-h-[500px] overflow-y-auto">
                       {filteredUnassignedDevices.map((device) => (
                         <DraggableDevice key={device.id} device={device}>
                           <div
-                            className={`flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors ${
+                            className={`flex items-center justify-between rounded-lg border p-2 md:p-3 hover:bg-muted/50 transition-colors ${
                               activeId === device.id ? "border-primary bg-primary/10" : ""
                             }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
+                            <div className="flex items-center gap-2 md:gap-3">
+                              <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab hidden lg:block" />
                               <div>
                                 <p className="font-medium text-sm">{device.deviceName}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {device.deviceId} • {device.location || "No location"}
+                                  {device.location || device.deviceId}
                                 </p>
                               </div>
                             </div>
                             {groups.length > 0 && (
                               <select
-                                className="text-sm border rounded px-2 py-1 bg-background"
+                                className="text-xs md:text-sm border rounded px-1.5 md:px-2 py-1 bg-background"
                                 defaultValue=""
                                 onClick={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
@@ -500,7 +497,7 @@ export default function DeviceGroupingPage() {
                                   }
                                 }}
                               >
-                                <option value="">Assign to...</option>
+                                <option value="">Assign...</option>
                                 {groups.map((g) => (
                                   <option key={g.id} value={g.id}>
                                     {g.name}

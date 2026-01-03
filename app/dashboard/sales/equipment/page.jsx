@@ -28,7 +28,7 @@ export default function DeviceListPage() {
   const { user } = useUser();
   const router = useRouter();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const isAdmin = role === "owner" || role === "admin" || role === "finance";
 
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,26 +118,26 @@ export default function DeviceListPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
+      <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-4 md:px-6">
         <div>
-          <h1 className="text-xl font-semibold">Device List</h1>
-          <p className="text-sm text-muted-foreground">
-            {activeCount} of {devices.length} devices active
+          <h1 className="text-lg md:text-xl font-semibold">Device List</h1>
+          <p className="text-xs md:text-sm text-muted-foreground">
+            {activeCount} of {devices.length} active
           </p>
         </div>
-        <Button onClick={() => router.push("/dashboard/sales/equipment/add")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add
+        <Button size="sm" onClick={() => router.push("/dashboard/sales/equipment/add")}>
+          <Plus className="h-4 w-4 md:mr-2" />
+          <span className="hidden md:inline">Add</span>
         </Button>
       </header>
 
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         {/* Filters */}
-        <div className="mb-6 flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
+        <div className="mb-4 md:mb-6">
+          <div className="relative w-full md:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Enter search content"
+              placeholder="Search devices..."
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -145,8 +145,8 @@ export default function DeviceListPage() {
           </div>
         </div>
 
-        {/* Device Table */}
-        <Card>
+        {/* Device Table - Desktop */}
+        <Card className="hidden md:block">
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -236,6 +236,76 @@ export default function DeviceListPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Device Cards - Mobile */}
+        <div className="md:hidden space-y-3">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+          ) : filteredDevices.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              No devices found
+            </div>
+          ) : (
+            filteredDevices.map((device) => (
+              <Card key={device.id}>
+                <CardContent className="p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{device.deviceName}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{device.deviceId}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${device.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                      {device.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-xs text-muted-foreground mb-3">
+                    <div className="flex items-center justify-between">
+                      <span>Location:</span>
+                      <div className="flex items-center gap-1">
+                        <span>{device.location || "-"}</span>
+                        <button
+                          onClick={() => fetchLocationHistory(device.deviceId, device.deviceName)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <History className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center justify-between">
+                        <span>Group:</span>
+                        <span>{device.group?.name || "-"}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span>Price:</span>
+                      <span className="font-medium text-foreground">{formatPrice(device.price)}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 bg-blue-500 text-white hover:bg-blue-600 border-blue-500"
+                      onClick={() => router.push(`/dashboard/sales/equipment/${device.id}`)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 bg-red-500 text-white hover:bg-red-600 border-red-500"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
       </main>
 
       {/* Location History Dialog */}

@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Filter,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 // Helper to format date/time in Singapore timezone
 function formatDateTime(dateString) {
@@ -93,6 +99,7 @@ export default function FaultsPage() {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Filters
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -188,33 +195,35 @@ export default function FaultsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
-        <div>
-          <h1 className="text-xl font-semibold">Fault Management</h1>
-          <p className="text-sm text-muted-foreground">View and manage all device faults</p>
+      <header className="sticky top-0 z-30 border-b bg-background">
+        <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
+          <div>
+            <h1 className="text-lg md:text-xl font-semibold">Fault Management</h1>
+            <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">View and manage all device faults</p>
+          </div>
+          <Button variant="outline" size="sm" className="h-8 md:h-9" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 md:mr-2 ${refreshing ? "animate-spin" : ""}`} />
+            <span className="hidden md:inline">Refresh</span>
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
       </header>
 
       {/* Main Content */}
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         {/* Summary Cards */}
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <div className="mb-4 md:mb-6 grid grid-cols-3 gap-2 md:gap-4">
           <Card
             className={`cursor-pointer transition-colors ${priorityFilter === "3" ? "ring-2 ring-red-500" : ""}`}
             onClick={() => setPriorityFilter(priorityFilter === "3" ? "all" : "3")}
           >
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
+            <CardContent className="flex flex-col md:flex-row items-center justify-between p-3 md:p-4 gap-2">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-red-100">
+                  <AlertTriangle className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
                 </div>
-                <span className="font-medium">High Priority</span>
+                <span className="font-medium text-xs md:text-sm">High</span>
               </div>
-              <span className="text-2xl font-bold">{priorityCounts.high}</span>
+              <span className="text-xl md:text-2xl font-bold">{priorityCounts.high}</span>
             </CardContent>
           </Card>
 
@@ -222,14 +231,14 @@ export default function FaultsPage() {
             className={`cursor-pointer transition-colors ${priorityFilter === "2" ? "ring-2 ring-yellow-500" : ""}`}
             onClick={() => setPriorityFilter(priorityFilter === "2" ? "all" : "2")}
           >
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100">
-                  <Bell className="h-5 w-5 text-yellow-600" />
+            <CardContent className="flex flex-col md:flex-row items-center justify-between p-3 md:p-4 gap-2">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-yellow-100">
+                  <Bell className="h-4 w-4 md:h-5 md:w-5 text-yellow-600" />
                 </div>
-                <span className="font-medium">Medium Priority</span>
+                <span className="font-medium text-xs md:text-sm">Medium</span>
               </div>
-              <span className="text-2xl font-bold">{priorityCounts.medium}</span>
+              <span className="text-xl md:text-2xl font-bold">{priorityCounts.medium}</span>
             </CardContent>
           </Card>
 
@@ -237,27 +246,27 @@ export default function FaultsPage() {
             className={`cursor-pointer transition-colors ${priorityFilter === "1" ? "ring-2 ring-blue-500" : ""}`}
             onClick={() => setPriorityFilter(priorityFilter === "1" ? "all" : "1")}
           >
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                  <Info className="h-5 w-5 text-blue-600" />
+            <CardContent className="flex flex-col md:flex-row items-center justify-between p-3 md:p-4 gap-2">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-blue-100">
+                  <Info className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
                 </div>
-                <span className="font-medium">Low Priority</span>
+                <span className="font-medium text-xs md:text-sm">Low</span>
               </div>
-              <span className="text-2xl font-bold">{priorityCounts.low}</span>
+              <span className="text-xl md:text-2xl font-bold">{priorityCounts.low}</span>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
+        {/* Desktop Filters */}
+        <Card className="mb-4 md:mb-6 hidden md:block">
+          <CardHeader className="pb-3 px-4 md:px-6">
             <CardTitle className="flex items-center gap-2 text-base">
               <Filter className="h-4 w-4" />
               Filters
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 md:px-6">
             <div className="flex flex-wrap items-center gap-4">
               <Input
                 placeholder="Search by device, fault code..."
@@ -319,8 +328,82 @@ export default function FaultsPage() {
           </CardContent>
         </Card>
 
-        {/* Faults Table */}
-        <Card>
+        {/* Mobile Filters */}
+        <div className="md:hidden mb-4">
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full justify-between">
+                <span className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  {(priorityFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                  )}
+                </span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3 space-y-3">
+              <Input
+                placeholder="Search..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Priorities</SelectItem>
+                    <SelectItem value="3">High</SelectItem>
+                    <SelectItem value="2">Medium</SelectItem>
+                    <SelectItem value="1">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="OPEN">Open</SelectItem>
+                    <SelectItem value="CHECKING">Checking</SelectItem>
+                    <SelectItem value="RESOLVED">Resolved</SelectItem>
+                    <SelectItem value="UNRESOLVED">Unresolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Select value={deviceFilter} onValueChange={setDeviceFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Devices" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Devices</SelectItem>
+                  {uniqueDevices.map((device) => (
+                    <SelectItem key={device.id} value={device.id}>
+                      {device.name || device.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center justify-between">
+                {(priorityFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    <X className="mr-1 h-4 w-4" />
+                    Clear
+                  </Button>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {filteredIssues.length} of {issues.length} faults
+                </span>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+
+        {/* Faults Table - Desktop */}
+        <Card className="hidden md:block">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -377,6 +460,49 @@ export default function FaultsPage() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Faults Cards - Mobile */}
+        <div className="md:hidden space-y-3">
+          {filteredIssues.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No faults found
+              </CardContent>
+            </Card>
+          ) : (
+            filteredIssues.map((issue) => (
+              <Card key={issue.id}>
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{issue.deviceName}</p>
+                      <p className="text-xs text-muted-foreground">{issue.deviceId}</p>
+                    </div>
+                    <PriorityBadge priority={issue.priority} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge status={issue.status} />
+                    <Badge variant="outline" className="text-xs">
+                      {issue.type === "DEVICE_ERROR" ? "Device Error" : "Zero Sales"}
+                    </Badge>
+                  </div>
+                  <div className="text-xs space-y-1">
+                    {issue.faultCode && (
+                      <p><span className="text-muted-foreground">Code:</span> <span className="font-mono">{issue.faultCode}</span></p>
+                    )}
+                    {issue.faultName && (
+                      <p><span className="text-muted-foreground">Fault:</span> {issue.faultName}</p>
+                    )}
+                    <p><span className="text-muted-foreground">Triggered:</span> {formatDateTime(issue.triggeredAt)}</p>
+                    {issue.resolvedAt && (
+                      <p><span className="text-muted-foreground">Resolved:</span> {formatDateTime(issue.resolvedAt)}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
       </main>
     </div>
   );

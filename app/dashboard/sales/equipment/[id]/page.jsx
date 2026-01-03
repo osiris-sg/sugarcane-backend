@@ -23,7 +23,7 @@ export default function EditDevicePage() {
   const router = useRouter();
   const { user } = useUser();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const isAdmin = role === "owner" || role === "admin" || role === "finance";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

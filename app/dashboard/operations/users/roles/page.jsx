@@ -92,66 +92,66 @@ export default function RolesPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background">
-        <div className="flex h-16 items-center px-6">
+      <header className="sticky top-0 z-30 border-b bg-background">
+        <div className="flex h-14 md:h-16 items-center px-4 md:px-6">
           <div>
-            <h1 className="text-xl font-semibold">User Roles</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-lg md:text-xl font-semibold">User Roles</h1>
+            <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
               Understanding role permissions
             </p>
           </div>
         </div>
       </header>
 
-      <main className="p-6">
-        <div className="mb-6">
+      <main className="p-4 md:p-6">
+        <div className="mb-4 md:mb-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
+            <CardHeader className="px-4 md:px-6">
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                <Shield className="h-4 w-4 md:h-5 md:w-5" />
                 Role-Based Access Control
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs md:text-sm">
                 Users are assigned roles that determine what features they can access.
-                Roles are stored in Clerk user metadata and synced to the database.
               </CardDescription>
             </CardHeader>
           </Card>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
           {roles.map((role) => (
             <Card key={role.name}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3">
-                  <div className={`rounded-full p-2 ${colorClasses[role.color].bg}`}>
-                    <role.icon className={`h-5 w-5 ${colorClasses[role.color].text}`} />
+              <CardHeader className="px-4 md:px-6">
+                <CardTitle className="flex items-center gap-2 md:gap-3 text-base md:text-lg">
+                  <div className={`rounded-full p-1.5 md:p-2 ${colorClasses[role.color].bg}`}>
+                    <role.icon className={`h-4 w-4 md:h-5 md:w-5 ${colorClasses[role.color].text}`} />
                   </div>
                   {role.name}
                   <Badge
                     variant={role.name === "Owner" ? "default" : "secondary"}
+                    className="text-xs"
                   >
                     {role.name === "Owner" ? "Admin" : "Standard"}
                   </Badge>
                 </CardTitle>
-                <CardDescription>{role.description}</CardDescription>
+                <CardDescription className="text-xs md:text-sm">{role.description}</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-muted-foreground">
+              <CardContent className="px-4 md:px-6">
+                <div className="space-y-2 md:space-y-3">
+                  <p className="text-xs md:text-sm font-medium text-muted-foreground">
                     Permissions
                   </p>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 md:space-y-2">
                     {role.permissions.map((permission) => (
                       <div
                         key={permission.name}
-                        className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
+                        className="flex items-center justify-between rounded-lg bg-muted/50 px-2 md:px-3 py-1.5 md:py-2"
                       >
-                        <span className="text-sm">{permission.name}</span>
+                        <span className="text-xs md:text-sm">{permission.name}</span>
                         {permission.allowed ? (
-                          <Check className="h-4 w-4 text-green-500" />
+                          <Check className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-500" />
                         ) : (
-                          <X className="h-4 w-4 text-red-500" />
+                          <X className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-500" />
                         )}
                       </div>
                     ))}
@@ -162,28 +162,27 @@ export default function RolesPage() {
           ))}
         </div>
 
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>How to Assign Roles</CardTitle>
+        <Card className="mt-4 md:mt-6">
+          <CardHeader className="px-4 md:px-6">
+            <CardTitle className="text-base md:text-lg">How to Assign Roles</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-lg bg-muted/50 p-4">
-              <h4 className="font-medium">1. When Creating a User</h4>
-              <p className="text-sm text-muted-foreground">
+          <CardContent className="px-4 md:px-6 space-y-3 md:space-y-4">
+            <div className="rounded-lg bg-muted/50 p-3 md:p-4">
+              <h4 className="font-medium text-sm md:text-base">1. When Creating a User</h4>
+              <p className="text-xs md:text-sm text-muted-foreground">
                 Select the desired role from the dropdown when adding a new user.
               </p>
             </div>
-            <div className="rounded-lg bg-muted/50 p-4">
-              <h4 className="font-medium">2. Editing Existing Users</h4>
-              <p className="text-sm text-muted-foreground">
+            <div className="rounded-lg bg-muted/50 p-3 md:p-4">
+              <h4 className="font-medium text-sm md:text-base">2. Editing Existing Users</h4>
+              <p className="text-xs md:text-sm text-muted-foreground">
                 Go to User List, click the actions menu on a user, and select "Edit Role".
               </p>
             </div>
-            <div className="rounded-lg bg-muted/50 p-4">
-              <h4 className="font-medium">3. Via Clerk Dashboard</h4>
-              <p className="text-sm text-muted-foreground">
-                You can also manage user metadata directly in the Clerk Dashboard under
-                Users → Select User → Public Metadata → Set "role" field.
+            <div className="rounded-lg bg-muted/50 p-3 md:p-4">
+              <h4 className="font-medium text-sm md:text-base">3. Via Clerk Dashboard</h4>
+              <p className="text-xs md:text-sm text-muted-foreground">
+                You can also manage user metadata directly in the Clerk Dashboard.
               </p>
             </div>
           </CardContent>

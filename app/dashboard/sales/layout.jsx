@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
@@ -22,6 +22,8 @@ import {
   UserPlus,
   Shield,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -67,7 +69,7 @@ const sidebarItems = [
   },
 ];
 
-function SidebarItem({ item, isCollapsed, isAdmin }) {
+function SidebarItem({ item, isCollapsed, isAdmin, onNavigate }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const isActive = pathname === item.href;
@@ -108,6 +110,7 @@ function SidebarItem({ item, isCollapsed, isAdmin }) {
               <Link
                 key={child.href}
                 href={child.href}
+                onClick={onNavigate}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                   pathname === child.href
@@ -128,6 +131,7 @@ function SidebarItem({ item, isCollapsed, isAdmin }) {
   return (
     <Link
       href={item.href}
+      onClick={onNavigate}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
         isActive
@@ -143,20 +147,57 @@ function SidebarItem({ item, isCollapsed, isAdmin }) {
 
 export default function SalesLayout({ children }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user } = useUser();
   const { signOut } = useClerk();
+  const pathname = usePathname();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const isAdmin = role === "owner" || role === "admin" || role === "finance";
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   // Filter sidebar items based on role
   const filteredItems = sidebarItems.filter(item => !item.ownerOnly || isAdmin);
 
+  const handleMobileNavigate = () => {
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar */}
+      {/* Mobile Header */}
+      <div className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <span className="text-lg font-bold text-primary">Supercane</span>
+        </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        >
+          {isMobileMenuOpen ? (
+            <X className="h-5 w-5" />
+          ) : (
+            <Menu className="h-5 w-5" />
+          )}
+        </Button>
+      </div>
+
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Desktop */}
       <aside
         className={cn(
-          "sticky top-0 h-screen border-r bg-background transition-all duration-300",
+          "sticky top-0 h-screen border-r bg-background transition-all duration-300 hidden md:block",
           isCollapsed ? "w-16" : "w-64"
         )}
       >
@@ -213,8 +254,48 @@ export default function SalesLayout({ children }) {
         </div>
       </aside>
 
+      {/* Sidebar - Mobile */}
+      <aside
+        className={cn(
+          "fixed top-14 left-0 bottom-0 z-40 w-64 border-r bg-background transition-transform duration-300 md:hidden",
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {/* Navigation */}
+        <nav className="space-y-1 p-3">
+          {filteredItems.map((item) => (
+            <SidebarItem
+              key={item.title}
+              item={item}
+              isCollapsed={false}
+              isAdmin={isAdmin}
+              onNavigate={handleMobileNavigate}
+            />
+          ))}
+        </nav>
+
+        {/* Bottom Section */}
+        <div className="absolute bottom-4 left-0 right-0 space-y-1 px-3">
+          <Link
+            href="/dashboard"
+            onClick={handleMobileNavigate}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span>Back to Dashboard</span>
+          </Link>
+          <button
+            onClick={() => signOut({ redirectUrl: "/sign-in" })}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto pt-14 md:pt-0">
         {children}
       </main>
     </div>

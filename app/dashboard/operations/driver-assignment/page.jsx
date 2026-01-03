@@ -228,25 +228,27 @@ export default function DriverAssignmentPage() {
       onDragEnd={handleDragEnd}
     >
       <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
-          <div>
-            <h1 className="text-xl font-semibold">Driver Assignment</h1>
-            <p className="text-sm text-muted-foreground">
-              {drivers.length} drivers, {unassignedDevices.length} unassigned devices
-              {unassignedDevices.length > 0 && " - Drag devices to assign"}
-            </p>
+        <header className="sticky top-0 z-30 border-b bg-background">
+          <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
+            <div>
+              <h1 className="text-lg md:text-xl font-semibold">Driver Assignment</h1>
+              <p className="text-xs md:text-sm text-muted-foreground">
+                {drivers.length} drivers, {unassignedDevices.length} unassigned
+                <span className="hidden sm:inline">{unassignedDevices.length > 0 && " - Drag devices to assign"}</span>
+              </p>
+            </div>
           </div>
         </header>
 
-        <main className="p-6">
-          <div className="grid gap-6 lg:grid-cols-[1fr_350px]">
+        <main className="p-4 md:p-6">
+          <div className="grid gap-4 md:gap-6 lg:grid-cols-[1fr_350px]">
             {/* Drivers List */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Truck className="h-5 w-5" />
+            <div className="space-y-3 md:space-y-4 order-2 lg:order-1">
+              <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
+                <Truck className="h-4 w-4 md:h-5 md:w-5" />
                 Drivers
                 {activeId && (
-                  <Badge variant="outline" className="ml-2 animate-pulse">
+                  <Badge variant="outline" className="ml-2 animate-pulse text-xs">
                     Drop here to assign
                   </Badge>
                 )}
@@ -380,9 +382,9 @@ export default function DriverAssignmentPage() {
             </div>
 
             {/* Unassigned Devices */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Monitor className="h-5 w-5" />
+            <div className="space-y-3 md:space-y-4 order-1 lg:order-2">
+              <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
+                <Monitor className="h-4 w-4 md:h-5 md:w-5" />
                 Unassigned Devices
               </h2>
 
@@ -405,7 +407,7 @@ export default function DriverAssignmentPage() {
                         : "No devices match your search"}
                     </p>
                   ) : (
-                    <div className="space-y-1 max-h-[500px] overflow-y-auto">
+                    <div className="space-y-1 max-h-[300px] md:max-h-[500px] overflow-y-auto">
                       {filteredUnassignedDevices.map((device) => (
                         <DraggableDevice key={device.id} device={device}>
                           <div

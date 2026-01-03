@@ -147,43 +147,54 @@ export default function UsersPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background">
-        <div className="flex h-16 items-center justify-between px-6">
+      <header className="sticky top-0 z-30 border-b bg-background">
+        <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
           <div>
-            <h1 className="text-xl font-semibold">User Management</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-lg md:text-xl font-semibold">User Management</h1>
+            <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
               Manage users and their roles
             </p>
           </div>
         </div>
       </header>
 
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         {/* Stats */}
-        <div className="mb-6 grid gap-4 sm:grid-cols-5">
+        <div className="mb-4 md:mb-6 grid grid-cols-3 gap-2 md:gap-4 md:grid-cols-5">
           <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="rounded-full bg-blue-100 p-3">
-                <Users className="h-5 w-5 text-blue-600" />
+            <CardContent className="flex flex-col md:flex-row items-center gap-2 md:gap-4 p-3 md:p-4">
+              <div className="rounded-full bg-blue-100 p-2 md:p-3">
+                <Users className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{users.length}</p>
+              <div className="text-center md:text-left">
+                <p className="text-xs md:text-sm text-muted-foreground">Total</p>
+                <p className="text-xl md:text-2xl font-bold">{users.length}</p>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="rounded-full bg-amber-100 p-3">
-                <Crown className="h-5 w-5 text-amber-600" />
+            <CardContent className="flex flex-col md:flex-row items-center gap-2 md:gap-4 p-3 md:p-4">
+              <div className="rounded-full bg-amber-100 p-2 md:p-3">
+                <Crown className="h-4 w-4 md:h-5 md:w-5 text-amber-600" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Owners</p>
-                <p className="text-2xl font-bold">{ownerCount}</p>
+              <div className="text-center md:text-left">
+                <p className="text-xs md:text-sm text-muted-foreground">Owners</p>
+                <p className="text-xl md:text-2xl font-bold">{ownerCount}</p>
               </div>
             </CardContent>
           </Card>
           <Card>
+            <CardContent className="flex flex-col md:flex-row items-center gap-2 md:gap-4 p-3 md:p-4">
+              <div className="rounded-full bg-orange-100 p-2 md:p-3">
+                <Truck className="h-4 w-4 md:h-5 md:w-5 text-orange-600" />
+              </div>
+              <div className="text-center md:text-left">
+                <p className="text-xs md:text-sm text-muted-foreground">Drivers</p>
+                <p className="text-xl md:text-2xl font-bold">{driverCount}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="hidden md:block">
             <CardContent className="flex items-center gap-4 p-4">
               <div className="rounded-full bg-green-100 p-3">
                 <User className="h-5 w-5 text-green-600" />
@@ -194,7 +205,7 @@ export default function UsersPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="hidden md:block">
             <CardContent className="flex items-center gap-4 p-4">
               <div className="rounded-full bg-purple-100 p-3">
                 <Briefcase className="h-5 w-5 text-purple-600" />
@@ -205,28 +216,17 @@ export default function UsersPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="rounded-full bg-orange-100 p-3">
-                <Truck className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Drivers</p>
-                <p className="text-2xl font-bold">{driverCount}</p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Users Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
+        {/* Users Table - Desktop */}
+        <Card className="hidden md:block">
+          <CardHeader className="px-4 md:px-6">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+              <Users className="h-4 w-4 md:h-5 md:w-5" />
               All Users
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 md:px-6">
             {loading ? (
               <div className="py-8 text-center text-muted-foreground">
                 Loading users...
@@ -328,6 +328,93 @@ export default function UsersPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Users Cards - Mobile */}
+        <div className="md:hidden space-y-3">
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            All Users
+          </h2>
+          {loading ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Loading users...
+              </CardContent>
+            </Card>
+          ) : users.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No users found
+              </CardContent>
+            </Card>
+          ) : (
+            users.map((user) => (
+              <Card key={user.id}>
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      {user.imageUrl ? (
+                        <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full" />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+                          <User className="h-4 w-4" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium text-sm">{user.firstName} {user.lastName}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                      </div>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setEditingUser(user);
+                            setNewRole(user.role);
+                          }}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Role
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={() => setDeleteUser(user)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete User
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Badge
+                      variant={user.role === "owner" ? "default" : "secondary"}
+                      className={`gap-1 text-xs ${
+                        user.role === "opsmanager" ? "bg-purple-100 text-purple-800" :
+                        user.role === "driver" ? "bg-orange-100 text-orange-800" : ""
+                      }`}
+                    >
+                      {user.role === "owner" && <Crown className="h-3 w-3" />}
+                      {user.role === "franchisee" && <User className="h-3 w-3" />}
+                      {user.role === "opsmanager" && <Briefcase className="h-3 w-3" />}
+                      {user.role === "driver" && <Truck className="h-3 w-3" />}
+                      {user.role}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      Last: {formatDate(user.lastSignInAt)}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
       </main>
 
       {/* Edit Role Dialog */}

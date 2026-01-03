@@ -9,6 +9,7 @@ function mapRoleToEnum(role) {
   const roleMap = {
     admin: 'ADMIN',
     manager: 'MANAGER',
+    finance: 'FINANCE',
     franchisee: 'FRANCHISEE',
     driver: 'DRIVER',
   };

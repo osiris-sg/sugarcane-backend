@@ -69,18 +69,18 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md">
         <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Sign in to Supercane</CardTitle>
-            <p className="text-sm text-muted-foreground">Welcome back! Please sign in to continue</p>
+          <CardHeader className="text-center px-4 md:px-6">
+            <CardTitle className="text-xl md:text-2xl">Sign in to Supercane</CardTitle>
+            <p className="text-xs md:text-sm text-muted-foreground">Welcome back! Please sign in to continue</p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 md:px-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4" />
+                <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-xs md:text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   {error}
                 </div>
               )}

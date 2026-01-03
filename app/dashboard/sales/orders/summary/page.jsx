@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import { BarChart3, Calendar, Filter, Download } from "lucide-react";
+import { BarChart3, Calendar, Filter, Download, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,11 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 export default function OrderSummaryPage() {
   const [loading, setLoading] = useState(true);
@@ -32,6 +37,7 @@ export default function OrderSummaryPage() {
   const [deviceId, setDeviceId] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -101,20 +107,102 @@ export default function OrderSummaryPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
+      <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-4 md:px-6">
         <div>
-          <h1 className="text-xl font-semibold">Order Summary</h1>
-          <p className="text-sm text-muted-foreground">Sales by device</p>
+          <h1 className="text-lg md:text-xl font-semibold">Order Summary</h1>
+          <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Sales by device</p>
         </div>
         <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.summary?.length}>
-          <Download className="mr-2 h-4 w-4" />
-          Export CSV
+          <Download className="h-4 w-4 md:mr-2" />
+          <span className="hidden md:inline">Export CSV</span>
         </Button>
       </header>
 
-      <main className="p-6 space-y-6">
-        {/* Filters */}
-        <Card>
+      <main className="p-4 md:p-6 space-y-4 md:space-y-6">
+        {/* Mobile Filters */}
+        <div className="md:hidden">
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full justify-between">
+                <span className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filters
+                </span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Period</label>
+                  <Select value={period} onValueChange={setPeriod}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">Today</SelectItem>
+                      <SelectItem value="week">This Week</SelectItem>
+                      <SelectItem value="month">This Month</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Group</label>
+                  <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All Groups" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Groups</SelectItem>
+                      {data?.filters?.groups?.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Device</label>
+                <Select value={deviceId} onValueChange={setDeviceId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All Devices" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Devices</SelectItem>
+                    {filteredDevices.map((device) => (
+                      <SelectItem key={device.deviceId} value={device.deviceId}>
+                        {device.deviceName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {period === "custom" && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Start</label>
+                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">End</label>
+                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                    </div>
+                  </div>
+                  <Button onClick={handleCustomDateApply} size="sm" className="w-full">
+                    Apply Dates
+                  </Button>
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+
+        {/* Desktop Filters */}
+        <Card className="hidden md:block">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Filter className="h-4 w-4" />
@@ -208,18 +296,18 @@ export default function OrderSummaryPage() {
         </Card>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-3 gap-3 md:gap-4">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="pb-1 md:pb-2 px-3 md:px-6">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">
                 Total Sales
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 md:px-6">
               {loading ? (
-                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-6 md:h-8 w-16 md:w-24" />
               ) : (
-                <div className="text-2xl font-bold">
+                <div className="text-lg md:text-2xl font-bold">
                   {formatCurrency(data?.totals?.totalSales || 0)}
                 </div>
               )}
@@ -227,16 +315,16 @@ export default function OrderSummaryPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="pb-1 md:pb-2 px-3 md:px-6">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">
                 Total Cups
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 md:px-6">
               {loading ? (
-                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-6 md:h-8 w-16 md:w-24" />
               ) : (
-                <div className="text-2xl font-bold">
+                <div className="text-lg md:text-2xl font-bold">
                   {data?.totals?.totalCups || 0}
                 </div>
               )}
@@ -244,16 +332,16 @@ export default function OrderSummaryPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Orders
+            <CardHeader className="pb-1 md:pb-2 px-3 md:px-6">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">
+                Orders
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 md:px-6">
               {loading ? (
-                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-6 md:h-8 w-16 md:w-24" />
               ) : (
-                <div className="text-2xl font-bold">
+                <div className="text-lg md:text-2xl font-bold">
                   {data?.totals?.totalOrders || 0}
                 </div>
               )}
@@ -261,8 +349,8 @@ export default function OrderSummaryPage() {
           </Card>
         </div>
 
-        {/* Data Table */}
-        <Card>
+        {/* Data Table - Desktop */}
+        <Card className="hidden md:block">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
@@ -339,6 +427,45 @@ export default function OrderSummaryPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <BarChart3 className="h-4 w-4" />
+            Sales by Device
+          </div>
+          {loading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : data?.summary?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              No orders found for the selected period
+            </div>
+          ) : (
+            <>
+              {data?.summary?.map((item) => (
+                <Card key={item.deviceId}>
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-sm">{item.deviceName}</p>
+                        <p className="text-xs text-muted-foreground">{item.groupName || "-"}</p>
+                      </div>
+                      <p className="text-lg font-bold">{formatCurrency(item.totalSales)}</p>
+                    </div>
+                    <div className="flex gap-4 text-xs text-muted-foreground">
+                      <span>{item.totalCups} cups</span>
+                      <span>{item.orderCount} orders</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          )}
+        </div>
       </main>
     </div>
   );

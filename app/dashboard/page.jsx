@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useUser, useClerk } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 import { Settings, TrendingUp, Globe, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ManagementBox } from "@/components/dashboard/management-box";
@@ -15,6 +16,11 @@ export default function DashboardPage() {
   // Get role from user metadata (default to franchisee)
   const role = user?.publicMetadata?.role || "franchisee";
   const isOwnerOrAdmin = role === "owner" || role === "admin";
+
+  // Redirect sales-only users (franchisee, finance) directly to sales page
+  if (isLoaded && !isOwnerOrAdmin) {
+    redirect("/dashboard/sales");
+  }
 
   if (!isLoaded) {
     return (

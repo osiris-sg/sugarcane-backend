@@ -117,20 +117,20 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
-            <ShieldCheck className="h-8 w-8 text-amber-600" />
+        <CardHeader className="text-center px-4 md:px-6">
+          <div className="mx-auto mb-3 md:mb-4 flex h-12 w-12 md:h-16 md:w-16 items-center justify-center rounded-full bg-amber-100">
+            <ShieldCheck className="h-6 w-6 md:h-8 md:w-8 text-amber-600" />
           </div>
-          <CardTitle className="text-2xl">Change Your Password</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-xl md:text-2xl">Change Your Password</CardTitle>
+          <CardDescription className="text-xs md:text-sm">
             {requirePasswordChange
               ? "For security, you must change your password before continuing."
               : "Update your password to keep your account secure."}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 md:px-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-2">
               <Label htmlFor="currentPassword">Current Password</Label>

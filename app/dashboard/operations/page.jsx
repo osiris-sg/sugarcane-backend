@@ -122,28 +122,30 @@ export default function OperationsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
-        <div>
-          <h1 className="text-xl font-semibold">Operations Overview</h1>
-          <p className="text-sm text-muted-foreground">Real-time overview of all vending units</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard/sales/equipment">
-            <Button variant="default" size="sm">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Device
+      <header className="sticky top-0 z-30 border-b bg-background">
+        <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
+          <div>
+            <h1 className="text-lg md:text-xl font-semibold">Operations Overview</h1>
+            <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Real-time overview of all vending units</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/sales/equipment">
+              <Button variant="default" size="sm" className="h-8 md:h-9">
+                <Plus className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Add Device</span>
+              </Button>
+            </Link>
+            <Button variant="outline" size="sm" className="h-8 md:h-9" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 md:mr-2 ${refreshing ? "animate-spin" : ""}`} />
+              <span className="hidden md:inline">Refresh</span>
             </Button>
-          </Link>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="p-6">
-        <div className="grid gap-6 lg:grid-cols-[350px_1fr]">
+      <main className="p-4 md:p-6">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-[350px_1fr]">
           {/* Left Panel - Alerts & Stats */}
           <div className="space-y-4">
             {/* Priority Alerts */}
@@ -246,12 +248,12 @@ export default function OperationsPage() {
         </div>
 
         {/* Device Table */}
-        <Card className="mt-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
+        <Card className="mt-4 md:mt-6">
+          <CardHeader className="px-4 md:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Input
                 placeholder="Filter by ID or name..."
-                className="max-w-xs"
+                className="max-w-full sm:max-w-xs"
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
               />
@@ -260,90 +262,143 @@ export default function OperationsPage() {
               </span>
             </div>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Device ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Actions</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Stock</TableHead>
-                  <TableHead>Temp (°C)</TableHead>
-                  <TableHead>Last Seen</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDevices.length === 0 ? (
+          <CardContent className="px-4 md:px-6">
+            {/* Desktop Table */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      No devices found
-                    </TableCell>
+                    <TableHead>Device ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Actions</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Stock</TableHead>
+                    <TableHead>Temp (°C)</TableHead>
+                    <TableHead>Last Seen</TableHead>
                   </TableRow>
-                ) : (
-                  filteredDevices.map((device) => {
-                    return (
-                      <TableRow key={device.deviceId}>
-                        <TableCell className="font-medium">{device.deviceId}</TableCell>
-                        <TableCell>{device.deviceName || "-"}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Link href={`/dashboard/sales/equipment/${device.id}`}>
-                              <Button size="sm" variant="default">
-                                View
-                              </Button>
-                            </Link>
-                            <Link href={`/dashboard/sales/equipment/${device.id}`}>
-                              <Button size="sm" variant="outline">
-                                Edit
-                              </Button>
-                            </Link>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={device.isActive ? "success" : "destructive"}>
-                            {device.isActive ? "ON" : "OFF"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {device.stockQuantity !== null ? (
-                            <div className="flex items-center gap-2">
-                              <div className="h-2 w-16 rounded-full bg-secondary">
-                                <div
-                                  className={`h-2 rounded-full ${
-                                    device.cupStock < 25
-                                      ? "bg-red-500"
-                                      : device.cupStock < 50
-                                      ? "bg-yellow-500"
-                                      : "bg-green-500"
-                                  }`}
-                                  style={{ width: `${Math.min(device.cupStock, 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-sm">{device.stockQuantity}/{device.stockMax} ({device.cupStock}%)</span>
+                </TableHeader>
+                <TableBody>
+                  {filteredDevices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        No devices found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDevices.map((device) => {
+                      return (
+                        <TableRow key={device.deviceId}>
+                          <TableCell className="font-medium">{device.deviceId}</TableCell>
+                          <TableCell>{device.deviceName || "-"}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Link href={`/dashboard/sales/equipment/${device.id}`}>
+                                <Button size="sm" variant="default">
+                                  View
+                                </Button>
+                              </Link>
+                              <Link href={`/dashboard/sales/equipment/${device.id}`}>
+                                <Button size="sm" variant="outline">
+                                  Edit
+                                </Button>
+                              </Link>
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {device.machineTemp !== null ? (
-                            <span className={device.machineTemp > 35 ? "text-red-500 font-medium" : "text-sm"}>
-                              {device.machineTemp?.toFixed(1)}°
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatLastSeen(device.lastSeenAt)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={device.isActive ? "success" : "destructive"}>
+                              {device.isActive ? "ON" : "OFF"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {device.stockQuantity !== null ? (
+                              <div className="flex items-center gap-2">
+                                <div className="h-2 w-16 rounded-full bg-secondary">
+                                  <div
+                                    className={`h-2 rounded-full ${
+                                      device.cupStock < 25
+                                        ? "bg-red-500"
+                                        : device.cupStock < 50
+                                        ? "bg-yellow-500"
+                                        : "bg-green-500"
+                                    }`}
+                                    style={{ width: `${Math.min(device.cupStock, 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-sm">{device.stockQuantity}/{device.stockMax} ({device.cupStock}%)</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {device.machineTemp !== null ? (
+                              <span className={device.machineTemp > 35 ? "text-red-500 font-medium" : "text-sm"}>
+                                {device.machineTemp?.toFixed(1)}°
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatLastSeen(device.lastSeenAt)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {filteredDevices.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No devices found</p>
+              ) : (
+                filteredDevices.map((device) => (
+                  <div key={device.deviceId} className="rounded-lg border p-3 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-sm">{device.deviceName || device.deviceId}</p>
+                        <p className="text-xs text-muted-foreground">{device.deviceId}</p>
+                      </div>
+                      <Badge variant={device.isActive ? "success" : "destructive"} className="text-xs">
+                        {device.isActive ? "ON" : "OFF"}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Stock: </span>
+                        {device.stockQuantity !== null ? (
+                          <span className={
+                            device.cupStock < 25 ? "text-red-500 font-medium" :
+                            device.cupStock < 50 ? "text-yellow-500 font-medium" : ""
+                          }>
+                            {device.cupStock}%
+                          </span>
+                        ) : "-"}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Temp: </span>
+                        {device.machineTemp !== null ? (
+                          <span className={device.machineTemp > 35 ? "text-red-500 font-medium" : ""}>
+                            {device.machineTemp?.toFixed(1)}°C
+                          </span>
+                        ) : "-"}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{formatLastSeen(device.lastSeenAt)}</span>
+                      <Link href={`/dashboard/sales/equipment/${device.id}`}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs">
+                          View Details
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </CardContent>
         </Card>
       </main>

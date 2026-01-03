@@ -101,35 +101,35 @@ export default function AddUserPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background">
-        <div className="flex h-16 items-center gap-4 px-6">
+      <header className="sticky top-0 z-30 border-b bg-background">
+        <div className="flex h-14 md:h-16 items-center gap-3 md:gap-4 px-4 md:px-6">
           <Link href="/dashboard/operations/users">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-xl font-semibold">Add New User</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-lg md:text-xl font-semibold">Add New User</h1>
+            <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
               Create a new user account
             </p>
           </div>
         </div>
       </header>
 
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         <div className="mx-auto max-w-xl">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5" />
+            <CardHeader className="px-4 md:px-6">
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                <UserPlus className="h-4 w-4 md:h-5 md:w-5" />
                 User Details
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs md:text-sm">
                 Fill in the details to create a new user account
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 md:px-6">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="grid gap-2">

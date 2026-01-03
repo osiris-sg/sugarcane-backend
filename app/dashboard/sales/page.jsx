@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 // Helper to format date/time in Singapore timezone
 function formatDateTime(dateString) {
@@ -48,6 +54,20 @@ function formatDateTime(dateString) {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+// Short date format for mobile
+function formatDateShort(dateString) {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  return date.toLocaleString("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -84,6 +104,7 @@ export default function OrderListPage() {
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [monthlyCount, setMonthlyCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -218,7 +239,7 @@ export default function OrderListPage() {
   };
 
   const filterLabel = getFilterLabel();
-  const hasFilters = deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all";
+  const hasFilters = deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all" || searchText;
 
   // Export to CSV
   function exportToCSV() {
@@ -252,12 +273,23 @@ export default function OrderListPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
-        <div>
-          <h1 className="text-xl font-semibold">Order List</h1>
-          <p className="text-sm text-muted-foreground">View all transactions</p>
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b bg-background px-4 py-3 md:px-6 md:py-0 md:h-16 md:flex md:items-center md:justify-between">
+        <div className="flex items-center justify-between md:block">
+          <div>
+            <h1 className="text-lg font-semibold md:text-xl">Order List</h1>
+            <p className="text-xs text-muted-foreground md:text-sm">View all transactions</p>
+          </div>
+          <div className="flex items-center gap-2 md:hidden">
+            <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            </Button>
+            <Button variant="outline" size="icon" onClick={exportToCSV}>
+              <Download className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
@@ -269,177 +301,196 @@ export default function OrderListPage() {
         </div>
       </header>
 
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         {/* Summary Cards */}
-        <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <div className="mb-4 md:mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
           <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
-                  <DollarSign className="h-5 w-5 text-green-600" />
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-green-100 shrink-0">
+                  <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {hasFilters ? "Filtered Revenue" : "Total Revenue"}
-                    {filterLabel && <span className="block text-xs">{filterLabel}</span>}
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">
+                    {hasFilters ? "Filtered" : "Total"}
                   </p>
-                  <p className="text-xl font-bold">{formatCurrency(filteredTotal)}</p>
+                  <p className="text-base md:text-xl font-bold">{formatCurrency(filteredTotal)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                  <ShoppingCart className="h-5 w-5 text-blue-600" />
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-blue-100 shrink-0">
+                  <ShoppingCart className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {hasFilters ? "Filtered Orders" : "Total Orders"}
-                    {filterLabel && <span className="block text-xs">{filterLabel}</span>}
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">
+                    {hasFilters ? "Filtered" : "Orders"}
                   </p>
-                  <p className="text-xl font-bold">{filteredCount}</p>
+                  <p className="text-base md:text-xl font-bold">{filteredCount}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-                  <DollarSign className="h-5 w-5 text-purple-600" />
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-purple-100 shrink-0">
+                  <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-purple-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Monthly Revenue</p>
-                  <p className="text-xl font-bold">{formatCurrency(monthlyTotal)}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">Monthly Rev</p>
+                  <p className="text-base md:text-xl font-bold">{formatCurrency(monthlyTotal)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
-                  <ShoppingCart className="h-5 w-5 text-orange-600" />
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-orange-100 shrink-0">
+                  <ShoppingCart className="h-4 w-4 md:h-5 md:w-5 text-orange-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Monthly Orders</p>
-                  <p className="text-xl font-bold">{monthlyCount}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">Monthly Ord</p>
+                  <p className="text-base md:text-xl font-bold">{monthlyCount}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Filter className="h-4 w-4" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search orders..."
-                  className="pl-10"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                />
-              </div>
-
-              <Select value={deviceFilter} onValueChange={setDeviceFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Device" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Devices</SelectItem>
-                  {uniqueDevices.map((device) => (
-                    <SelectItem key={device.id} value={device.id}>
-                      {device.name || device.id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={payWayFilter} onValueChange={setPayWayFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Payment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Payments</SelectItem>
-                  {uniquePayWays.map((payWay) => (
-                    <SelectItem key={payWay} value={payWay}>
-                      {getPaymentMethod(payWay)?.label || payWay}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={dateRange} onValueChange={(v) => {
-                setDateRange(v);
-                if (v !== "custom") {
-                  setCustomStartDate("");
-                  setCustomEndDate("");
+        {/* Filters - Collapsible on mobile */}
+        <Card className="mb-4 md:mb-6">
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="pb-3 cursor-pointer md:cursor-default" onClick={(e) => {
+                // Only trigger collapse on mobile
+                if (window.innerWidth >= 768) {
+                  e.preventDefault();
+                  setFiltersOpen(true);
                 }
               }}>
-                <SelectTrigger className="w-40">
-                  <Calendar className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Date Range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">Last 7 Days</SelectItem>
-                  <SelectItem value="month">Last 30 Days</SelectItem>
-                  <SelectItem value="custom">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
+                <CardTitle className="flex items-center justify-between text-base">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filters
+                    {hasFilters && (
+                      <Badge variant="secondary" className="ml-2">Active</Badge>
+                    )}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 md:hidden transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="md:block" forceMount>
+              <CardContent className={`space-y-3 md:space-y-0 ${!filtersOpen ? "hidden md:block" : ""}`}>
+                <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:gap-4">
+                  <div className="relative w-full md:w-64">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search orders..."
+                      className="pl-10"
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                    />
+                  </div>
 
-              {dateRange === "custom" && (
-                <>
-                  <Input
-                    type="date"
-                    className="w-36"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    placeholder="Start date"
-                  />
-                  <span className="text-muted-foreground">to</span>
-                  <Input
-                    type="date"
-                    className="w-36"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    placeholder="End date"
-                  />
-                </>
-              )}
+                  <div className="grid grid-cols-2 gap-3 md:flex md:gap-4">
+                    <Select value={deviceFilter} onValueChange={setDeviceFilter}>
+                      <SelectTrigger className="w-full md:w-48">
+                        <SelectValue placeholder="Device" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Devices</SelectItem>
+                        {uniqueDevices.map((device) => (
+                          <SelectItem key={device.id} value={device.id}>
+                            {device.name || device.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
-              {(searchText || deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all") && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <X className="mr-1 h-4 w-4" />
-                  Clear
-                </Button>
-              )}
+                    <Select value={payWayFilter} onValueChange={setPayWayFilter}>
+                      <SelectTrigger className="w-full md:w-40">
+                        <SelectValue placeholder="Payment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Payments</SelectItem>
+                        {uniquePayWays.map((payWay) => (
+                          <SelectItem key={payWay} value={payWay}>
+                            {getPaymentMethod(payWay)?.label || payWay}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <span className="ml-auto text-sm text-muted-foreground">
-                {filteredOrders.length} of {orders.length} orders
-              </span>
-            </div>
-          </CardContent>
+                  <Select value={dateRange} onValueChange={(v) => {
+                    setDateRange(v);
+                    if (v !== "custom") {
+                      setCustomStartDate("");
+                      setCustomEndDate("");
+                    }
+                  }}>
+                    <SelectTrigger className="w-full md:w-40">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      <SelectValue placeholder="Date Range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Time</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="week">Last 7 Days</SelectItem>
+                      <SelectItem value="month">Last 30 Days</SelectItem>
+                      <SelectItem value="custom">Custom Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {dateRange === "custom" && (
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                      <Input
+                        type="date"
+                        className="flex-1 md:w-36"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        placeholder="Start date"
+                      />
+                      <span className="text-muted-foreground text-sm">to</span>
+                      <Input
+                        type="date"
+                        className="flex-1 md:w-36"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        placeholder="End date"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between md:ml-auto">
+                    {hasFilters && (
+                      <Button variant="ghost" size="sm" onClick={clearFilters}>
+                        <X className="mr-1 h-4 w-4" />
+                        Clear
+                      </Button>
+                    )}
+                    <span className="text-sm text-muted-foreground ml-auto">
+                      {filteredOrders.length} of {orders.length}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
-        {/* Orders Table */}
-        <Card className="flex flex-col">
-          <CardContent className="flex-1 overflow-hidden p-0">
+        {/* Orders Table - Desktop */}
+        <Card className="hidden md:block">
+          <CardContent className="p-0">
             <div className="max-h-[calc(100vh-420px)] overflow-auto">
               <Table>
                 <TableHeader className="sticky top-0 bg-background">
@@ -498,11 +549,11 @@ export default function OrderListPage() {
             </div>
           </CardContent>
 
-          {/* Pagination */}
+          {/* Pagination - Desktop */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t px-4 py-3">
               <p className="text-sm text-muted-foreground">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length} orders
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length}
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -530,6 +581,74 @@ export default function OrderListPage() {
             </div>
           )}
         </Card>
+
+        {/* Orders List - Mobile (Card view) */}
+        <div className="md:hidden space-y-3">
+          {paginatedOrders.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No orders found
+              </CardContent>
+            </Card>
+          ) : (
+            paginatedOrders.map((order) => (
+              <Card key={order.id}>
+                <CardContent className="p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-medium">{order.deviceName}</p>
+                      <p className="text-xs text-muted-foreground">{order.deviceId}</p>
+                    </div>
+                    <p className="text-lg font-bold">{formatCurrency(order.amount)}</p>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      {order.payWay ? (
+                        <Badge variant="outline" className="gap-1 text-xs">
+                          {getPaymentMethod(order.payWay)?.icon === "free" ? (
+                            <Gift className="h-3 w-3" />
+                          ) : (
+                            <CreditCard className="h-3 w-3" />
+                          )}
+                          {getPaymentMethod(order.payWay)?.label}
+                        </Badge>
+                      ) : null}
+                      <span className="text-muted-foreground">x{order.quantity || 1}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDateShort(order.createdAt)}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+
+          {/* Pagination - Mobile */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
