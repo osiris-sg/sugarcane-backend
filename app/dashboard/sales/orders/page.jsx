@@ -197,12 +197,28 @@ export default function OrderListPage() {
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
 
-  // Calculate stats (excluding free orders - payWay 1000)
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayOrders = orders.filter((o) => new Date(o.createdAt) >= todayStart && o.payWay !== "1000");
-  const todayTotal = todayOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
-  const todayCount = todayOrders.length;
+  // Calculate stats based on filtered orders (excluding free orders - payWay 1000)
+  const paidFilteredOrders = filteredOrders.filter((o) => o.payWay !== "1000");
+  const filteredTotal = paidFilteredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+  const filteredCount = paidFilteredOrders.length;
+
+  // Get label suffix based on active filters
+  const getFilterLabel = () => {
+    const parts = [];
+    if (deviceFilter !== "all") {
+      const device = uniqueDevices.find((d) => d.id === deviceFilter);
+      parts.push(device?.name || deviceFilter);
+    }
+    if (dateRange === "today") parts.push("Today");
+    else if (dateRange === "week") parts.push("Last 7 Days");
+    else if (dateRange === "month") parts.push("Last 30 Days");
+    else if (dateRange === "custom" && (customStartDate || customEndDate)) parts.push("Custom Range");
+
+    return parts.length > 0 ? parts.join(" - ") : null;
+  };
+
+  const filterLabel = getFilterLabel();
+  const hasFilters = deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all";
 
   // Export to CSV
   function exportToCSV() {
@@ -255,7 +271,7 @@ export default function OrderListPage() {
 
       <main className="p-6">
         {/* Summary Cards */}
-        <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
           <Card>
             <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
@@ -263,8 +279,11 @@ export default function OrderListPage() {
                   <DollarSign className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Today's Revenue</p>
-                  <p className="text-xl font-bold">{formatCurrency(todayTotal)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {hasFilters ? "Filtered Revenue" : "Total Revenue"}
+                    {filterLabel && <span className="block text-xs">{filterLabel}</span>}
+                  </p>
+                  <p className="text-xl font-bold">{formatCurrency(filteredTotal)}</p>
                 </div>
               </div>
             </CardContent>
@@ -277,36 +296,11 @@ export default function OrderListPage() {
                   <ShoppingCart className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Today's Orders</p>
-                  <p className="text-xl font-bold">{todayCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-                  <DollarSign className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Monthly Revenue</p>
-                  <p className="text-xl font-bold">{formatCurrency(monthlyTotal)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
-                  <ShoppingCart className="h-5 w-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Monthly Orders</p>
-                  <p className="text-xl font-bold">{monthlyCount}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {hasFilters ? "Filtered Orders" : "Total Orders"}
+                    {filterLabel && <span className="block text-xs">{filterLabel}</span>}
+                  </p>
+                  <p className="text-xl font-bold">{filteredCount}</p>
                 </div>
               </div>
             </CardContent>
