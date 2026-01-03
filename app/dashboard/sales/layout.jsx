@@ -52,7 +52,7 @@ const sidebarItems = [
     children: [
       { title: "Order List", href: "/dashboard/sales/orders", icon: FileText },
       { title: "Order Summary", href: "/dashboard/sales/orders/summary", icon: BarChart3 },
-      { title: "Refund Records", href: "/dashboard/sales/orders/refunds", icon: RotateCcw },
+      { title: "Refund Records", href: "/dashboard/sales/orders/refunds", icon: RotateCcw, ownerOnly: true },
     ],
   },
   {
