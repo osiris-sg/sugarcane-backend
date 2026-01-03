@@ -16,6 +16,7 @@ export async function GET(request) {
             id: true,
             deviceId: true,
             deviceName: true,
+            location: true,
           }
         }
       },

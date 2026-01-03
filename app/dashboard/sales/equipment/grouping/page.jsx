@@ -418,6 +418,9 @@ export default function DeviceGroupingPage() {
                                       <p className="font-medium">{device.deviceName}</p>
                                       <p className="text-xs text-muted-foreground">
                                         ID: {device.deviceId}
+                                        {device.location && (
+                                          <span className="ml-2">• {device.location}</span>
+                                        )}
                                       </p>
                                     </div>
                                   </div>
