@@ -29,16 +29,27 @@ export async function POST(request) {
       select: { price: true },
     });
 
-    // Calculate quantity based on amount and device price
+    // Fix amount if it's abnormally high (likely 100x too much)
+    // If amount / price >= 100, divide amount by 100
+    let correctedAmount = amount || 0;
+    if (device?.price && device.price > 0 && amount > 0) {
+      const testQty = amount / device.price;
+      if (testQty >= 100) {
+        correctedAmount = Math.round(amount / 100);
+        console.log(`[UploadOrder] Amount looks 100x too high, correcting: ${amount} → ${correctedAmount}`);
+      }
+    }
+
+    // Calculate quantity based on corrected amount and device price
     // If device not found or price is 0, default to quantity from payload or 1
     let calculatedQuantity = quantity;
-    if (device?.price && device.price > 0 && amount > 0) {
-      calculatedQuantity = Math.round(amount / device.price);
+    if (device?.price && device.price > 0 && correctedAmount > 0) {
+      calculatedQuantity = Math.round(correctedAmount / device.price);
       // Ensure at least 1 if there's an amount
       if (calculatedQuantity < 1) calculatedQuantity = 1;
     }
 
-    console.log(`[UploadOrder] Device price: ${device?.price || 'N/A'}, Amount: ${amount}, Calculated qty: ${calculatedQuantity}`);
+    console.log(`[UploadOrder] Device price: ${device?.price || 'N/A'}, Amount: ${correctedAmount}, Calculated qty: ${calculatedQuantity}`);
 
     // Save order to database
     const saved = await db.order.create({
@@ -46,7 +57,7 @@ export async function POST(request) {
         orderId: orderId || `ORD-${Date.now()}`,
         deviceId,
         deviceName: deviceName || deviceId,
-        amount: amount || 0,
+        amount: correctedAmount,
         quantity: calculatedQuantity,
         payWay: payWay || null,
         isSuccess: isSuccess !== false,
