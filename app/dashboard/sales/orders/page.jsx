@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   CreditCard,
   Banknote,
+  Gift,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,22 @@ function formatDateTime(dateString) {
 // Helper to format currency
 function formatCurrency(cents) {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+// Map payWay codes to friendly names
+function getPaymentMethod(payWay) {
+  const payWayMap = {
+    "2": { label: "Cashless", icon: "card" },
+    "1000": { label: "Free", icon: "free" },
+  };
+
+  if (!payWay) return null;
+
+  const mapped = payWayMap[String(payWay)];
+  if (mapped) return mapped;
+
+  // Fallback for unknown codes
+  return { label: payWay, icon: "card" };
 }
 
 export default function OrderListPage() {
@@ -138,7 +155,7 @@ export default function OrderListPage() {
       o.deviceId,
       o.deviceName,
       (o.amount / 100).toFixed(2),
-      o.payWay || "-",
+      getPaymentMethod(o.payWay)?.label || "-",
       o.quantity || 1,
       new Date(o.createdAt).toISOString(),
     ]);
@@ -281,7 +298,7 @@ export default function OrderListPage() {
                   <SelectItem value="all">All Payments</SelectItem>
                   {uniquePayWays.map((payWay) => (
                     <SelectItem key={payWay} value={payWay}>
-                      {payWay}
+                      {getPaymentMethod(payWay)?.label || payWay}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -336,12 +353,14 @@ export default function OrderListPage() {
                       <TableCell>
                         {order.payWay ? (
                           <Badge variant="outline" className="gap-1">
-                            {order.payWay?.toLowerCase().includes("cash") ? (
+                            {getPaymentMethod(order.payWay)?.icon === "free" ? (
+                              <Gift className="h-3 w-3" />
+                            ) : getPaymentMethod(order.payWay)?.icon === "cash" ? (
                               <Banknote className="h-3 w-3" />
                             ) : (
                               <CreditCard className="h-3 w-3" />
                             )}
-                            {order.payWay}
+                            {getPaymentMethod(order.payWay)?.label}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>
