@@ -65,7 +65,7 @@ export async function GET(request) {
       groupName: deviceMap[order.deviceId]?.groupName || null,
     }));
 
-    // Calculate summary stats for the current month
+    // Calculate summary stats for the current month (excluding free orders)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -73,6 +73,7 @@ export async function GET(request) {
       where: {
         ...where,
         createdAt: { gte: startOfMonth },
+        payWay: { not: "1000" }, // Exclude free orders
       },
       _sum: { amount: true },
       _count: true,

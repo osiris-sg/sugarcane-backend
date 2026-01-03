@@ -140,10 +140,10 @@ export default function OrderListPage() {
   const uniqueDevices = [...new Map(orders.map((o) => [o.deviceId, { id: o.deviceId, name: o.deviceName }])).values()];
   const uniquePayWays = [...new Set(orders.map((o) => o.payWay).filter(Boolean))];
 
-  // Calculate stats
+  // Calculate stats (excluding free orders - payWay 1000)
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const todayOrders = orders.filter((o) => new Date(o.createdAt) >= todayStart);
+  const todayOrders = orders.filter((o) => new Date(o.createdAt) >= todayStart && o.payWay !== "1000");
   const todayTotal = todayOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
   const todayCount = todayOrders.length;
 
