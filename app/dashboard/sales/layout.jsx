@@ -40,9 +40,10 @@ const sidebarItems = [
   {
     title: "Device Management",
     icon: Monitor,
+    ownerOnly: true,
     children: [
       { title: "Device List", href: "/dashboard/sales/equipment", icon: List },
-      { title: "Device Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers, ownerOnly: true },
+      { title: "Device Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers },
     ],
   },
   {
