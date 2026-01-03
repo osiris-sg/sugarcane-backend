@@ -33,9 +33,9 @@ import {
 
 const sidebarItems = [
   {
-    title: "Overview",
+    title: "Orders",
     href: "/dashboard/sales",
-    icon: LayoutDashboard,
+    icon: FileText,
   },
   {
     title: "Device Management",
@@ -50,7 +50,7 @@ const sidebarItems = [
     title: "Order Management",
     icon: ClipboardList,
     children: [
-      { title: "Order List", href: "/dashboard/sales/orders", icon: FileText },
+      { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
       { title: "Order Summary", href: "/dashboard/sales/orders/summary", icon: BarChart3 },
       { title: "Refund Records", href: "/dashboard/sales/orders/refunds", icon: RotateCcw, ownerOnly: true },
     ],

@@ -4,16 +4,33 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import {
-  TrendingUp,
-  TrendingDown,
-  CheckCircle,
-  XCircle,
-  RotateCcw,
+  ClipboardList,
+  Search,
+  Download,
+  Filter,
+  RefreshCw,
+  X,
+  DollarSign,
+  ShoppingCart,
+  CreditCard,
+  Banknote,
+  Gift,
+  ChevronLeft,
+  ChevronRight,
   Calendar,
-  Monitor,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -22,492 +39,496 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Helper to get date range based on filter
-function getDateRange(dateRange) {
-  const now = new Date();
-  let days = 7;
-  switch (dateRange) {
-    case "24h": days = 1; break;
-    case "7d": days = 7; break;
-    case "30d": days = 30; break;
-    case "90d": days = 90; break;
-    default: days = 7;
-  }
-  const startDate = new Date(now);
-  startDate.setDate(now.getDate() - days);
-  startDate.setHours(0, 0, 0, 0);
-  return { startDate, endDate: now, days };
-}
-
-function MiniLineChart({ data, color = "#22c55e", height = 40 }) {
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-
-  const points = data.map((value, index) => {
-    const x = (index / (data.length - 1)) * 100;
-    const y = 100 - ((value - min) / range) * 80 - 10;
-    return `${x},${y}`;
-  }).join(" ");
-
-  return (
-    <svg viewBox="0 0 100 100" className="w-full" style={{ height }}>
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function PaymentStatusBar({ succeeded, refunded, failed, total }) {
-  const succeededWidth = (succeeded / total) * 100;
-  const refundedWidth = (refunded / total) * 100;
-  const failedWidth = (failed / total) * 100;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-secondary">
-        <div
-          className="bg-green-500 transition-all"
-          style={{ width: `${succeededWidth}%` }}
-        />
-        <div
-          className="bg-yellow-500 transition-all"
-          style={{ width: `${refundedWidth}%` }}
-        />
-        <div
-          className="bg-red-500 transition-all"
-          style={{ width: `${failedWidth}%` }}
-        />
-      </div>
-      <div className="flex gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <CheckCircle className="h-4 w-4 text-green-500" />
-          <span className="text-muted-foreground">Succeeded</span>
-          <span className="font-medium">{succeeded}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <RotateCcw className="h-4 w-4 text-yellow-500" />
-          <span className="text-muted-foreground">Refunded</span>
-          <span className="font-medium">{refunded}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <XCircle className="h-4 w-4 text-red-500" />
-          <span className="text-muted-foreground">Failed</span>
-          <span className="font-medium">{failed}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function SalesOverviewPage() {
-  const [dateRange, setDateRange] = useState("7d");
-  const [interval, setInterval] = useState("daily");
-  const [compareEnabled, setCompareEnabled] = useState(false);
-  const [devices, setDevices] = useState([]);
-  const [selectedDevice, setSelectedDevice] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [salesData, setSalesData] = useState({
-    grossVolume: { amount: 0, change: 0, isPositive: true, data: [] },
-    netVolume: { amount: 0, change: 0, isPositive: true, data: [] },
-    payments: { succeeded: 0, refunded: 0, failed: 0, total: 0 },
-    dailyData: [],
+// Helper to format date/time in Singapore timezone
+function formatDateTime(dateString) {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  return date.toLocaleString("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
   });
+}
+
+// Helper to format currency
+function formatCurrency(cents) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+// Map payWay codes to friendly names
+function getPaymentMethod(payWay) {
+  const payWayMap = {
+    "2": { label: "Cashless", icon: "card" },
+    "1000": { label: "Free", icon: "free" },
+  };
+
+  if (!payWay) return null;
+
+  const mapped = payWayMap[String(payWay)];
+  if (mapped) return mapped;
+
+  // Fallback for unknown codes
+  return { label: payWay, icon: "card" };
+}
+
+const ITEMS_PER_PAGE = 50;
+
+export default function OrderListPage() {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [monthlyTotal, setMonthlyTotal] = useState(0);
+  const [monthlyCount, setMonthlyCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Filters
+  const [searchText, setSearchText] = useState("");
+  const [deviceFilter, setDeviceFilter] = useState("all");
+  const [payWayFilter, setPayWayFilter] = useState("all");
+  const [dateRange, setDateRange] = useState("all"); // all, today, week, month, custom
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
 
   useEffect(() => {
-    fetchDevices();
+    fetchOrders();
   }, []);
 
-  useEffect(() => {
-    fetchSalesData();
-  }, [dateRange, selectedDevice]);
-
-  async function fetchDevices() {
+  async function fetchOrders() {
     try {
-      const res = await fetch("/api/admin/devices");
-      const data = await res.json();
-      if (data.devices) {
-        setDevices(data.devices);
-      }
-    } catch (error) {
-      console.error("Error fetching devices:", error);
-    }
-  }
-
-  async function fetchSalesData() {
-    setLoading(true);
-    try {
-      const { startDate, endDate, days } = getDateRange(dateRange);
-
-      // Build query params
-      const params = new URLSearchParams({
-        period: "custom",
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-      });
-      if (selectedDevice !== "all") {
-        params.set("deviceId", selectedDevice);
-      }
-
-      // Fetch current period orders
-      const res = await fetch(`/api/admin/orders?${params.toString()}&limit=10000`);
+      const res = await fetch("/api/admin/orders?limit=500");
       const data = await res.json();
 
       if (data.success) {
-        const orders = data.orders || [];
-
-        // Calculate gross volume (total successful sales)
-        const grossAmount = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
-
-        // Group orders by date for chart
-        const dailyTotals = {};
-        orders.forEach(order => {
-          const date = new Date(order.createdAt).toISOString().split('T')[0];
-          if (!dailyTotals[date]) {
-            dailyTotals[date] = 0;
-          }
-          dailyTotals[date] += order.amount || 0;
-        });
-
-        // Create array of daily data for chart (last N days)
-        const chartData = [];
-        for (let i = days - 1; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const dateStr = d.toISOString().split('T')[0];
-          chartData.push(dailyTotals[dateStr] || 0);
-        }
-
-        // Fetch previous period for comparison
-        const prevStartDate = new Date(startDate);
-        prevStartDate.setDate(prevStartDate.getDate() - days);
-        const prevParams = new URLSearchParams({
-          period: "custom",
-          startDate: prevStartDate.toISOString(),
-          endDate: startDate.toISOString(),
-        });
-        if (selectedDevice !== "all") {
-          prevParams.set("deviceId", selectedDevice);
-        }
-
-        const prevRes = await fetch(`/api/admin/orders?${prevParams.toString()}&limit=10000`);
-        const prevData = await prevRes.json();
-        const prevOrders = prevData.orders || [];
-        const prevGrossAmount = prevOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
-
-        // Calculate change percentage
-        let changePercent = 0;
-        if (prevGrossAmount > 0) {
-          changePercent = ((grossAmount - prevGrossAmount) / prevGrossAmount) * 100;
-        } else if (grossAmount > 0) {
-          changePercent = 100;
-        }
-
-        setSalesData({
-          grossVolume: {
-            amount: grossAmount / 100, // Convert cents to dollars
-            change: Math.abs(changePercent).toFixed(1),
-            isPositive: changePercent >= 0,
-            data: chartData.map(v => v / 100), // Convert to dollars
-          },
-          netVolume: {
-            amount: grossAmount / 100, // Same as gross for now (no refunds tracked)
-            change: Math.abs(changePercent).toFixed(1),
-            isPositive: changePercent >= 0,
-            data: chartData.map(v => v / 100),
-          },
-          payments: {
-            succeeded: orders.length,
-            refunded: 0,
-            failed: 0,
-            total: orders.length,
-          },
-          dailyData: chartData,
-        });
+        setOrders(data.orders || []);
+        setMonthlyTotal(data.monthlyTotal || 0);
+        setMonthlyCount(data.monthlyCount || 0);
       }
     } catch (error) {
-      console.error("Error fetching sales data:", error);
+      console.error("Error fetching orders:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  }
+
+  function handleRefresh() {
+    setRefreshing(true);
+    fetchOrders();
+  }
+
+  function clearFilters() {
+    setSearchText("");
+    setDeviceFilter("all");
+    setPayWayFilter("all");
+    setDateRange("all");
+    setCustomStartDate("");
+    setCustomEndDate("");
+    setCurrentPage(1);
+  }
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, deviceFilter, payWayFilter, dateRange, customStartDate, customEndDate]);
+
+  // Get date range boundaries
+  function getDateRangeBounds() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (dateRange) {
+      case "today":
+        return { start: todayStart, end: null };
+      case "week":
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(weekStart.getDate() - 7);
+        return { start: weekStart, end: null };
+      case "month":
+        const monthStart = new Date(todayStart);
+        monthStart.setDate(monthStart.getDate() - 30);
+        return { start: monthStart, end: null };
+      case "custom":
+        return {
+          start: customStartDate ? new Date(customStartDate) : null,
+          end: customEndDate ? new Date(customEndDate + "T23:59:59") : null,
+        };
+      default:
+        return { start: null, end: null };
+    }
+  }
+
+  // Filter orders
+  const { start: dateStart, end: dateEnd } = getDateRangeBounds();
+  const filteredOrders = orders.filter((order) => {
+    if (deviceFilter !== "all" && order.deviceId !== deviceFilter) {
+      return false;
+    }
+    if (payWayFilter !== "all" && order.payWay !== payWayFilter) {
+      return false;
+    }
+    // Date range filter
+    if (dateStart || dateEnd) {
+      const orderDate = new Date(order.createdAt);
+      if (dateStart && orderDate < dateStart) return false;
+      if (dateEnd && orderDate > dateEnd) return false;
+    }
+    if (searchText) {
+      const search = searchText.toLowerCase();
+      return (
+        order.orderId?.toLowerCase().includes(search) ||
+        order.deviceId?.toLowerCase().includes(search) ||
+        order.deviceName?.toLowerCase().includes(search)
+      );
+    }
+    return true;
+  });
+
+  // Get unique devices and payment methods for filters
+  const uniqueDevices = [...new Map(orders.map((o) => [o.deviceId, { id: o.deviceId, name: o.deviceName }])).values()];
+  const uniquePayWays = [...new Set(orders.map((o) => o.payWay).filter(Boolean))];
+
+  // Pagination
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
+
+  // Calculate stats based on filtered orders (excluding free orders - payWay 1000)
+  const paidFilteredOrders = filteredOrders.filter((o) => o.payWay !== "1000");
+  const filteredTotal = paidFilteredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+  const filteredCount = paidFilteredOrders.length;
+
+  // Get label suffix based on active filters
+  const getFilterLabel = () => {
+    const parts = [];
+    if (deviceFilter !== "all") {
+      const device = uniqueDevices.find((d) => d.id === deviceFilter);
+      parts.push(device?.name || deviceFilter);
+    }
+    if (dateRange === "today") parts.push("Today");
+    else if (dateRange === "week") parts.push("Last 7 Days");
+    else if (dateRange === "month") parts.push("Last 30 Days");
+    else if (dateRange === "custom" && (customStartDate || customEndDate)) parts.push("Custom Range");
+
+    return parts.length > 0 ? parts.join(" - ") : null;
+  };
+
+  const filterLabel = getFilterLabel();
+  const hasFilters = deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all";
+
+  // Export to CSV
+  function exportToCSV() {
+    const headers = ["Order ID", "Device ID", "Device Name", "Amount", "Payment Method", "Quantity", "Date"];
+    const rows = filteredOrders.map((o) => [
+      o.orderId,
+      o.deviceId,
+      o.deviceName,
+      (o.amount / 100).toFixed(2),
+      getPaymentMethod(o.payWay)?.label || "-",
+      o.quantity || 1,
+      new Date(o.createdAt).toISOString(),
+    ]);
+
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `orders-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b bg-background">
-        <div className="flex h-16 items-center justify-between px-6">
-          <div>
-            <h1 className="text-xl font-semibold">Sales Overview</h1>
-            <p className="text-sm text-muted-foreground">
-              Track revenue, payments, and customer activity
-            </p>
-          </div>
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
+        <div>
+          <h1 className="text-xl font-semibold">Order List</h1>
+          <p className="text-sm text-muted-foreground">View all transactions</p>
         </div>
-
-        {/* Filters */}
-        <div className="flex items-center gap-4 border-t bg-muted/30 px-6 py-3">
-          <div className="flex items-center gap-2">
-            <Monitor className="h-4 w-4 text-muted-foreground" />
-            <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select device" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Devices</SelectItem>
-                {devices.map((device) => (
-                  <SelectItem key={device.deviceId} value={device.deviceId}>
-                    {device.deviceName || device.deviceId}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="24h">Last 24 hours</SelectItem>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="30d">Last 30 days</SelectItem>
-                <SelectItem value="90d">Last 90 days</SelectItem>
-                <SelectItem value="custom">Custom range</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Select value={interval} onValueChange={setInterval}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="hourly">Hourly</SelectItem>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant={compareEnabled ? "default" : "outline"}
-            size="sm"
-            onClick={() => setCompareEnabled(!compareEnabled)}
-          >
-            Compare to previous
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportToCSV}>
+            <Download className="mr-2 h-4 w-4" />
+            Export
           </Button>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="p-6">
-        {/* Top Row - Payments and Volume */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Payments */}
+        {/* Summary Cards */}
+        <div className="mb-6 grid gap-4 md:grid-cols-4">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Payments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PaymentStatusBar {...salesData.payments} />
-            </CardContent>
-          </Card>
-
-          {/* Gross Volume */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Gross Volume</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">
-                  SGD {salesData.grossVolume.amount.toLocaleString("en-SG", {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
-                {salesData.grossVolume.change > 0 && (
-                  <span
-                    className={`flex items-center text-sm ${
-                      salesData.grossVolume.isPositive
-                        ? "text-green-500"
-                        : "text-red-500"
-                    }`}
-                  >
-                    {salesData.grossVolume.isPositive ? (
-                      <TrendingUp className="mr-1 h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="mr-1 h-4 w-4" />
-                    )}
-                    {salesData.grossVolume.change}%
-                  </span>
-                )}
-              </div>
-              <div className="mt-4">
-                {salesData.grossVolume.data.length > 0 ? (
-                  <MiniLineChart
-                    data={salesData.grossVolume.data}
-                    color={salesData.grossVolume.isPositive ? "#22c55e" : "#ef4444"}
-                  />
-                ) : (
-                  <div className="h-10 flex items-center justify-center text-sm text-muted-foreground">
-                    No data
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Net Volume */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Net Volume</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">
-                  SGD {salesData.netVolume.amount.toLocaleString("en-SG", {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
-                {salesData.netVolume.change > 0 && (
-                  <span
-                    className={`flex items-center text-sm ${
-                      salesData.netVolume.isPositive
-                        ? "text-green-500"
-                        : "text-red-500"
-                    }`}
-                  >
-                    {salesData.netVolume.isPositive ? (
-                      <TrendingUp className="mr-1 h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="mr-1 h-4 w-4" />
-                    )}
-                    {salesData.netVolume.change}%
-                  </span>
-                )}
-              </div>
-              <div className="mt-4">
-                {salesData.netVolume.data.length > 0 ? (
-                  <MiniLineChart
-                    data={salesData.netVolume.data}
-                    color={salesData.netVolume.isPositive ? "#22c55e" : "#ef4444"}
-                  />
-                ) : (
-                  <div className="h-10 flex items-center justify-center text-sm text-muted-foreground">
-                    No data
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Bottom Row */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-3">
-          {/* Failed Payments */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Failed Payments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  No failed payments tracked
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Orders by Payment Method */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Payment Methods</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">
-                  {salesData.payments.succeeded}
-                </span>
-                <span className="text-sm text-muted-foreground">total orders</span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Cash & card payments combined
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Top Devices */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">
-                Selected Device
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {selectedDevice === "all" ? (
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
                   <p className="text-sm text-muted-foreground">
-                    Showing all devices. Select a specific device to see details.
+                    {hasFilters ? "Filtered Revenue" : "Total Revenue"}
+                    {filterLabel && <span className="block text-xs">{filterLabel}</span>}
                   </p>
-                ) : (
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="font-medium">
-                      {devices.find(d => d.deviceId === selectedDevice)?.deviceName || selectedDevice}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {salesData.payments.succeeded} orders · SGD {salesData.grossVolume.amount.toFixed(2)}
-                    </p>
-                  </div>
-                )}
+                  <p className="text-xl font-bold">{formatCurrency(filteredTotal)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                  <ShoppingCart className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    {hasFilters ? "Filtered Orders" : "Total Orders"}
+                    {filterLabel && <span className="block text-xs">{filterLabel}</span>}
+                  </p>
+                  <p className="text-xl font-bold">{filteredCount}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+                  <DollarSign className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Monthly Revenue</p>
+                  <p className="text-xl font-bold">{formatCurrency(monthlyTotal)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+                  <ShoppingCart className="h-5 w-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Monthly Orders</p>
+                  <p className="text-xl font-bold">{monthlyCount}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Quick Stats Summary */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-base font-medium">Period Summary</CardTitle>
+        {/* Filters */}
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Filter className="h-4 w-4" />
+              Filters
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Total Transactions</p>
-                <p className="text-2xl font-bold">{salesData.payments.total}</p>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search orders..."
+                  className="pl-10"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                />
               </div>
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Success Rate</p>
-                <p className="text-2xl font-bold">
-                  {salesData.payments.total > 0
-                    ? ((salesData.payments.succeeded / salesData.payments.total) * 100).toFixed(1)
-                    : 0}%
-                </p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Avg Transaction</p>
-                <p className="text-2xl font-bold">
-                  SGD {salesData.payments.succeeded > 0
-                    ? (salesData.grossVolume.amount / salesData.payments.succeeded).toFixed(2)
-                    : "0.00"}
-                </p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Total Cups</p>
-                <p className="text-2xl font-bold">
-                  {salesData.payments.succeeded}
-                </p>
-              </div>
+
+              <Select value={deviceFilter} onValueChange={setDeviceFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Device" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Devices</SelectItem>
+                  {uniqueDevices.map((device) => (
+                    <SelectItem key={device.id} value={device.id}>
+                      {device.name || device.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={payWayFilter} onValueChange={setPayWayFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Payment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payments</SelectItem>
+                  {uniquePayWays.map((payWay) => (
+                    <SelectItem key={payWay} value={payWay}>
+                      {getPaymentMethod(payWay)?.label || payWay}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={dateRange} onValueChange={(v) => {
+                setDateRange(v);
+                if (v !== "custom") {
+                  setCustomStartDate("");
+                  setCustomEndDate("");
+                }
+              }}>
+                <SelectTrigger className="w-40">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Date Range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {dateRange === "custom" && (
+                <>
+                  <Input
+                    type="date"
+                    className="w-36"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    placeholder="Start date"
+                  />
+                  <span className="text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    className="w-36"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    placeholder="End date"
+                  />
+                </>
+              )}
+
+              {(searchText || deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all") && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <X className="mr-1 h-4 w-4" />
+                  Clear
+                </Button>
+              )}
+
+              <span className="ml-auto text-sm text-muted-foreground">
+                {filteredOrders.length} of {orders.length} orders
+              </span>
             </div>
           </CardContent>
+        </Card>
+
+        {/* Orders Table */}
+        <Card className="flex flex-col">
+          <CardContent className="flex-1 overflow-hidden p-0">
+            <div className="max-h-[calc(100vh-420px)] overflow-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background">
+                  <TableRow>
+                    <TableHead>Order ID</TableHead>
+                    <TableHead>Device</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                        No orders found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedOrders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-mono text-xs">{order.orderId}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{order.deviceName}</div>
+                            <div className="text-xs text-muted-foreground">{order.deviceId}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{formatCurrency(order.amount)}</TableCell>
+                        <TableCell>
+                          {order.payWay ? (
+                            <Badge variant="outline" className="gap-1">
+                              {getPaymentMethod(order.payWay)?.icon === "free" ? (
+                                <Gift className="h-3 w-3" />
+                              ) : getPaymentMethod(order.payWay)?.icon === "cash" ? (
+                                <Banknote className="h-3 w-3" />
+                              ) : (
+                                <CreditCard className="h-3 w-3" />
+                              )}
+                              {getPaymentMethod(order.payWay)?.label}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{order.quantity || 1}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDateTime(order.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t px-4 py-3">
+              <p className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length} orders
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       </main>
     </div>
