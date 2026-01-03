@@ -66,7 +66,7 @@ export async function PATCH(request, { params }) {
   try {
     const { userId } = await params;
     const body = await request.json();
-    const { role, firstName, lastName, phone, isActive } = body;
+    const { role, firstName, lastName, phone, isActive, groupId, createNewGroup } = body;
 
     const client = await clerkClient();
 
@@ -94,6 +94,19 @@ export async function PATCH(request, { params }) {
       await client.users.updateUser(clerkId, clerkUpdateData);
     }
 
+    // Handle group assignment for franchisees
+    let finalGroupId = groupId;
+    if (createNewGroup && (role === 'franchisee' || dbUser?.role === 'FRANCHISEE')) {
+      // Create a new group using user's name
+      const userName = [firstName || dbUser?.firstName, lastName || dbUser?.lastName].filter(Boolean).join(' ') ||
+                       dbUser?.username || 'New Franchisee';
+      const newGroup = await db.group.create({
+        data: { name: userName },
+      });
+      finalGroupId = newGroup.id;
+      console.log(`[UpdateUser] Created new franchisee group: ${userName} (${newGroup.id})`);
+    }
+
     // Update DB
     const dbUpdateData = {};
     if (firstName !== undefined) dbUpdateData.firstName = firstName;
@@ -101,12 +114,14 @@ export async function PATCH(request, { params }) {
     if (role !== undefined) dbUpdateData.role = mapRoleToEnum(role);
     if (phone !== undefined) dbUpdateData.phone = phone;
     if (isActive !== undefined) dbUpdateData.isActive = isActive;
+    if (finalGroupId !== undefined) dbUpdateData.groupId = finalGroupId || null;
 
     let updatedUser;
     if (dbUser) {
       updatedUser = await db.user.update({
         where: { id: dbUser.id },
         data: dbUpdateData,
+        include: { group: true },
       });
     }
 

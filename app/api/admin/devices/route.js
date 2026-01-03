@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,27 @@ const checkAdminKey = (request) => {
 // No auth required for GET (dashboard uses Clerk auth at page level)
 export async function GET(request) {
   try {
+    // Get current user's role and group for access control
+    const { userId } = await auth();
+    let userGroupId = null;
+
+    if (userId) {
+      const dbUser = await db.user.findUnique({
+        where: { clerkId: userId },
+        select: { role: true, groupId: true },
+      });
+
+      // Franchisees can only see their own group's devices
+      if (dbUser?.role === 'FRANCHISEE' && dbUser.groupId) {
+        userGroupId = dbUser.groupId;
+      }
+    }
+
+    // Build where clause for devices
+    const whereClause = userGroupId ? { groupId: userGroupId } : {};
+
     const devices = await db.device.findMany({
+      where: whereClause,
       include: {
         group: true,  // Include group relation
       },

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,36 @@ export async function GET(request) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
+    // Get current user's role and group
+    const { userId } = await auth();
+    let userGroupId = null;
+    let isAdmin = true;
+
+    if (userId) {
+      const dbUser = await db.user.findUnique({
+        where: { clerkId: userId },
+        select: { role: true, groupId: true },
+      });
+
+      if (dbUser) {
+        // Franchisees can only see their own group's data
+        if (dbUser.role === 'FRANCHISEE' && dbUser.groupId) {
+          userGroupId = dbUser.groupId;
+          isAdmin = false;
+        }
+      }
+    }
+
+    // If franchisee, get device IDs that belong to their group
+    let allowedDeviceIds = null;
+    if (userGroupId) {
+      const groupDevices = await db.device.findMany({
+        where: { groupId: userGroupId },
+        select: { deviceId: true },
+      });
+      allowedDeviceIds = groupDevices.map(d => d.deviceId);
+    }
+
     // Build where clause
     const where = { isSuccess: true };
     if (payWay) {
@@ -20,6 +51,24 @@ export async function GET(request) {
     }
     if (deviceId) {
       where.deviceId = deviceId;
+    }
+
+    // If franchisee, filter by their allowed devices
+    if (allowedDeviceIds !== null) {
+      if (deviceId) {
+        // If specific device requested, make sure it's in their allowed list
+        if (!allowedDeviceIds.includes(deviceId)) {
+          return NextResponse.json({
+            success: true,
+            orders: [],
+            monthlyTotal: 0,
+            monthlyCount: 0,
+          });
+        }
+      } else {
+        // Filter to only allowed devices
+        where.deviceId = { in: allowedDeviceIds };
+      }
     }
 
     // Add date range filter

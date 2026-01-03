@@ -54,10 +54,13 @@ import { Label } from "@/components/ui/label";
 export default function UsersPage() {
   const { user, isLoaded } = useUser();
   const [users, setUsers] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
   const [deleteUser, setDeleteUser] = useState(null);
   const [newRole, setNewRole] = useState("");
+  const [newGroupId, setNewGroupId] = useState("");
+  const [createNewGroup, setCreateNewGroup] = useState(false);
 
   // Redirect non-admins
   const role = user?.publicMetadata?.role || "franchisee";
@@ -68,6 +71,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
+    fetchGroups();
   }, []);
 
   async function fetchUsers() {
@@ -85,27 +89,53 @@ export default function UsersPage() {
     }
   }
 
+  async function fetchGroups() {
+    try {
+      const res = await fetch("/api/admin/groups");
+      const data = await res.json();
+      if (data.success) {
+        setGroups(data.groups);
+      }
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    }
+  }
+
   async function handleUpdateRole() {
     if (!editingUser || !newRole) return;
 
     try {
+      const updateData = { role: newRole };
+
+      // Include group assignment for franchisees
+      if (newRole === "franchisee") {
+        if (createNewGroup) {
+          updateData.createNewGroup = true;
+        } else if (newGroupId) {
+          updateData.groupId = newGroupId;
+        }
+      }
+
       const res = await fetch(`/api/admin/users/${editingUser.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify(updateData),
       });
 
       const data = await res.json();
       if (data.success) {
-        toast.success("User role updated");
+        toast.success("User updated successfully");
         setEditingUser(null);
+        setNewGroupId("");
+        setCreateNewGroup(false);
         fetchUsers();
+        fetchGroups(); // Refresh groups in case a new one was created
       } else {
-        toast.error(data.error || "Failed to update role");
+        toast.error(data.error || "Failed to update user");
       }
     } catch (error) {
-      console.error("Error updating role:", error);
-      toast.error("Failed to update role");
+      console.error("Error updating user:", error);
+      toast.error("Failed to update user");
     }
   }
 
@@ -242,6 +272,7 @@ export default function UsersPage() {
                     <TableHead>User</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Franchisee</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Last Sign In</TableHead>
                     <TableHead className="w-[70px]">Actions</TableHead>
@@ -277,19 +308,30 @@ export default function UsersPage() {
                       <TableCell>
                         <Badge
                           variant={
-                            user.role === "owner" ? "default" : "secondary"
+                            user.role === "owner" || user.role === "ADMIN" ? "default" : "secondary"
                           }
                           className={`gap-1 ${
-                            user.role === "opsmanager" ? "bg-purple-100 text-purple-800" :
-                            user.role === "driver" ? "bg-orange-100 text-orange-800" : ""
+                            user.role === "opsmanager" || user.role === "MANAGER" ? "bg-purple-100 text-purple-800" :
+                            user.role === "driver" || user.role === "DRIVER" ? "bg-orange-100 text-orange-800" : ""
                           }`}
                         >
-                          {user.role === "owner" && <Crown className="h-3 w-3" />}
-                          {user.role === "franchisee" && <User className="h-3 w-3" />}
-                          {user.role === "opsmanager" && <Briefcase className="h-3 w-3" />}
-                          {user.role === "driver" && <Truck className="h-3 w-3" />}
-                          {user.role}
+                          {(user.role === "owner" || user.role === "ADMIN") && <Crown className="h-3 w-3" />}
+                          {(user.role === "franchisee" || user.role === "FRANCHISEE") && <User className="h-3 w-3" />}
+                          {(user.role === "opsmanager" || user.role === "MANAGER") && <Briefcase className="h-3 w-3" />}
+                          {(user.role === "driver" || user.role === "DRIVER") && <Truck className="h-3 w-3" />}
+                          {user.role?.toLowerCase()}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.group?.name ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700">
+                            {user.group.name}
+                          </Badge>
+                        ) : (user.role === "franchisee" || user.role === "FRANCHISEE") ? (
+                          <span className="text-amber-600 text-sm">Not assigned</span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                       <TableCell>{formatDate(user.createdAt)}</TableCell>
                       <TableCell>{formatDate(user.lastSignInAt)}</TableCell>
@@ -304,11 +346,13 @@ export default function UsersPage() {
                             <DropdownMenuItem
                               onClick={() => {
                                 setEditingUser(user);
-                                setNewRole(user.role);
+                                setNewRole(user.role?.toLowerCase() || "franchisee");
+                                setNewGroupId(user.groupId || "");
+                                setCreateNewGroup(false);
                               }}
                             >
                               <Edit className="mr-2 h-4 w-4" />
-                              Edit Role
+                              Edit User
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -330,19 +374,25 @@ export default function UsersPage() {
         </Card>
       </main>
 
-      {/* Edit Role Dialog */}
+      {/* Edit User Dialog */}
       <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit User Role</DialogTitle>
+            <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
-              Change the role for {editingUser?.firstName} {editingUser?.lastName}
+              Update settings for {editingUser?.firstName} {editingUser?.lastName}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label>Role</Label>
-              <Select value={newRole} onValueChange={setNewRole}>
+              <Select value={newRole} onValueChange={(value) => {
+                setNewRole(value);
+                if (value !== "franchisee") {
+                  setNewGroupId("");
+                  setCreateNewGroup(false);
+                }
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -374,6 +424,44 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Franchisee Group Assignment */}
+            {newRole === "franchisee" && (
+              <div className="grid gap-2">
+                <Label>Assign to Franchisee</Label>
+                <Select
+                  value={createNewGroup ? "new" : newGroupId}
+                  onValueChange={(value) => {
+                    if (value === "new") {
+                      setCreateNewGroup(true);
+                      setNewGroupId("");
+                    } else {
+                      setCreateNewGroup(false);
+                      setNewGroupId(value);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select or create franchisee..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">
+                      <span className="text-blue-600">+ Create new franchisee</span>
+                    </SelectItem>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {createNewGroup && (
+                  <p className="text-xs text-muted-foreground">
+                    A new franchisee will be created using the user&apos;s name
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingUser(null)}>

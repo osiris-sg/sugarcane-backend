@@ -79,6 +79,7 @@ model Group {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   devices     Device[]
+  users       User[]
 }
 
 // Device configuration (price, name linked to device ID)
@@ -346,6 +347,8 @@ model User {
   imageUrl      String?
   isActive      Boolean   @default(true)
   loginPin      String?                        // 4-digit PIN for driver login
+  groupId       String?                        // Franchisee's assigned group
+  group         Group?    @relation(fields: [groupId], references: [id])
   lastSignInAt  DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -354,4 +357,5 @@ model User {
   @@index([username])
   @@index([role])
   @@index([loginPin])
+  @@index([groupId])
 }

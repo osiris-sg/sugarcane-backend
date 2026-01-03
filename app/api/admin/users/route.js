@@ -18,8 +18,9 @@ function mapRoleToEnum(role) {
 // GET /api/admin/users - List all users (from DB, synced with Clerk)
 export async function GET() {
   try {
-    // Get users from database
+    // Get users from database with their group info
     const dbUsers = await db.user.findMany({
+      include: { group: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -126,6 +127,22 @@ export async function POST(request) {
       },
     });
 
+    // For franchisee role, create a Group (franchisee business) and link the user
+    let groupId = null;
+    if (role === 'franchisee') {
+      // Create franchisee name from firstName + lastName, or fallback to username
+      const franchiseeName = [firstName, lastName].filter(Boolean).join(' ') || username;
+
+      // Create the Group (franchisee)
+      const group = await db.group.create({
+        data: {
+          name: franchiseeName,
+        },
+      });
+      groupId = group.id;
+      console.log(`[CreateUser] Created franchisee group: ${franchiseeName} (${group.id})`);
+    }
+
     // Create user in database
     const dbUser = await db.user.create({
       data: {
@@ -137,6 +154,7 @@ export async function POST(request) {
         phone: phone || null,
         imageUrl: clerkUser.imageUrl || null,
         loginPin: role === 'driver' ? loginPin || null : null,
+        groupId: groupId,
       },
     });
 
