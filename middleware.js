@@ -11,6 +11,9 @@ const isSignUpRoute = createRouteMatcher(['/sign-up(.*)']);
 // Define change password route
 const isChangePasswordRoute = createRouteMatcher(['/change-password(.*)']);
 
+// Define sign-in route
+const isSignInRoute = createRouteMatcher(['/sign-in(.*)']);
+
 // Define public routes (API endpoints should be accessible)
 const isPublicRoute = createRouteMatcher([
   '/',
@@ -20,21 +23,24 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   const url = req.nextUrl.pathname;
-  console.log(`[Middleware] Path: ${url}`);
-  console.log(`[Middleware] isProtected: ${isProtectedRoute(req)}, isSignUp: ${isSignUpRoute(req)}, isPublic: ${isPublicRoute(req)}`);
 
   // Block sign-up routes - redirect to sign-in
   if (isSignUpRoute(req)) {
-    console.log(`[Middleware] Blocking sign-up, redirecting to sign-in`);
     return NextResponse.redirect(new URL('/sign-in', req.url));
+  }
+
+  // Redirect authenticated users away from sign-in page
+  if (isSignInRoute(req)) {
+    const { userId } = await auth();
+    if (userId) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
   }
 
   // Protect dashboard routes
   if (isProtectedRoute(req)) {
-    console.log(`[Middleware] Protected route, checking auth...`);
     try {
       await auth.protect();
-      console.log(`[Middleware] Auth passed`);
 
       // Check if user needs to change password
       const { userId } = await auth();
@@ -43,27 +49,21 @@ export default clerkMiddleware(async (auth, req) => {
         const user = await client.users.getUser(userId);
         const requirePasswordChange = user.publicMetadata?.requirePasswordChange;
 
-        console.log(`[Middleware] requirePasswordChange: ${requirePasswordChange}, type: ${typeof requirePasswordChange}`);
-
         // Handle both boolean true and string "true"
         if (requirePasswordChange === true || requirePasswordChange === "true") {
-          console.log(`[Middleware] User must change password, redirecting to /change-password`);
           return NextResponse.redirect(new URL('/change-password', req.url));
         }
       }
     } catch (e) {
-      console.log(`[Middleware] Auth failed:`, e.message);
       throw e;
     }
   }
 
   // Protect change-password route (must be logged in)
   if (isChangePasswordRoute(req)) {
-    console.log(`[Middleware] Change password route, checking auth...`);
     try {
       await auth.protect();
     } catch (e) {
-      console.log(`[Middleware] Auth failed for change-password:`, e.message);
       throw e;
     }
   }
