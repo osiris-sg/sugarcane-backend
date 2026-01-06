@@ -23,6 +23,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import { NotificationToggle } from "@/components/notification-toggle";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -164,18 +165,21 @@ export default function OperationsLayout({ children }) {
         <Link href="/dashboard" className="flex items-center gap-2">
           <span className="text-lg font-bold text-primary">Operations</span>
         </Link>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="h-9 w-9"
-        >
-          {isMobileMenuOpen ? (
-            <X className="h-5 w-5" />
-          ) : (
-            <Menu className="h-5 w-5" />
-          )}
-        </Button>
+        <div className="flex items-center gap-1">
+          <NotificationToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="h-9 w-9"
+          >
+            {isMobileMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Mobile Overlay */}
