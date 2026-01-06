@@ -15,6 +15,7 @@ import {
   User,
   Briefcase,
   Truck,
+  KeyRound,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -242,6 +243,7 @@ export default function UsersPage() {
                     <TableHead>User</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>PIN</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Last Sign In</TableHead>
                     <TableHead className="w-[70px]">Actions</TableHead>
@@ -290,6 +292,18 @@ export default function UsersPage() {
                           {user.role === "driver" && <Truck className="h-3 w-3" />}
                           {user.role}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.role === "DRIVER" && user.loginPin ? (
+                          <div className="flex items-center gap-1.5">
+                            <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                            <code className="font-mono text-sm tracking-widest bg-muted px-2 py-0.5 rounded">
+                              {user.loginPin}
+                            </code>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>{formatDate(user.createdAt)}</TableCell>
                       <TableCell>{formatDate(user.lastSignInAt)}</TableCell>
@@ -393,19 +407,26 @@ export default function UsersPage() {
                     </DropdownMenu>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Badge
-                      variant={user.role === "owner" ? "default" : "secondary"}
-                      className={`gap-1 text-xs ${
-                        user.role === "opsmanager" ? "bg-purple-100 text-purple-800" :
-                        user.role === "driver" ? "bg-orange-100 text-orange-800" : ""
-                      }`}
-                    >
-                      {user.role === "owner" && <Crown className="h-3 w-3" />}
-                      {user.role === "franchisee" && <User className="h-3 w-3" />}
-                      {user.role === "opsmanager" && <Briefcase className="h-3 w-3" />}
-                      {user.role === "driver" && <Truck className="h-3 w-3" />}
-                      {user.role}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={user.role === "owner" ? "default" : "secondary"}
+                        className={`gap-1 text-xs ${
+                          user.role === "opsmanager" ? "bg-purple-100 text-purple-800" :
+                          user.role === "driver" ? "bg-orange-100 text-orange-800" : ""
+                        }`}
+                      >
+                        {user.role === "owner" && <Crown className="h-3 w-3" />}
+                        {user.role === "franchisee" && <User className="h-3 w-3" />}
+                        {user.role === "opsmanager" && <Briefcase className="h-3 w-3" />}
+                        {user.role === "driver" && <Truck className="h-3 w-3" />}
+                        {user.role}
+                      </Badge>
+                      {user.role === "DRIVER" && user.loginPin && (
+                        <code className="font-mono text-xs tracking-widest bg-muted px-1.5 py-0.5 rounded">
+                          {user.loginPin}
+                        </code>
+                      )}
+                    </div>
                     <span className="text-xs text-muted-foreground">
                       Last: {formatDate(user.lastSignInAt)}
                     </span>
