@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { sendStockAlert } from '@/app/api/telegram/send/route';
+import { sendAlert } from '@/lib/telegram';
 
 // GET /api/maintenance/issue/[id] - Get a specific issue
 export async function GET(request, { params }) {
@@ -138,7 +138,7 @@ ${issue.timeBlock ? `📊 Time Block: ${issue.timeBlock}` : ''}
 ${resolution === 'unresolved' ? '📢 Issue escalated to manager. Machine set to Out of Service.' : ''}`;
 
       try {
-        await sendStockAlert(message);
+        await sendAlert(message);
       } catch (err) {
         console.error('[Issue] Failed to send notification:', err);
       }

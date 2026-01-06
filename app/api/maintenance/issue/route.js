@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { sendStockAlert } from '@/app/api/telegram/send/route';
 
 // Fault code to name mapping (from TelegramHelper.smali)
 const FAULT_CODE_NAMES = {

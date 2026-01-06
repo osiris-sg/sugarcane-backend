@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { sendStockAlert } from '@/app/api/telegram/send/route';
+import { sendAlert } from '@/lib/telegram';
 
 // GET /api/maintenance/activity/[id] - Get a specific activity
 export async function GET(request, { params }) {
@@ -102,7 +102,7 @@ export async function PATCH(request, { params }) {
 ${newStatus === 'unresolved' ? '📢 Issue escalated to manager. Machine set to Out of Service.' : ''}`;
 
     try {
-      await sendStockAlert(message);
+      await sendAlert(message);
     } catch (err) {
       console.error('[Activity] Failed to send notification:', err);
     }

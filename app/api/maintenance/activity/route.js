@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { sendStockAlert } from '@/app/api/telegram/send/route';
 
 // POST /api/maintenance/activity - Start a new maintenance activity
 export async function POST(request) {
