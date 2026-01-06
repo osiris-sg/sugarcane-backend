@@ -135,6 +135,23 @@ export async function POST(request) {
       },
     });
 
+    // Immediately clear low stock alert if stock is now above threshold (25%)
+    const LOW_STOCK_THRESHOLD = 25;
+    const percent = Math.round((quantity / stock.maxStock) * 100);
+
+    if (percent > LOW_STOCK_THRESHOLD && stock.isLowStock) {
+      await db.stock.update({
+        where: { id: stock.id },
+        data: {
+          isLowStock: false,
+          lowStockTriggeredAt: null,
+          priority: 1,
+          remindersTodayCount: 0,
+        },
+      });
+      console.log(`[ReportStock] Cleared low stock alert for ${deviceName} (now ${percent}%)`);
+    }
+
     // Log stock history if we have change info
     if (change !== undefined && reason) {
       await db.stockHistory.create({
