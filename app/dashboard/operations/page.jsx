@@ -12,6 +12,7 @@ import {
   Package,
   RefreshCw,
   Plus,
+  MapPin,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -108,7 +109,8 @@ export default function OperationsPage() {
   const filteredDevices = devices.filter(
     (d) =>
       d.deviceId.toLowerCase().includes(filterText.toLowerCase()) ||
-      (d.deviceName && d.deviceName.toLowerCase().includes(filterText.toLowerCase()))
+      (d.deviceName && d.deviceName.toLowerCase().includes(filterText.toLowerCase())) ||
+      (d.location && d.location.toLowerCase().includes(filterText.toLowerCase()))
   );
 
   if (loading) {
@@ -252,7 +254,7 @@ export default function OperationsPage() {
           <CardHeader className="px-4 md:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Input
-                placeholder="Filter by ID or name..."
+                placeholder="Filter by ID, name, or location..."
                 className="max-w-full sm:max-w-xs"
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
@@ -270,6 +272,7 @@ export default function OperationsPage() {
                   <TableRow>
                     <TableHead>Device ID</TableHead>
                     <TableHead>Name</TableHead>
+                    <TableHead>Location</TableHead>
                     <TableHead>Actions</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Stock</TableHead>
@@ -280,7 +283,7 @@ export default function OperationsPage() {
                 <TableBody>
                   {filteredDevices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                         No devices found
                       </TableCell>
                     </TableRow>
@@ -290,6 +293,18 @@ export default function OperationsPage() {
                         <TableRow key={device.deviceId}>
                           <TableCell className="font-medium">{device.deviceId}</TableCell>
                           <TableCell>{device.deviceName || "-"}</TableCell>
+                          <TableCell>
+                            {device.location ? (
+                              <div className="flex items-center gap-1.5 max-w-[200px]">
+                                <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                <span className="truncate text-sm" title={device.location}>
+                                  {device.location}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
                               <Link href={`/dashboard/sales/equipment/${device.id}`}>
@@ -361,6 +376,14 @@ export default function OperationsPage() {
                       <div>
                         <p className="font-medium text-sm">{device.deviceName || device.deviceId}</p>
                         <p className="text-xs text-muted-foreground">{device.deviceId}</p>
+                        {device.location && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <MapPin className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                              {device.location}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <Badge variant={device.isActive ? "success" : "destructive"} className="text-xs">
                         {device.isActive ? "ON" : "OFF"}
