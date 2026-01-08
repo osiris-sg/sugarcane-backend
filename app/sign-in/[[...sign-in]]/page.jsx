@@ -211,11 +211,11 @@ export default function SignInPage() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="identifier">Email or Username</Label>
+                <Label htmlFor="identifier">Username</Label>
                 <Input
                   id="identifier"
                   type="text"
-                  placeholder="Enter your email or username"
+                  placeholder="Enter your username"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   required
