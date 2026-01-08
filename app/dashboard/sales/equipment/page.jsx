@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ export default function DeviceListPage() {
   const [historyDialog, setHistoryDialog] = useState({ open: false, deviceId: null, deviceName: "" });
   const [locationHistory, setLocationHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const { sortKey, sortDirection, handleSort, sortData } = useTableSort("deviceId", "asc");
 
   useEffect(() => {
     fetchDevices();
@@ -105,8 +107,16 @@ export default function DeviceListPage() {
     );
   });
 
+  // Sort filtered devices
+  const sortedDevices = sortData(filteredDevices, {
+    getNestedValue: (item, key) => {
+      if (key === "groupName") return item.group?.name;
+      return item[key];
+    },
+  });
+
   // Pagination
-  const { totalItems, totalPages, getPageItems } = usePagination(filteredDevices, ITEMS_PER_PAGE);
+  const { totalItems, totalPages, getPageItems } = usePagination(sortedDevices, ITEMS_PER_PAGE);
   const paginatedDevices = getPageItems(currentPage);
 
   // Format price display (e.g., "$3.80")
@@ -171,14 +181,14 @@ export default function DeviceListPage() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-sm z-10">
                     <TableRow>
-                      <TableHead>Id</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Location</TableHead>
-                      {isAdmin && <TableHead>Group</TableHead>}
-                      <TableHead>Actived</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Create Time</TableHead>
-                      <TableHead>Timestamp</TableHead>
+                      <SortableTableHead column="deviceId" label="Id" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead column="deviceName" label="Name" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead column="location" label="Location" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                      {isAdmin && <SortableTableHead column="groupName" label="Group" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />}
+                      <SortableTableHead column="isActive" label="Actived" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead column="price" label="Price" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead column="createdAt" label="Create Time" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead column="updatedAt" label="Timestamp" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                       <TableHead>Action</TableHead>
                     </TableRow>
                   </TableHeader>
