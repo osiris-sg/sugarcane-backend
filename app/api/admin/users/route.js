@@ -83,11 +83,15 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { username, firstName, lastName, password, role, phone, loginPin } = body;
+    const { username, email, firstName, lastName, password, role, phone, loginPin } = body;
 
-    if (!username || !password) {
+    // Support both email and username
+    const identifier = email || username;
+    const isEmail = identifier && identifier.includes('@');
+
+    if (!identifier || !password) {
       return NextResponse.json(
-        { error: 'Username and password are required' },
+        { error: 'Email/username and password are required' },
         { status: 400 }
       );
     }
@@ -115,10 +119,9 @@ export async function POST(request) {
 
     const client = await clerkClient();
 
-    // Create user in Clerk with username
+    // Create user in Clerk
     // Set requirePasswordChange to true so user must change password on first login
-    const clerkUser = await client.users.createUser({
-      username,
+    const clerkUserData = {
       firstName: firstName || '',
       lastName: lastName || '',
       password,
@@ -126,13 +129,22 @@ export async function POST(request) {
         role: role || 'franchisee',
         requirePasswordChange: true,
       },
-    });
+    };
+
+    // Use email or username based on identifier type
+    if (isEmail) {
+      clerkUserData.emailAddress = [identifier];
+    } else {
+      clerkUserData.username = identifier;
+    }
+
+    const clerkUser = await client.users.createUser(clerkUserData);
 
     // For franchisee role, create a Group (franchisee business) and link the user
     let groupId = null;
     if (role === 'franchisee') {
-      // Create franchisee name from firstName + lastName, or fallback to username
-      const franchiseeName = [firstName, lastName].filter(Boolean).join(' ') || username;
+      // Create franchisee name from firstName + lastName, or fallback to identifier
+      const franchiseeName = [firstName, lastName].filter(Boolean).join(' ') || identifier;
 
       // Create the Group (franchisee)
       const group = await db.group.create({
@@ -145,10 +157,13 @@ export async function POST(request) {
     }
 
     // Create user in database
+    // Use email from Clerk if available, otherwise use username or identifier
+    const dbUsername = clerkUser.emailAddresses?.[0]?.emailAddress || clerkUser.username || identifier;
+
     const dbUser = await db.user.create({
       data: {
         clerkId: clerkUser.id,
-        username: clerkUser.username || username,
+        username: dbUsername,
         firstName: firstName || null,
         lastName: lastName || null,
         role: mapRoleToEnum(role),
