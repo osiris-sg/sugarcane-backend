@@ -147,6 +147,20 @@ export async function POST(request) {
 
     const clerkUser = await client.users.createUser(clerkUserData);
 
+    // If email was used, auto-verify it so user doesn't need OTP
+    if (isEmail && clerkUser.emailAddresses?.length > 0) {
+      const emailId = clerkUser.emailAddresses[0].id;
+      try {
+        await client.emailAddresses.updateEmailAddress(emailId, {
+          verified: true,
+        });
+        console.log(`[CreateUser] Auto-verified email for ${identifier}`);
+      } catch (verifyError) {
+        console.error('[CreateUser] Failed to auto-verify email:', verifyError.message);
+        // Continue anyway - user can still sign in with OTP
+      }
+    }
+
     // For franchisee role, create a Group (franchisee business) and link the user
     let groupId = null;
     if (role === 'franchisee') {
