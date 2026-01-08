@@ -27,6 +27,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePagination, usePagination } from "@/components/ui/table-pagination";
+
+const ITEMS_PER_PAGE = 20;
 
 // Helper to format relative time
 function formatLastSeen(dateString) {
@@ -53,6 +56,7 @@ export default function OperationsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filterText, setFilterText] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetchData();
@@ -113,6 +117,15 @@ export default function OperationsPage() {
       (d.location && d.location.toLowerCase().includes(filterText.toLowerCase()))
   );
 
+  // Pagination
+  const { totalItems, totalPages, getPageItems } = usePagination(filteredDevices, ITEMS_PER_PAGE);
+  const paginatedDevices = getPageItems(currentPage);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -122,9 +135,9 @@ export default function OperationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b bg-background">
+      <header className="sticky top-0 z-30 border-b bg-background shrink-0">
         <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
           <div>
             <h1 className="text-lg md:text-xl font-semibold">Operations Overview</h1>
@@ -146,7 +159,7 @@ export default function OperationsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="p-4 md:p-6">
+      <main className="flex-1 overflow-auto p-4 md:p-6">
         <div className="grid gap-4 md:gap-6 lg:grid-cols-[350px_1fr]">
           {/* Left Panel - Alerts & Stats */}
           <div className="space-y-4">
@@ -288,7 +301,7 @@ export default function OperationsPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredDevices.map((device) => {
+                    paginatedDevices.map((device) => {
                       return (
                         <TableRow key={device.deviceId}>
                           <TableCell className="font-medium">{device.deviceId}</TableCell>
@@ -363,6 +376,15 @@ export default function OperationsPage() {
                   )}
                 </TableBody>
               </Table>
+              {totalPages > 1 && (
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                />
+              )}
             </div>
 
             {/* Mobile Card View */}
@@ -370,7 +392,7 @@ export default function OperationsPage() {
               {filteredDevices.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">No devices found</p>
               ) : (
-                filteredDevices.map((device) => (
+                paginatedDevices.map((device) => (
                   <div key={device.deviceId} className="rounded-lg border p-3 space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
@@ -420,6 +442,15 @@ export default function OperationsPage() {
                     </div>
                   </div>
                 ))
+              )}
+              {totalPages > 1 && (
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                />
               )}
             </div>
           </CardContent>

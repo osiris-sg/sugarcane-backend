@@ -17,6 +17,9 @@ import {
   Truck,
   KeyRound,
 } from "lucide-react";
+import { TablePagination, usePagination } from "@/components/ui/table-pagination";
+
+const ITEMS_PER_PAGE = 20;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +62,7 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [deleteUser, setDeleteUser] = useState(null);
   const [newRole, setNewRole] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Redirect non-admins
   const role = user?.publicMetadata?.role || "franchisee";
@@ -146,9 +150,13 @@ export default function UsersPage() {
   const opsmanagerCount = users.filter((u) => u.role === "opsmanager").length;
   const driverCount = users.filter((u) => u.role === "driver").length;
 
+  // Pagination
+  const { totalItems, totalPages, getPageItems } = usePagination(users, ITEMS_PER_PAGE);
+  const paginatedUsers = getPageItems(currentPage);
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b bg-background">
+    <div className="flex flex-col h-screen bg-background">
+      <header className="sticky top-0 z-30 border-b bg-background shrink-0">
         <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
           <div>
             <h1 className="text-lg md:text-xl font-semibold">User Management</h1>
@@ -159,7 +167,7 @@ export default function UsersPage() {
         </div>
       </header>
 
-      <main className="p-4 md:p-6">
+      <main className="flex-1 overflow-auto p-4 md:p-6">
         {/* Stats */}
         <div className="mb-4 md:mb-6 grid grid-cols-3 gap-2 md:gap-4 md:grid-cols-5">
           <Card>
@@ -250,7 +258,7 @@ export default function UsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {paginatedUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -340,6 +348,15 @@ export default function UsersPage() {
                 </TableBody>
               </Table>
             )}
+            {totalPages > 1 && (
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setCurrentPage}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -362,78 +379,89 @@ export default function UsersPage() {
               </CardContent>
             </Card>
           ) : (
-            users.map((user) => (
-              <Card key={user.id}>
-                <CardContent className="p-3 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      {user.imageUrl ? (
-                        <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full" />
-                      ) : (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                          <User className="h-4 w-4" />
+            <>
+              {paginatedUsers.map((user) => (
+                <Card key={user.id}>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        {user.imageUrl ? (
+                          <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full" />
+                        ) : (
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+                            <User className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-sm">{user.firstName} {user.lastName}</p>
+                          <p className="text-xs text-muted-foreground">{user.email}</p>
                         </div>
-                      )}
-                      <div>
-                        <p className="font-medium text-sm">{user.firstName} {user.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
                       </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditingUser(user);
+                              setNewRole(user.role);
+                            }}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Role
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={() => setDeleteUser(user)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete User
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setEditingUser(user);
-                            setNewRole(user.role);
-                          }}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={user.role === "owner" ? "default" : "secondary"}
+                          className={`gap-1 text-xs ${
+                            user.role === "opsmanager" ? "bg-purple-100 text-purple-800" :
+                            user.role === "driver" ? "bg-orange-100 text-orange-800" : ""
+                          }`}
                         >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Role
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => setDeleteUser(user)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete User
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={user.role === "owner" ? "default" : "secondary"}
-                        className={`gap-1 text-xs ${
-                          user.role === "opsmanager" ? "bg-purple-100 text-purple-800" :
-                          user.role === "driver" ? "bg-orange-100 text-orange-800" : ""
-                        }`}
-                      >
-                        {user.role === "owner" && <Crown className="h-3 w-3" />}
-                        {user.role === "franchisee" && <User className="h-3 w-3" />}
-                        {user.role === "opsmanager" && <Briefcase className="h-3 w-3" />}
-                        {user.role === "driver" && <Truck className="h-3 w-3" />}
-                        {user.role}
-                      </Badge>
-                      {user.role === "DRIVER" && user.loginPin && (
-                        <code className="font-mono text-xs tracking-widest bg-muted px-1.5 py-0.5 rounded">
-                          {user.loginPin}
-                        </code>
-                      )}
+                          {user.role === "owner" && <Crown className="h-3 w-3" />}
+                          {user.role === "franchisee" && <User className="h-3 w-3" />}
+                          {user.role === "opsmanager" && <Briefcase className="h-3 w-3" />}
+                          {user.role === "driver" && <Truck className="h-3 w-3" />}
+                          {user.role}
+                        </Badge>
+                        {user.role === "DRIVER" && user.loginPin && (
+                          <code className="font-mono text-xs tracking-widest bg-muted px-1.5 py-0.5 rounded">
+                            {user.loginPin}
+                          </code>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        Last: {formatDate(user.lastSignInAt)}
+                      </span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      Last: {formatDate(user.lastSignInAt)}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              ))}
+              {totalPages > 1 && (
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                />
+              )}
+            </>
           )}
         </div>
       </main>

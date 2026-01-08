@@ -36,6 +36,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TablePagination, usePagination } from "@/components/ui/table-pagination";
+
+const ITEMS_PER_PAGE = 20;
 
 // Helper to format date/time in Singapore timezone
 function formatDateTime(dateString) {
@@ -106,6 +109,7 @@ export default function FaultsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deviceFilter, setDeviceFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetchData();
@@ -184,6 +188,15 @@ export default function FaultsPage() {
   // Get unique devices from issues
   const uniqueDevices = [...new Map(issues.map((i) => [i.deviceId, { id: i.deviceId, name: i.deviceName }])).values()];
 
+  // Pagination
+  const { totalItems, totalPages, getPageItems } = usePagination(filteredIssues, ITEMS_PER_PAGE);
+  const paginatedIssues = getPageItems(currentPage);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [priorityFilter, statusFilter, deviceFilter, searchText]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -193,9 +206,9 @@ export default function FaultsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b bg-background">
+      <header className="sticky top-0 z-30 border-b bg-background shrink-0">
         <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
           <div>
             <h1 className="text-lg md:text-xl font-semibold">Fault Management</h1>
@@ -209,7 +222,7 @@ export default function FaultsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="p-4 md:p-6">
+      <main className="flex-1 overflow-auto p-4 md:p-6">
         {/* Summary Cards */}
         <div className="mb-4 md:mb-6 grid grid-cols-3 gap-2 md:gap-4">
           <Card
@@ -426,7 +439,7 @@ export default function FaultsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredIssues.map((issue) => (
+                  paginatedIssues.map((issue) => (
                     <TableRow key={issue.id}>
                       <TableCell>
                         <PriorityBadge priority={issue.priority} />
@@ -458,6 +471,15 @@ export default function FaultsPage() {
                 )}
               </TableBody>
             </Table>
+            {totalPages > 1 && (
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setCurrentPage}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -470,37 +492,48 @@ export default function FaultsPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredIssues.map((issue) => (
-              <Card key={issue.id}>
-                <CardContent className="p-3 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{issue.deviceName}</p>
-                      <p className="text-xs text-muted-foreground">{issue.deviceId}</p>
+            <>
+              {paginatedIssues.map((issue) => (
+                <Card key={issue.id}>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-sm">{issue.deviceName}</p>
+                        <p className="text-xs text-muted-foreground">{issue.deviceId}</p>
+                      </div>
+                      <PriorityBadge priority={issue.priority} />
                     </div>
-                    <PriorityBadge priority={issue.priority} />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <StatusBadge status={issue.status} />
-                    <Badge variant="outline" className="text-xs">
-                      {issue.type === "DEVICE_ERROR" ? "Device Error" : "Zero Sales"}
-                    </Badge>
-                  </div>
-                  <div className="text-xs space-y-1">
-                    {issue.faultCode && (
-                      <p><span className="text-muted-foreground">Code:</span> <span className="font-mono">{issue.faultCode}</span></p>
-                    )}
-                    {issue.faultName && (
-                      <p><span className="text-muted-foreground">Fault:</span> {issue.faultName}</p>
-                    )}
-                    <p><span className="text-muted-foreground">Triggered:</span> {formatDateTime(issue.triggeredAt)}</p>
-                    {issue.resolvedAt && (
-                      <p><span className="text-muted-foreground">Resolved:</span> {formatDateTime(issue.resolvedAt)}</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge status={issue.status} />
+                      <Badge variant="outline" className="text-xs">
+                        {issue.type === "DEVICE_ERROR" ? "Device Error" : "Zero Sales"}
+                      </Badge>
+                    </div>
+                    <div className="text-xs space-y-1">
+                      {issue.faultCode && (
+                        <p><span className="text-muted-foreground">Code:</span> <span className="font-mono">{issue.faultCode}</span></p>
+                      )}
+                      {issue.faultName && (
+                        <p><span className="text-muted-foreground">Fault:</span> {issue.faultName}</p>
+                      )}
+                      <p><span className="text-muted-foreground">Triggered:</span> {formatDateTime(issue.triggeredAt)}</p>
+                      {issue.resolvedAt && (
+                        <p><span className="text-muted-foreground">Resolved:</span> {formatDateTime(issue.resolvedAt)}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {totalPages > 1 && (
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                />
+              )}
+            </>
           )}
         </div>
       </main>
