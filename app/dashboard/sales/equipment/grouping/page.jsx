@@ -95,6 +95,7 @@ export default function DeviceGroupingPage() {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogSearchTerm, setDialogSearchTerm] = useState("");
+  const [groupSearchTerm, setGroupSearchTerm] = useState("");
   const [activeId, setActiveId] = useState(null);
   const [overId, setOverId] = useState(null);
 
@@ -267,6 +268,20 @@ export default function DeviceGroupingPage() {
     );
   });
 
+  const filteredGroups = groups.filter((g) => {
+    const search = groupSearchTerm.toLowerCase();
+    if (!search) return true;
+    // Search by group name or by devices in the group
+    const nameMatch = g.name?.toLowerCase().includes(search);
+    const deviceMatch = g.devices?.some(
+      (d) =>
+        d.deviceId?.toLowerCase().includes(search) ||
+        d.deviceName?.toLowerCase().includes(search) ||
+        d.location?.toLowerCase().includes(search)
+    );
+    return nameMatch || deviceMatch;
+  });
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -335,6 +350,16 @@ export default function DeviceGroupingPage() {
                 )}
               </h2>
 
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search groups..."
+                  className="pl-10"
+                  value={groupSearchTerm}
+                  onChange={(e) => setGroupSearchTerm(e.target.value)}
+                />
+              </div>
+
               {groups.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
@@ -343,8 +368,15 @@ export default function DeviceGroupingPage() {
                     <p className="text-sm">Click "New Group" to create one</p>
                   </CardContent>
                 </Card>
+              ) : filteredGroups.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <Search className="mx-auto h-8 w-8 mb-2 opacity-50" />
+                    <p className="text-sm">No groups match your search</p>
+                  </CardContent>
+                </Card>
               ) : (
-                groups.map((group) => (
+                filteredGroups.map((group) => (
                   <DroppableGroup
                     key={group.id}
                     group={group}
