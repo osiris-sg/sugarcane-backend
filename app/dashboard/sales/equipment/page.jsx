@@ -23,6 +23,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TablePagination, usePagination } from "@/components/ui/table-pagination";
+
+const ITEMS_PER_PAGE = 20;
 
 export default function DeviceListPage() {
   const { user } = useUser();
@@ -33,6 +36,7 @@ export default function DeviceListPage() {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [historyDialog, setHistoryDialog] = useState({ open: false, deviceId: null, deviceName: "" });
   const [locationHistory, setLocationHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -40,6 +44,11 @@ export default function DeviceListPage() {
   useEffect(() => {
     fetchDevices();
   }, []);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const fetchDevices = async () => {
     try {
@@ -91,9 +100,14 @@ export default function DeviceListPage() {
     const search = searchTerm.toLowerCase();
     return (
       device.deviceId?.toLowerCase().includes(search) ||
-      device.deviceName?.toLowerCase().includes(search)
+      device.deviceName?.toLowerCase().includes(search) ||
+      device.location?.toLowerCase().includes(search)
     );
   });
+
+  // Pagination
+  const { totalItems, totalPages, getPageItems } = usePagination(filteredDevices, ITEMS_PER_PAGE);
+  const paginatedDevices = getPageItems(currentPage);
 
   // Format price display (e.g., "$3.80")
   const formatPrice = (priceInCents) => {
@@ -117,8 +131,8 @@ export default function DeviceListPage() {
   const activeCount = devices.filter((d) => d.isActive).length;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-4 md:px-6">
+    <div className="flex flex-col h-screen bg-background">
+      <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-4 md:px-6 shrink-0">
         <div>
           <h1 className="text-lg md:text-xl font-semibold">Device List</h1>
           <p className="text-xs md:text-sm text-muted-foreground">
@@ -131,9 +145,9 @@ export default function DeviceListPage() {
         </Button>
       </header>
 
-      <main className="p-4 md:p-6">
+      <main className="flex-1 flex flex-col overflow-hidden p-4 md:p-6">
         {/* Filters */}
-        <div className="mb-4 md:mb-6">
+        <div className="mb-4 shrink-0">
           <div className="relative w-full md:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -146,164 +160,192 @@ export default function DeviceListPage() {
         </div>
 
         {/* Device Table - Desktop */}
-        <Card className="hidden md:block">
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Id</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Location</TableHead>
-                    {isAdmin && <TableHead>Group</TableHead>}
-                    <TableHead>Actived</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Create Time</TableHead>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDevices.length === 0 ? (
+        <Card className="hidden md:flex md:flex-col flex-1 overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center flex-1">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-sm z-10">
                     <TableRow>
-                      <TableCell
-                        colSpan={isAdmin ? 9 : 8}
-                        className="text-center py-8 text-muted-foreground"
-                      >
-                        No devices found
-                      </TableCell>
+                      <TableHead>Id</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Location</TableHead>
+                      {isAdmin && <TableHead>Group</TableHead>}
+                      <TableHead>Actived</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead>Create Time</TableHead>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Action</TableHead>
                     </TableRow>
-                  ) : (
-                    filteredDevices.map((device) => (
-                      <TableRow key={device.id}>
-                        <TableCell className="font-mono">{device.deviceId}</TableCell>
-                        <TableCell>{device.deviceName}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span>{device.location || "-"}</span>
-                            <button
-                              onClick={() => fetchLocationHistory(device.deviceId, device.deviceName)}
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                              title="View location history"
-                            >
-                              <History className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </TableCell>
-                        {isAdmin && (
-                          <TableCell>{device.group?.name || "-"}</TableCell>
-                        )}
-                        <TableCell>
-                          <span className={device.isActive ? "text-green-600" : "text-red-600"}>
-                            {device.isActive ? "actived" : "inactive"}
-                          </span>
-                        </TableCell>
-                        <TableCell>{formatPrice(device.price)}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatDate(device.createdAt)}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatDate(device.updatedAt)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="bg-blue-500 text-white hover:bg-blue-600 border-blue-500"
-                              onClick={() => router.push(`/dashboard/sales/equipment/${device.id}`)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="bg-red-500 text-white hover:bg-red-600 border-red-500"
-                            >
-                              Delete
-                            </Button>
-                          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedDevices.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={isAdmin ? 9 : 8}
+                          className="text-center py-8 text-muted-foreground"
+                        >
+                          No devices found
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
+                    ) : (
+                      paginatedDevices.map((device) => (
+                        <TableRow key={device.id}>
+                          <TableCell className="font-mono">{device.deviceId}</TableCell>
+                          <TableCell>{device.deviceName}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span>{device.location || "-"}</span>
+                              <button
+                                onClick={() => fetchLocationHistory(device.deviceId, device.deviceName)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                                title="View location history"
+                              >
+                                <History className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </TableCell>
+                          {isAdmin && (
+                            <TableCell>{device.group?.name || "-"}</TableCell>
+                          )}
+                          <TableCell>
+                            <span className={device.isActive ? "text-green-600" : "text-red-600"}>
+                              {device.isActive ? "actived" : "inactive"}
+                            </span>
+                          </TableCell>
+                          <TableCell>{formatPrice(device.price)}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDate(device.createdAt)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDate(device.updatedAt)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="bg-blue-500 text-white hover:bg-blue-600 border-blue-500"
+                                onClick={() => router.push(`/dashboard/sales/equipment/${device.id}`)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="bg-red-500 text-white hover:bg-red-600 border-red-500"
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              {totalPages > 1 && (
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                />
+              )}
+            </>
+          )}
         </Card>
 
         {/* Device Cards - Mobile */}
-        <div className="md:hidden space-y-3">
+        <div className="md:hidden flex flex-col flex-1 overflow-hidden">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center flex-1">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : filteredDevices.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              No devices found
-            </div>
           ) : (
-            filteredDevices.map((device) => (
-              <Card key={device.id}>
-                <CardContent className="p-3">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{device.deviceName}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{device.deviceId}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${device.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                      {device.isActive ? "Active" : "Inactive"}
-                    </span>
+            <>
+              <div className="flex-1 overflow-auto space-y-3">
+                {paginatedDevices.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    No devices found
                   </div>
-                  <div className="space-y-1 text-xs text-muted-foreground mb-3">
-                    <div className="flex items-center justify-between">
-                      <span>Location:</span>
-                      <div className="flex items-center gap-1">
-                        <span>{device.location || "-"}</span>
-                        <button
-                          onClick={() => fetchLocationHistory(device.deviceId, device.deviceName)}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <History className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </div>
-                    {isAdmin && (
-                      <div className="flex items-center justify-between">
-                        <span>Group:</span>
-                        <span>{device.group?.name || "-"}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span>Price:</span>
-                      <span className="font-medium text-foreground">{formatPrice(device.price)}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 bg-blue-500 text-white hover:bg-blue-600 border-blue-500"
-                      onClick={() => router.push(`/dashboard/sales/equipment/${device.id}`)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 bg-red-500 text-white hover:bg-red-600 border-red-500"
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                ) : (
+                  paginatedDevices.map((device) => (
+                    <Card key={device.id}>
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{device.deviceName}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{device.deviceId}</p>
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${device.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                            {device.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-xs text-muted-foreground mb-3">
+                          <div className="flex items-center justify-between">
+                            <span>Location:</span>
+                            <div className="flex items-center gap-1">
+                              <span>{device.location || "-"}</span>
+                              <button
+                                onClick={() => fetchLocationHistory(device.deviceId, device.deviceName)}
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <History className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                          {isAdmin && (
+                            <div className="flex items-center justify-between">
+                              <span>Group:</span>
+                              <span>{device.group?.name || "-"}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <span>Price:</span>
+                            <span className="font-medium text-foreground">{formatPrice(device.price)}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 bg-blue-500 text-white hover:bg-blue-600 border-blue-500"
+                            onClick={() => router.push(`/dashboard/sales/equipment/${device.id}`)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 bg-red-500 text-white hover:bg-red-600 border-red-500"
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+              {totalPages > 1 && (
+                <div className="shrink-0 mt-3">
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                    onPageChange={setCurrentPage}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
