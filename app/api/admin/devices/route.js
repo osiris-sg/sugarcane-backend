@@ -152,7 +152,7 @@ export async function POST(request) {
         deviceName: deviceName || `Device ${deviceId}`,
         location: location || null,
         price: price ? parseInt(price) : 250, // Default $2.50
-        isActive: isActive !== undefined ? isActive : true,
+        isActive: isActive !== undefined ? isActive : false, // Default inactive until device reports temperature
         groupId: groupId || null,
       },
       include: {

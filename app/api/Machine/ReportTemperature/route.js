@@ -32,13 +32,14 @@ export async function POST(request) {
       },
     });
 
-    // Also update Device table with latest temperature
+    // Also update Device table with latest temperature and activate the device
     await db.device.updateMany({
       where: { deviceId: String(deviceId) },
       data: {
         refrigerationTemp: temp1,
         machineTemp: temp2,
         tempUpdatedAt: new Date(),
+        isActive: true,  // Activate device when it reports temperature
       },
     });
 

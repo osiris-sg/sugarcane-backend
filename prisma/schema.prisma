@@ -89,7 +89,7 @@ model Device {
   deviceName  String            // Display name (e.g., "VY06 The Octagon")
   location    String?           // Location (e.g., "116 Jln Tenteram")
   price       Int               // Price in cents (e.g., 250 = $2.50)
-  isActive    Boolean  @default(true)
+  isActive    Boolean  @default(false)  // Only activated when device reports temperature
   groupId     String?           // Foreign key to Group (Franchisee)
   group       Group?   @relation(fields: [groupId], references: [id])
   driverId    String?           // Clerk user ID for assigned driver
