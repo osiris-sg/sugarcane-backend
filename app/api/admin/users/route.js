@@ -134,7 +134,11 @@ export async function POST(request) {
     // Use email or username based on identifier type
     if (isEmail) {
       clerkUserData.emailAddress = [identifier];
-      // Skip email verification requirement when admin creates user
+      // Also create a username from email (part before @) so user can sign in with username
+      // This avoids the email OTP requirement during sign-in
+      const usernameFromEmail = identifier.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      clerkUserData.username = usernameFromEmail;
+      // Skip password validation
       clerkUserData.skipPasswordChecks = true;
     } else {
       clerkUserData.username = identifier;
