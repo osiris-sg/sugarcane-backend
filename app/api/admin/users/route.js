@@ -134,9 +134,16 @@ export async function POST(request) {
     // Use email or username based on identifier type
     if (isEmail) {
       clerkUserData.emailAddress = [identifier];
+      // Skip email verification requirement when admin creates user
+      clerkUserData.skipPasswordChecks = true;
     } else {
       clerkUserData.username = identifier;
     }
+
+    console.log('[CreateUser] Creating Clerk user with data:', {
+      ...clerkUserData,
+      password: '***hidden***',
+    });
 
     const clerkUser = await client.users.createUser(clerkUserData);
 

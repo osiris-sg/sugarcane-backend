@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus, Lock, User, Crown, ArrowLeft, AtSign } from "lucide-react";
+import { UserPlus, Lock, User, Crown, ArrowLeft, AtSign, Mail } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +59,11 @@ export default function AddUserPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: formData.username,
+          // Send as email if contains @, otherwise as username
+          ...(formData.username.includes('@')
+            ? { email: formData.username }
+            : { username: formData.username }
+          ),
           firstName: formData.firstName,
           lastName: formData.lastName,
           password: formData.password,
@@ -141,23 +145,36 @@ export default function AddUserPage() {
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="username">Email or Username</Label>
                   <div className="relative">
-                    <AtSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    {formData.username.includes('@') ? (
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <AtSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    )}
                     <Input
                       id="username"
                       type="text"
-                      placeholder="johndoe"
+                      placeholder="john@example.com or johndoe"
                       className="pl-9"
                       required
                       value={formData.username}
-                      onChange={(e) =>
-                        setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s/g, '') })
-                      }
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Only force lowercase/no-spaces for usernames, not emails
+                        if (value.includes('@')) {
+                          setFormData({ ...formData, username: value.trim() });
+                        } else {
+                          setFormData({ ...formData, username: value.toLowerCase().replace(/\s/g, '') });
+                        }
+                      }}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Username must be lowercase with no spaces
+                    {formData.username.includes('@')
+                      ? "User will sign in with email + OTP verification"
+                      : "Username must be lowercase with no spaces"
+                    }
                   </p>
                 </div>
 
