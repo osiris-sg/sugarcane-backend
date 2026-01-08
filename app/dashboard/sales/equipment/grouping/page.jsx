@@ -128,10 +128,14 @@ export default function DeviceGroupingPage() {
       const devicesData = await devicesRes.json();
 
       if (groupsData.groups) {
-        setGroups(groupsData.groups);
+        // Sort groups by device count (highest first)
+        const sortedGroups = [...groupsData.groups].sort(
+          (a, b) => (b.deviceCount || 0) - (a.deviceCount || 0)
+        );
+        setGroups(sortedGroups);
         // Expand all groups by default
         const expanded = {};
-        groupsData.groups.forEach((g) => (expanded[g.id] = true));
+        sortedGroups.forEach((g) => (expanded[g.id] = true));
         setExpandedGroups(expanded);
       }
       if (devicesData.devices) {
