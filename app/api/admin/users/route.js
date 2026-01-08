@@ -83,15 +83,19 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { username, email, firstName, lastName, password, role, phone, loginPin } = body;
+    const { username, firstName, lastName, password, role, phone, loginPin } = body;
 
-    // Support both email and username
-    const identifier = email || username;
-    const isEmail = identifier && identifier.includes('@');
-
-    if (!identifier || !password) {
+    if (!username || !password) {
       return NextResponse.json(
-        { error: 'Email/username and password are required' },
+        { error: 'Username and password are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate username format (lowercase, no spaces, no @)
+    if (username.includes('@')) {
+      return NextResponse.json(
+        { error: 'Username cannot contain @. Use a simple username like "johndoe"' },
         { status: 400 }
       );
     }
@@ -131,45 +135,17 @@ export async function POST(request) {
       },
     };
 
-    // Use email or username based on identifier type
-    if (isEmail) {
-      clerkUserData.emailAddress = [identifier];
-      // Also create a username from email (part before @) so user can sign in with username
-      // This avoids the email OTP requirement during sign-in
-      const usernameFromEmail = identifier.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-      clerkUserData.username = usernameFromEmail;
-      // Skip password validation
-      clerkUserData.skipPasswordChecks = true;
-    } else {
-      clerkUserData.username = identifier;
-    }
+    clerkUserData.username = username;
 
-    console.log('[CreateUser] Creating Clerk user with data:', {
-      ...clerkUserData,
-      password: '***hidden***',
-    });
+    console.log('[CreateUser] Creating Clerk user:', username);
 
     const clerkUser = await client.users.createUser(clerkUserData);
-
-    // If email was used, auto-verify it so user doesn't need OTP
-    if (isEmail && clerkUser.emailAddresses?.length > 0) {
-      const emailId = clerkUser.emailAddresses[0].id;
-      try {
-        await client.emailAddresses.updateEmailAddress(emailId, {
-          verified: true,
-        });
-        console.log(`[CreateUser] Auto-verified email for ${identifier}`);
-      } catch (verifyError) {
-        console.error('[CreateUser] Failed to auto-verify email:', verifyError.message);
-        // Continue anyway - user can still sign in with OTP
-      }
-    }
 
     // For franchisee role, create a Group (franchisee business) and link the user
     let groupId = null;
     if (role === 'franchisee') {
-      // Create franchisee name from firstName + lastName, or fallback to identifier
-      const franchiseeName = [firstName, lastName].filter(Boolean).join(' ') || identifier;
+      // Create franchisee name from firstName + lastName, or fallback to username
+      const franchiseeName = [firstName, lastName].filter(Boolean).join(' ') || username;
 
       // Create the Group (franchisee)
       const group = await db.group.create({
@@ -182,8 +158,7 @@ export async function POST(request) {
     }
 
     // Create user in database
-    // Use email from Clerk if available, otherwise use username or identifier
-    const dbUsername = clerkUser.emailAddresses?.[0]?.emailAddress || clerkUser.username || identifier;
+    const dbUsername = clerkUser.username || username;
 
     const dbUser = await db.user.create({
       data: {
