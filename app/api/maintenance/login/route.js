@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, getDeviceNameById } from '@/lib/db';
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic';
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, userId, userName, pin, loginType } = body;
+    const { deviceId, deviceName: reportedName, userId, userName, pin, loginType } = body;
 
     if (!deviceId || !userName || !loginType) {
       return NextResponse.json(
@@ -17,11 +17,14 @@ export async function POST(request) {
       );
     }
 
+    // Look up the correct device name from database
+    const deviceName = await getDeviceNameById(deviceId, reportedName);
+
     // Create the login record
     const login = await db.maintenanceLogin.create({
       data: {
         deviceId,
-        deviceName: deviceName || 'Unknown',
+        deviceName,
         userId: userId || null,
         userName,
         pin: pin || null,
@@ -29,7 +32,7 @@ export async function POST(request) {
       },
     });
 
-    console.log(`[MaintenanceLogin] ${userName} logged into ${deviceName || deviceId} (${loginType})`);
+    console.log(`[MaintenanceLogin] ${userName} logged into ${deviceName} (${loginType})`);
 
     return NextResponse.json({
       success: true,

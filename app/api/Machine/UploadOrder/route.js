@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, getDeviceNameById } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export async function POST(request) {
@@ -12,7 +12,7 @@ export async function POST(request) {
     const {
       orderId,
       deviceId,
-      deviceName,
+      deviceName: reportedName,
       amount,
       quantity = 1,
       payWay,
@@ -23,11 +23,14 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'deviceId is required' }, { status: 400 });
     }
 
-    // Look up device to get price for quantity calculation
+    // Look up device to get price and correct name
     const device = await db.device.findUnique({
       where: { deviceId },
-      select: { price: true },
+      select: { price: true, deviceName: true },
     });
+
+    // Use the correct device name from database
+    const deviceName = device?.deviceName || reportedName || deviceId;
 
     // Fix amount if it's abnormally high (likely 100x too much)
     // If amount / price >= 100, divide amount by 100
@@ -56,7 +59,7 @@ export async function POST(request) {
       data: {
         orderId: orderId || `ORD-${Date.now()}`,
         deviceId,
-        deviceName: deviceName || deviceId,
+        deviceName,
         amount: correctedAmount,
         quantity: calculatedQuantity,
         payWay: payWay || null,
@@ -70,11 +73,11 @@ export async function POST(request) {
         where: { deviceId },
         update: {
           lastSaleAt: new Date(),
-          deviceName: deviceName || deviceId,
+          deviceName,
         },
         create: {
           deviceId,
-          deviceName: deviceName || deviceId,
+          deviceName,
           quantity: 0,
           maxStock: 80,
           lastSaleAt: new Date(),

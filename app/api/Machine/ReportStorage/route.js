@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, getDeviceNameById } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -108,7 +108,7 @@ ${changeLine}
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, quantity, previousQty, change, reason } = body;
+    const { deviceId, deviceName: reportedName, quantity, previousQty, change, reason } = body;
 
     // Validate required fields
     if (!deviceId || quantity === undefined) {
@@ -118,6 +118,9 @@ export async function POST(request) {
       );
     }
 
+    // Look up the correct device name from database
+    const deviceName = await getDeviceNameById(deviceId, reportedName);
+
     console.log(`[ReportStorage] Device ${deviceId} (${deviceName}): ${previousQty} -> ${quantity} (${change > 0 ? '+' : ''}${change}) reason: ${reason}`);
 
     // Upsert storage level
@@ -125,11 +128,11 @@ export async function POST(request) {
       where: { deviceId: String(deviceId) },
       update: {
         quantity: quantity,
-        deviceName: deviceName || `Device ${deviceId}`,
+        deviceName,
       },
       create: {
         deviceId: String(deviceId),
-        deviceName: deviceName || `Device ${deviceId}`,
+        deviceName,
         quantity: quantity,
       },
     });
@@ -139,7 +142,7 @@ export async function POST(request) {
       await db.storageHistory.create({
         data: {
           deviceId: String(deviceId),
-          deviceName: deviceName || `Device ${deviceId}`,
+          deviceName,
           previousQty: previousQty || 0,
           newQty: quantity,
           change: change,
@@ -149,7 +152,7 @@ export async function POST(request) {
 
       // Send Telegram notification
       await sendStorageChangeNotification(
-        deviceName || `Device ${deviceId}`,
+        deviceName,
         deviceId,
         previousQty || 0,
         quantity,

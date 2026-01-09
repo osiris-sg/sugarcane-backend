@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, getDeviceNameById } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -100,7 +100,7 @@ export async function POST(request) {
     const body = await request.json();
     const {
       deviceId,
-      deviceName,
+      deviceName: reportedName,
       amount,           // Amount being converted
       oldStorage,       // Storage before conversion
       newStorage,       // Storage after conversion
@@ -116,6 +116,9 @@ export async function POST(request) {
       );
     }
 
+    // Look up the correct device name from database
+    const deviceName = await getDeviceNameById(deviceId, reportedName);
+
     console.log(`[ReportConversion] Device ${deviceId} (${deviceName}): Converting ${amount} pcs - Storage: ${oldStorage} → ${newStorage}, Stock: ${oldStock} → ${newStock}`);
 
     // Update storage level
@@ -123,11 +126,11 @@ export async function POST(request) {
       where: { deviceId: String(deviceId) },
       update: {
         quantity: newStorage,
-        deviceName: deviceName || `Device ${deviceId}`,
+        deviceName,
       },
       create: {
         deviceId: String(deviceId),
-        deviceName: deviceName || `Device ${deviceId}`,
+        deviceName,
         quantity: newStorage,
       },
     });
@@ -137,11 +140,11 @@ export async function POST(request) {
       where: { deviceId: String(deviceId) },
       update: {
         quantity: newStock,
-        deviceName: deviceName || `Device ${deviceId}`,
+        deviceName,
       },
       create: {
         deviceId: String(deviceId),
-        deviceName: deviceName || `Device ${deviceId}`,
+        deviceName,
         quantity: newStock,
         maxStock: 80,
       },
@@ -151,7 +154,7 @@ export async function POST(request) {
     await db.storageHistory.create({
       data: {
         deviceId: String(deviceId),
-        deviceName: deviceName || `Device ${deviceId}`,
+        deviceName,
         previousQty: oldStorage,
         newQty: newStorage,
         change: -amount,
@@ -163,7 +166,7 @@ export async function POST(request) {
     await db.stockHistory.create({
       data: {
         deviceId: String(deviceId),
-        deviceName: deviceName || `Device ${deviceId}`,
+        deviceName,
         previousQty: oldStock,
         newQty: newStock,
         change: amount,
@@ -173,7 +176,7 @@ export async function POST(request) {
 
     // Send single combined Telegram notification
     await sendConversionNotification(
-      deviceName || `Device ${deviceId}`,
+      deviceName,
       deviceId,
       amount,
       oldStorage,
