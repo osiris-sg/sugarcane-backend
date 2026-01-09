@@ -34,16 +34,33 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-const sidebarItems = [
+// Sidebar items for non-admin users (franchisee view)
+const sidebarItemsFranchisee = [
   {
     title: "Orders",
     href: "/dashboard/sales",
     icon: FileText,
   },
   {
+    title: "Order Management",
+    icon: ClipboardList,
+    children: [
+      { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
+      { title: "Order Summary", href: "/dashboard/sales/orders/summary", icon: BarChart3 },
+    ],
+  },
+];
+
+// Sidebar items for admin users (flipped - Order Summary first)
+const sidebarItemsAdmin = [
+  {
+    title: "Order Summary",
+    href: "/dashboard/sales/orders/summary",
+    icon: BarChart3,
+  },
+  {
     title: "Device Management",
     icon: Monitor,
-    ownerOnly: true,
     children: [
       { title: "Device List", href: "/dashboard/sales/equipment", icon: List },
       { title: "Device Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers },
@@ -53,15 +70,14 @@ const sidebarItems = [
     title: "Order Management",
     icon: ClipboardList,
     children: [
+      { title: "Order List", href: "/dashboard/sales", icon: FileText },
       { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
-      { title: "Order Summary", href: "/dashboard/sales/orders/summary", icon: BarChart3 },
-      { title: "Refund Records", href: "/dashboard/sales/orders/refunds", icon: RotateCcw, ownerOnly: true },
+      { title: "Refund Records", href: "/dashboard/sales/orders/refunds", icon: RotateCcw },
     ],
   },
   {
     title: "User Management",
     icon: Users,
-    ownerOnly: true,
     children: [
       { title: "User List", href: "/dashboard/sales/users", icon: List },
       { title: "Add User", href: "/dashboard/sales/users/add", icon: UserPlus },
@@ -160,8 +176,8 @@ export default function SalesLayout({ children }) {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // Filter sidebar items based on role
-  const filteredItems = sidebarItems.filter(item => !item.ownerOnly || isAdmin);
+  // Use different sidebar items based on role
+  const filteredItems = isAdmin ? sidebarItemsAdmin : sidebarItemsFranchisee;
 
   const handleMobileNavigate = () => {
     setIsMobileMenuOpen(false);

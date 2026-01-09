@@ -43,7 +43,7 @@ export default function OrderSummaryPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [viewMode, setViewMode] = useState("device"); // "device" or "group"
+  const [viewMode, setViewMode] = useState(isAdmin ? "group" : "device"); // "device" or "group"
   const [expandedGroups, setExpandedGroups] = useState({});
 
   const fetchData = async () => {
