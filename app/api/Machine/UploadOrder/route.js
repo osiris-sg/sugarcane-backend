@@ -8,16 +8,22 @@ export async function POST(request) {
     console.log('[UploadOrder] Received:', JSON.stringify(data, null, 2));
 
     // Extract fields from the order payload
-    // The Android app sends: orderId, deviceId, deviceName, amount, quantity, payWay, isSuccess
+    // The Android app sends: orderId, deviceId, deviceName, payAmount, deliverCount, totalCount, payWay, isSuccess
     const {
       orderId,
       deviceId,
       deviceName: reportedName,
-      amount,
-      quantity = 1,
+      amount,           // Legacy field
+      payAmount,        // New field - amount in cents (may be 100x)
+      quantity,         // Legacy field
+      deliverCount,     // New field - number of items delivered
+      totalCount,       // New field - total items ordered
       payWay,
-      isSuccess = true,
+      isSuccess,
     } = data;
+
+    // Determine success - null or false means failed
+    const orderSuccess = isSuccess === true;
 
     if (!deviceId) {
       return NextResponse.json({ success: false, error: 'deviceId is required' }, { status: 400 });
@@ -32,27 +38,35 @@ export async function POST(request) {
     // Use the correct device name from database (location field)
     const deviceName = await getDeviceNameById(deviceId, reportedName);
 
-    // Fix amount if it's abnormally high (likely 100x too much)
-    // If amount / price >= 100, divide amount by 100
-    let correctedAmount = amount || 0;
-    if (device?.price && device.price > 0 && amount > 0) {
-      const testQty = amount / device.price;
-      if (testQty >= 100) {
-        correctedAmount = Math.round(amount / 100);
-        console.log(`[UploadOrder] Amount looks 100x too high, correcting: ${amount} → ${correctedAmount}`);
+    // Use payAmount if available, otherwise fall back to amount
+    const rawAmount = payAmount ?? amount ?? 0;
+
+    // For failed orders (isSuccess null/false), set amount to 0
+    let correctedAmount = 0;
+    if (orderSuccess && rawAmount > 0) {
+      correctedAmount = rawAmount;
+      // Fix amount if it's abnormally high (likely 100x too much)
+      if (device?.price && device.price > 0) {
+        const testQty = rawAmount / device.price;
+        if (testQty >= 100) {
+          correctedAmount = Math.round(rawAmount / 100);
+          console.log(`[UploadOrder] Amount looks 100x too high, correcting: ${rawAmount} → ${correctedAmount}`);
+        }
       }
     }
 
-    // Calculate quantity based on corrected amount and device price
-    // If device not found or price is 0, default to quantity from payload or 1
-    let calculatedQuantity = quantity;
-    if (device?.price && device.price > 0 && correctedAmount > 0) {
+    // Use deliverCount if available, otherwise calculate from amount or use quantity/totalCount
+    let calculatedQuantity = deliverCount ?? quantity ?? totalCount ?? 1;
+    if (orderSuccess && device?.price && device.price > 0 && correctedAmount > 0) {
       calculatedQuantity = Math.round(correctedAmount / device.price);
-      // Ensure at least 1 if there's an amount
       if (calculatedQuantity < 1) calculatedQuantity = 1;
     }
+    // For failed orders, use 0 quantity
+    if (!orderSuccess) {
+      calculatedQuantity = 0;
+    }
 
-    console.log(`[UploadOrder] Device price: ${device?.price || 'N/A'}, Amount: ${correctedAmount}, Calculated qty: ${calculatedQuantity}`);
+    console.log(`[UploadOrder] Success: ${orderSuccess}, Device price: ${device?.price || 'N/A'}, Amount: ${correctedAmount}, Qty: ${calculatedQuantity}`);
 
     // Save order to database
     const saved = await db.order.create({
@@ -63,12 +77,12 @@ export async function POST(request) {
         amount: correctedAmount,
         quantity: calculatedQuantity,
         payWay: payWay || null,
-        isSuccess: isSuccess !== false,
+        isSuccess: orderSuccess,
       },
     });
 
     // Update lastSaleAt on the Stock record if this is a successful sale
-    if (isSuccess !== false) {
+    if (orderSuccess) {
       await db.stock.upsert({
         where: { deviceId },
         update: {
