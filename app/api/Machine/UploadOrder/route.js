@@ -23,14 +23,14 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'deviceId is required' }, { status: 400 });
     }
 
-    // Look up device to get price and correct name
+    // Look up device to get price
     const device = await db.device.findUnique({
       where: { deviceId },
-      select: { price: true, deviceName: true },
+      select: { price: true },
     });
 
-    // Use the correct device name from database
-    const deviceName = device?.deviceName || reportedName || deviceId;
+    // Use the correct device name from database (location field)
+    const deviceName = await getDeviceNameById(deviceId, reportedName);
 
     // Fix amount if it's abnormally high (likely 100x too much)
     // If amount / price >= 100, divide amount by 100
