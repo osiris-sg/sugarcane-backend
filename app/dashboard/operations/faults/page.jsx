@@ -36,6 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head";
 import {
   Collapsible,
   CollapsibleContent,
@@ -120,6 +121,9 @@ export default function FaultsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+
+  // Sorting
+  const { sortKey, sortDirection, handleSort, sortData } = useTableSort("triggeredAt", "desc");
 
   // Filters
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -228,8 +232,11 @@ export default function FaultsPage() {
   // Get unique devices from issues
   const uniqueDevices = [...new Map(issues.map((i) => [i.deviceId, { id: i.deviceId, name: i.deviceName }])).values()];
 
+  // Sort filtered issues
+  const sortedIssues = sortData(filteredIssues);
+
   // Pagination
-  const { totalItems, totalPages, getPageItems } = usePagination(filteredIssues, ITEMS_PER_PAGE);
+  const { totalItems, totalPages, getPageItems } = usePagination(sortedIssues, ITEMS_PER_PAGE);
   const paginatedIssues = getPageItems(currentPage);
 
   // Reset page when filters change
@@ -461,14 +468,14 @@ export default function FaultsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Device</TableHead>
-                  <TableHead>Fault Code</TableHead>
-                  <TableHead>Fault Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Triggered</TableHead>
-                  <TableHead>Resolved At</TableHead>
+                  <SortableTableHead column="priority" label="Priority" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                  <SortableTableHead column="deviceName" label="Device" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                  <SortableTableHead column="faultCode" label="Fault Code" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                  <SortableTableHead column="faultName" label="Fault Name" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                  <SortableTableHead column="type" label="Type" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                  <SortableTableHead column="status" label="Status" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                  <SortableTableHead column="triggeredAt" label="Triggered" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                  <SortableTableHead column="resolvedAt" label="Resolved At" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                   {isAdmin && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
