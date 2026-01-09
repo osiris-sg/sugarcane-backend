@@ -38,44 +38,42 @@ export async function POST(request) {
     // Use the correct device name from database (location field)
     const deviceName = await getDeviceNameById(deviceId, reportedName);
 
-    // Use payAmount if available, otherwise fall back to amount
-    const rawAmount = payAmount ?? amount ?? 0;
+    // Detect format: new format has payAmount, old format has amount
+    const isNewFormat = payAmount !== undefined;
 
-    // For failed orders (isSuccess null/false), set amount to 0
     let correctedAmount = 0;
-    if (orderSuccess && rawAmount > 0) {
-      correctedAmount = rawAmount;
-      // Fix amount if it's abnormally high (likely 100x too much)
-      if (device?.price && device.price > 0) {
-        const testQty = rawAmount / device.price;
-        if (testQty >= 100) {
-          correctedAmount = Math.round(rawAmount / 100);
-          console.log(`[UploadOrder] Amount looks 100x too high, correcting: ${rawAmount} → ${correctedAmount}`);
-        }
+    let finalQuantity = 0;
+    let rawAmountStored = null;
+
+    if (orderSuccess) {
+      if (isNewFormat) {
+        // New format: payAmount is cents * 100 (28000 = 280 cents = $2.80)
+        rawAmountStored = payAmount;
+        correctedAmount = payAmount ? Math.round(payAmount / 100) : 0;
+        finalQuantity = deliverCount ?? 1;
+        console.log(`[UploadOrder] New format - Raw: ${payAmount} → ${correctedAmount} cents, Qty: ${finalQuantity}`);
+      } else {
+        // Old format: amount is already in cents (280 = $2.80)
+        correctedAmount = amount || 0;
+        finalQuantity = quantity ?? 1;
+        console.log(`[UploadOrder] Old format - Amount: ${correctedAmount} cents, Qty: ${finalQuantity}`);
       }
     }
 
-    // Use deliverCount if available, otherwise calculate from amount or use quantity/totalCount
-    let calculatedQuantity = deliverCount ?? quantity ?? totalCount ?? 1;
-    if (orderSuccess && device?.price && device.price > 0 && correctedAmount > 0) {
-      calculatedQuantity = Math.round(correctedAmount / device.price);
-      if (calculatedQuantity < 1) calculatedQuantity = 1;
-    }
-    // For failed orders, use 0 quantity
-    if (!orderSuccess) {
-      calculatedQuantity = 0;
-    }
+    console.log(`[UploadOrder] Success: ${orderSuccess}, Format: ${isNewFormat ? 'new' : 'old'}, Amount: ${correctedAmount}, Qty: ${finalQuantity}`);
 
-    console.log(`[UploadOrder] Success: ${orderSuccess}, Device price: ${device?.price || 'N/A'}, Amount: ${correctedAmount}, Qty: ${calculatedQuantity}`);
-
-    // Save order to database
+    // Save order to database with all fields
     const saved = await db.order.create({
       data: {
         orderId: orderId || `ORD-${Date.now()}`,
         deviceId,
         deviceName,
         amount: correctedAmount,
-        quantity: calculatedQuantity,
+        payAmount: rawAmountStored,
+        refundAmount: data.refundAmount || null,
+        quantity: finalQuantity,
+        totalCount: totalCount || null,
+        deliverCount: deliverCount ?? null,
         payWay: payWay || null,
         isSuccess: orderSuccess,
       },

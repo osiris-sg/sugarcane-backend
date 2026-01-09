@@ -138,18 +138,23 @@ model Stock {
 
 // Orders from vending machines
 model Order {
-  id          String   @id @default(cuid())
-  orderId     String            // Original order ID from device
-  deviceId    String            // Terminal ID
-  deviceName  String            // Device display name
-  amount      Int               // Amount in cents
-  quantity    Int      @default(1)  // Number of items
-  payWay      String?           // Payment method (cash, card, etc.)
-  isSuccess   Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  orderId       String            // Original order ID from device
+  deviceId      String            // Terminal ID
+  deviceName    String            // Device display name (location)
+  amount        Int               // Final amount in cents (after correction)
+  payAmount     Int?              // Raw payment amount from device (may be 100x)
+  refundAmount  Int?              // Refund amount if any
+  quantity      Int      @default(1)  // Number of items delivered
+  totalCount    Int?              // Total items ordered
+  deliverCount  Int?              // Items actually delivered
+  payWay        String?           // Payment method (1=cash, 2=cashless, etc.)
+  isSuccess     Boolean  @default(true)  // true=success, false=failed
+  createdAt     DateTime @default(now())
 
   @@index([deviceId, createdAt])
   @@index([createdAt])
+  @@index([isSuccess])
 }
 
 // Stock history log (for tracking changes)
