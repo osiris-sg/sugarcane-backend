@@ -383,3 +383,24 @@ model PushSubscription {
 
   @@index([clerkId])
 }
+
+// OTA update status
+enum OtaStatus {
+  SCHEDULED       // Waiting to be triggered
+  TRIGGERED       // Update has been triggered
+  CANCELLED       // Cancelled before trigger
+}
+
+// Scheduled OTA updates
+model ScheduledOta {
+  id            String    @id @default(cuid())
+  devices       String[]              // Array of device IDs, empty = all devices
+  scheduledAt   DateTime              // When to trigger (in UTC)
+  status        OtaStatus @default(SCHEDULED)
+  triggeredAt   DateTime?             // When actually triggered
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  notes         String?               // Optional notes about this OTA
+
+  @@index([status, scheduledAt])
+}

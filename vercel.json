@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/daily-summary",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/ota-trigger",
+      "schedule": "0 19 * * *"
     }
   ]
 }

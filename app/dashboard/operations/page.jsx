@@ -103,6 +103,9 @@ export default function OperationsPage() {
   // Calculate active devices (using isActive boolean from Device table)
   const activeDevices = devices.filter((d) => d.isActive).length;
 
+  // Count unresponsive devices (active but no temp report for 10+ min)
+  const unresponsiveDevices = devices.filter((d) => d.isUnresponsive).length;
+
   // Get devices with lowest stock (using cupStock as percentage)
   const devicesWithStock = devices
     .filter((d) => d.cupStock !== null)
@@ -110,12 +113,19 @@ export default function OperationsPage() {
     .slice(0, 3);
 
   // Filter devices by search text
-  const filteredDevices = devices.filter(
-    (d) =>
-      d.deviceId.toLowerCase().includes(filterText.toLowerCase()) ||
-      (d.deviceName && d.deviceName.toLowerCase().includes(filterText.toLowerCase())) ||
-      (d.location && d.location.toLowerCase().includes(filterText.toLowerCase()))
-  );
+  const filteredDevices = devices
+    .filter(
+      (d) =>
+        d.deviceId.toLowerCase().includes(filterText.toLowerCase()) ||
+        (d.deviceName && d.deviceName.toLowerCase().includes(filterText.toLowerCase())) ||
+        (d.location && d.location.toLowerCase().includes(filterText.toLowerCase()))
+    )
+    // Sort unresponsive devices to the top
+    .sort((a, b) => {
+      if (a.isUnresponsive && !b.isUnresponsive) return -1;
+      if (!a.isUnresponsive && b.isUnresponsive) return 1;
+      return 0;
+    });
 
   // Pagination
   const { totalItems, totalPages, getPageItems } = usePagination(filteredDevices, ITEMS_PER_PAGE);
@@ -215,6 +225,21 @@ export default function OperationsPage() {
               </CardContent>
             </Card>
 
+            {/* Unresponsive Units */}
+            {unresponsiveDevices > 0 && (
+              <Card className="border-orange-200 bg-orange-50/50">
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+                      <AlertTriangle className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <span className="font-medium text-orange-800">Unresponsive</span>
+                  </div>
+                  <span className="text-2xl font-bold text-orange-600">{unresponsiveDevices}</span>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Lowest Stock */}
             <Card>
               <CardHeader className="pb-2">
@@ -303,14 +328,21 @@ export default function OperationsPage() {
                   ) : (
                     paginatedDevices.map((device) => {
                       return (
-                        <TableRow key={device.deviceId}>
-                          <TableCell className="font-medium">{device.deviceId}</TableCell>
-                          <TableCell>{device.deviceName || "-"}</TableCell>
+                        <TableRow
+                          key={device.deviceId}
+                          className={device.isUnresponsive ? "bg-muted/50 opacity-60" : ""}
+                        >
+                          <TableCell className={`font-medium ${device.isUnresponsive ? "text-muted-foreground" : ""}`}>
+                            {device.deviceId}
+                          </TableCell>
+                          <TableCell className={device.isUnresponsive ? "text-muted-foreground" : ""}>
+                            {device.deviceName || "-"}
+                          </TableCell>
                           <TableCell>
                             {device.location ? (
                               <div className="flex items-center gap-1.5 max-w-[200px]">
                                 <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                                <span className="truncate text-sm" title={device.location}>
+                                <span className={`truncate text-sm ${device.isUnresponsive ? "text-muted-foreground" : ""}`} title={device.location}>
                                   {device.location}
                                 </span>
                               </div>
@@ -333,9 +365,16 @@ export default function OperationsPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={device.isActive ? "success" : "destructive"}>
-                              {device.isActive ? "ON" : "OFF"}
-                            </Badge>
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant={device.isActive ? "success" : "destructive"}>
+                                {device.isActive ? "ON" : "OFF"}
+                              </Badge>
+                              {device.isUnresponsive && (
+                                <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
+                                  Unresponsive
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             {device.stockQuantity !== null ? (
@@ -393,10 +432,15 @@ export default function OperationsPage() {
                 <p className="text-center text-muted-foreground py-8">No devices found</p>
               ) : (
                 paginatedDevices.map((device) => (
-                  <div key={device.deviceId} className="rounded-lg border p-3 space-y-3">
+                  <div
+                    key={device.deviceId}
+                    className={`rounded-lg border p-3 space-y-3 ${device.isUnresponsive ? "bg-muted/50 opacity-60" : ""}`}
+                  >
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-medium text-sm">{device.deviceName || device.deviceId}</p>
+                        <p className={`font-medium text-sm ${device.isUnresponsive ? "text-muted-foreground" : ""}`}>
+                          {device.deviceName || device.deviceId}
+                        </p>
                         <p className="text-xs text-muted-foreground">{device.deviceId}</p>
                         {device.location && (
                           <div className="flex items-center gap-1 mt-1">
@@ -407,9 +451,16 @@ export default function OperationsPage() {
                           </div>
                         )}
                       </div>
-                      <Badge variant={device.isActive ? "success" : "destructive"} className="text-xs">
-                        {device.isActive ? "ON" : "OFF"}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge variant={device.isActive ? "success" : "destructive"} className="text-xs">
+                          {device.isActive ? "ON" : "OFF"}
+                        </Badge>
+                        {device.isUnresponsive && (
+                          <Badge variant="outline" className="text-xs text-orange-600 border-orange-300 bg-orange-50">
+                            Unresponsive
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>

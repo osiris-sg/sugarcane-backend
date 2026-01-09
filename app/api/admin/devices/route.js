@@ -59,9 +59,25 @@ export async function GET(request) {
       stockMap.set(s.deviceId, s);
     });
 
-    // Merge stock data with devices
+    // Check if device is unresponsive (active but no temp report for 10 minutes)
+    const UNRESPONSIVE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+    const now = new Date();
+
+    // Merge stock data with devices and add unresponsive flag
     const devicesWithStock = devices.map((device) => {
       const stock = stockMap.get(device.deviceId);
+
+      // Calculate if device is unresponsive
+      let isUnresponsive = false;
+      if (device.isActive && device.tempUpdatedAt) {
+        const lastTempReport = new Date(device.tempUpdatedAt);
+        const timeSinceLastReport = now.getTime() - lastTempReport.getTime();
+        isUnresponsive = timeSinceLastReport > UNRESPONSIVE_THRESHOLD_MS;
+      } else if (device.isActive && !device.tempUpdatedAt) {
+        // Active but never reported temp
+        isUnresponsive = true;
+      }
+
       return {
         ...device,
         stockQuantity: stock?.quantity ?? null,
@@ -72,6 +88,7 @@ export async function GET(request) {
         refrigerationTemp: device.refrigerationTemp,
         machineTemp: device.machineTemp,
         tempUpdatedAt: device.tempUpdatedAt,
+        isUnresponsive,
       };
     });
 
