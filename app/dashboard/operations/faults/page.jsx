@@ -3,6 +3,8 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   Bell,
@@ -11,6 +13,9 @@ import {
   Filter,
   X,
   ChevronDown,
+  CheckCircle,
+  XCircle,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +41,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { TablePagination, usePagination } from "@/components/ui/table-pagination";
 
 const ITEMS_PER_PAGE = 20;
@@ -98,11 +110,16 @@ function StatusBadge({ status }) {
 }
 
 export default function FaultsPage() {
+  const { user } = useUser();
+  const role = user?.publicMetadata?.role || "franchisee";
+  const isAdmin = role === "owner" || role === "admin";
+
   const [issues, setIssues] = useState([]);
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
 
   // Filters
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -149,6 +166,29 @@ export default function FaultsPage() {
     setStatusFilter("all");
     setDeviceFilter("all");
     setSearchText("");
+  }
+
+  async function handleResolve(issueId, resolution) {
+    setActionLoading(issueId);
+    try {
+      const res = await fetch(`/api/maintenance/issue/${issueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resolve", resolution }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Fault marked as ${resolution}`);
+        fetchData();
+      } else {
+        toast.error(data.error || "Failed to update fault");
+      }
+    } catch (error) {
+      console.error("Error resolving fault:", error);
+      toast.error("Failed to update fault");
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   // Filter issues
@@ -429,12 +469,13 @@ export default function FaultsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Triggered</TableHead>
                   <TableHead>Resolved At</TableHead>
+                  {isAdmin && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredIssues.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={isAdmin ? 9 : 8} className="py-8 text-center text-muted-foreground">
                       No faults found
                     </TableCell>
                   </TableRow>
@@ -466,6 +507,49 @@ export default function FaultsPage() {
                       <TableCell className="text-muted-foreground text-sm">
                         {formatDateTime(issue.resolvedAt)}
                       </TableCell>
+                      {isAdmin && (
+                        <TableCell>
+                          {(issue.status === "OPEN" || issue.status === "CHECKING") ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={actionLoading === issue.id}
+                                >
+                                  {actionLoading === issue.id ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <MoreHorizontal className="h-4 w-4 md:mr-1" />
+                                      <span className="hidden md:inline">Actions</span>
+                                    </>
+                                  )}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => handleResolve(issue.id, "resolved")}
+                                  className="text-green-600"
+                                >
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                  Mark Resolved
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleResolve(issue.id, "unresolved")}
+                                  className="text-red-600"
+                                >
+                                  <XCircle className="mr-2 h-4 w-4" />
+                                  Mark Unresolved
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}
@@ -521,6 +605,30 @@ export default function FaultsPage() {
                         <p><span className="text-muted-foreground">Resolved:</span> {formatDateTime(issue.resolvedAt)}</p>
                       )}
                     </div>
+                    {isAdmin && (issue.status === "OPEN" || issue.status === "CHECKING") && (
+                      <div className="flex gap-2 pt-2 border-t mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 text-green-600 border-green-200 hover:bg-green-50"
+                          disabled={actionLoading === issue.id}
+                          onClick={() => handleResolve(issue.id, "resolved")}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Resolved
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+                          disabled={actionLoading === issue.id}
+                          onClick={() => handleResolve(issue.id, "unresolved")}
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
+                          Unresolved
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
