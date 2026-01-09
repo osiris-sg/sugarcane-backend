@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, getDeviceNameById } from '@/lib/db';
 import {
   isDayShift,
   isNightShift,
@@ -16,7 +16,26 @@ const E50D_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { category, message, type, deviceId, deviceName } = body;
+    const { category, message: originalMessage, type, deviceId, deviceName: reportedName } = body;
+
+    // Look up the correct device name from database
+    let correctDeviceName = reportedName;
+    if (deviceId) {
+      correctDeviceName = await getDeviceNameById(deviceId, reportedName);
+    }
+
+    // Replace the device name in the message if it was wrong
+    let message = originalMessage;
+    if (reportedName && correctDeviceName && reportedName !== correctDeviceName) {
+      // Replace "Device Name: <wrong>" with "Device Name: <correct>"
+      message = originalMessage.replace(
+        `Device Name: ${reportedName}`,
+        `Device Name: ${correctDeviceName}`
+      );
+      console.log(`[Telegram] Corrected device name: ${reportedName} -> ${correctDeviceName}`);
+    }
+
+    const deviceName = correctDeviceName;
 
     if (!message) {
       return NextResponse.json(
