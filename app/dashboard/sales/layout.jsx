@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import {
@@ -188,7 +189,7 @@ export default function SalesLayout({ children }) {
       {/* Mobile Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="text-lg font-bold text-primary">Supercane</span>
+          <Image src="/supercane-logo.png" alt="Supercane" width={120} height={32} className="h-8 w-auto" />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationToggle />
@@ -225,7 +226,7 @@ export default function SalesLayout({ children }) {
         <div className="flex h-16 items-center justify-between border-b px-4">
           {!isCollapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
-              <span className="text-lg font-bold text-primary">Supercane</span>
+              <Image src="/supercane-logo.png" alt="Supercane" width={120} height={32} className="h-8 w-auto" />
             </Link>
           )}
           <Button

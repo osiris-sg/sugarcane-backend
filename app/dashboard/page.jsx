@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useUser, useClerk } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { Settings, TrendingUp, Globe, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ManagementBox } from "@/components/dashboard/management-box";
@@ -35,7 +36,7 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
         <div className="flex items-center gap-2">
-          <span className="text-xl font-bold text-primary">Supercane</span>
+          <Image src="/supercane-logo.png" alt="Supercane" width={140} height={36} className="h-9 w-auto" />
         </div>
         <div className="flex items-center gap-4">
           <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">

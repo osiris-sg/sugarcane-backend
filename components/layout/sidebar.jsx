@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronRight, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,7 @@ export function Sidebar({ items, collapsed, onToggle, logo }) {
         <div className="flex h-16 items-center justify-between border-b px-4">
           {!collapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
-              {logo || <span className="text-lg font-semibold">Supercane</span>}
+              {logo || <Image src="/supercane-logo.png" alt="Supercane" width={120} height={32} className="h-8 w-auto" />}
             </Link>
           )}
           <Button
