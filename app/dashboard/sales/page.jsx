@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head";
 import {
   Select,
   SelectContent,
@@ -113,6 +114,9 @@ export default function OrderListPage() {
   const [dateRange, setDateRange] = useState("all"); // all, today, week, month, custom
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
+
+  // Sorting
+  const { sortKey, sortDirection, handleSort, sortData } = useTableSort("createdAt", "desc");
 
   useEffect(() => {
     fetchOrders();
@@ -212,11 +216,14 @@ export default function OrderListPage() {
   const uniqueDevices = [...new Map(orders.map((o) => [o.deviceId, { id: o.deviceId, name: o.deviceName }])).values()];
   const uniquePayWays = [...new Set(orders.map((o) => o.payWay).filter(Boolean))];
 
+  // Sort filtered orders
+  const sortedOrders = sortData(filteredOrders);
+
   // Pagination
-  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(sortedOrders.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
+  const paginatedOrders = sortedOrders.slice(startIndex, endIndex);
 
   // Calculate stats based on filtered orders (excluding free orders - payWay 1000)
   const paidFilteredOrders = filteredOrders.filter((o) => o.payWay !== "1000");
@@ -495,12 +502,12 @@ export default function OrderListPage() {
               <Table>
                 <TableHeader className="sticky top-0 bg-background">
                   <TableRow>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Device</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Date</TableHead>
+                    <SortableTableHead column="orderId" label="Order ID" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="deviceName" label="Device" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="amount" label="Amount" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="payWay" label="Payment" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="quantity" label="Qty" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="createdAt" label="Date" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -553,7 +560,7 @@ export default function OrderListPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t px-4 py-3">
               <p className="text-sm text-muted-foreground">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length}
+                Showing {startIndex + 1}-{Math.min(endIndex, sortedOrders.length)} of {sortedOrders.length}
               </p>
               <div className="flex items-center gap-2">
                 <Button
