@@ -189,7 +189,7 @@ export default function SalesLayout({ children }) {
       {/* Mobile Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <Image src="/supercane-logo.png" alt="Supercane" width={160} height={44} className="h-11 w-auto" />
+          <Image src="/supercane-logo.png" alt="Supercane" width={180} height={52} className="h-[52px] w-auto" />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationToggle />
@@ -223,17 +223,17 @@ export default function SalesLayout({ children }) {
         )}
       >
         {/* Sidebar Header */}
-        <div className="flex h-16 items-center justify-between border-b px-4">
+        <div className="relative flex h-16 items-center justify-center border-b px-4">
           {!isCollapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <Image src="/supercane-logo.png" alt="Supercane" width={160} height={44} className="h-11 w-auto" />
+            <Link href="/dashboard" className="flex items-center">
+              <Image src="/supercane-logo.png" alt="Supercane" width={180} height={52} className="h-[52px] w-auto" />
             </Link>
           )}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8"
+            className="absolute right-2 h-8 w-8"
           >
             {isCollapsed ? (
               <ChevronRight className="h-4 w-4" />

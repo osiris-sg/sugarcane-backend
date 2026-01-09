@@ -36,7 +36,7 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
         <div className="flex items-center gap-2">
-          <Image src="/supercane-logo.png" alt="Supercane" width={160} height={44} className="h-11 w-auto" />
+          <Image src="/supercane-logo.png" alt="Supercane" width={180} height={52} className="h-[52px] w-auto" />
         </div>
         <div className="flex items-center gap-4">
           <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">

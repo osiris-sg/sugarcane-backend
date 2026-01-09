@@ -34,7 +34,7 @@ export function Sidebar({ items, collapsed, onToggle, logo }) {
         <div className="flex h-16 items-center justify-between border-b px-4">
           {!collapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
-              {logo || <Image src="/supercane-logo.png" alt="Supercane" width={160} height={44} className="h-11 w-auto" />}
+              {logo || <Image src="/supercane-logo.png" alt="Supercane" width={180} height={52} className="h-[52px] w-auto" />}
             </Link>
           )}
           <Button
