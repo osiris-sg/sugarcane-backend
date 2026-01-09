@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import {
@@ -189,7 +188,7 @@ export default function SalesLayout({ children }) {
       {/* Mobile Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <Image src="/supercane-logo.png" alt="Supercane" width={140} height={40} className="h-10 w-auto" />
+          <span className="text-lg font-bold text-primary">Sales</span>
         </Link>
         <div className="flex items-center gap-1">
           <NotificationToggle />
@@ -223,17 +222,17 @@ export default function SalesLayout({ children }) {
         )}
       >
         {/* Sidebar Header */}
-        <div className="relative flex h-16 items-center justify-center border-b px-4">
+        <div className="flex h-16 items-center justify-between border-b px-4">
           {!isCollapsed && (
-            <Link href="/dashboard" className="flex items-center">
-              <Image src="/supercane-logo.png" alt="Supercane" width={140} height={40} className="h-10 w-auto" />
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <span className="text-lg font-bold text-primary">Sales</span>
             </Link>
           )}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="absolute right-2 h-8 w-8"
+            className="h-8 w-8"
           >
             {isCollapsed ? (
               <ChevronRight className="h-4 w-4" />
