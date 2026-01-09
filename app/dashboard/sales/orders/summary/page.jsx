@@ -3,7 +3,8 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import { BarChart3, Calendar, Filter, Download, ChevronDown } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { BarChart3, Calendar, Filter, Download, ChevronDown, ChevronRight, Users, Monitor } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,8 +29,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function OrderSummaryPage() {
+  const { user } = useUser();
+  const role = user?.publicMetadata?.role || "franchisee";
+  const isAdmin = role === "owner" || role === "admin";
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [period, setPeriod] = useState("day");
@@ -38,6 +43,8 @@ export default function OrderSummaryPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [viewMode, setViewMode] = useState("device"); // "device" or "group"
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   const fetchData = async () => {
     setLoading(true);
@@ -105,17 +112,69 @@ export default function OrderSummaryPage() {
     groupId === "all" || d.groupId === groupId
   ) || [];
 
+  // Aggregate data by franchisee group
+  const groupedData = data?.summary?.reduce((acc, item) => {
+    const gName = item.groupName || "Unassigned";
+    const gId = item.groupId || "unassigned";
+
+    if (!acc[gId]) {
+      acc[gId] = {
+        groupId: gId,
+        groupName: gName,
+        totalSales: 0,
+        totalCups: 0,
+        orderCount: 0,
+        devices: [],
+      };
+    }
+
+    acc[gId].totalSales += item.totalSales;
+    acc[gId].totalCups += item.totalCups;
+    acc[gId].orderCount += item.orderCount;
+    acc[gId].devices.push(item);
+
+    return acc;
+  }, {}) || {};
+
+  // Convert to array and sort by total sales (highest first)
+  const groupedSummary = Object.values(groupedData).sort((a, b) => b.totalSales - a.totalSales);
+
+  const toggleGroupExpand = (groupId) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-4 md:px-6">
         <div>
           <h1 className="text-lg md:text-xl font-semibold">Order Summary</h1>
-          <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Sales by device</p>
+          <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
+            Sales by {viewMode === "group" ? "franchisee group" : "device"}
+          </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.summary?.length}>
-          <Download className="h-4 w-4 md:mr-2" />
-          <span className="hidden md:inline">Export CSV</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Tabs value={viewMode} onValueChange={setViewMode} className="hidden md:block">
+              <TabsList className="h-8">
+                <TabsTrigger value="device" className="text-xs px-2 h-6 gap-1">
+                  <Monitor className="h-3 w-3" />
+                  Device
+                </TabsTrigger>
+                <TabsTrigger value="group" className="text-xs px-2 h-6 gap-1">
+                  <Users className="h-3 w-3" />
+                  Group
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+          <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.summary?.length}>
+            <Download className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">Export CSV</span>
+          </Button>
+        </div>
       </header>
 
       <main className="p-4 md:p-6 space-y-4 md:space-y-6">
@@ -354,7 +413,7 @@ export default function OrderSummaryPage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Sales by Device
+              Sales by {viewMode === "group" ? "Franchisee Group" : "Device"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -368,7 +427,98 @@ export default function OrderSummaryPage() {
               <div className="text-center py-8 text-muted-foreground">
                 No orders found for the selected period
               </div>
+            ) : viewMode === "group" ? (
+              /* Group View Table */
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8"></TableHead>
+                    <TableHead>Franchisee Group</TableHead>
+                    <TableHead className="text-right">Total Sales</TableHead>
+                    <TableHead className="text-right">Total Cups</TableHead>
+                    <TableHead className="text-right">Orders</TableHead>
+                    <TableHead className="text-right">Devices</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupedSummary.map((group) => (
+                    <>
+                      <TableRow
+                        key={group.groupId}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => toggleGroupExpand(group.groupId)}
+                      >
+                        <TableCell className="w-8">
+                          {expandedGroups[group.groupId] ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            {group.groupName}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(group.totalSales)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {group.totalCups}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {group.orderCount}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {group.devices.length}
+                        </TableCell>
+                      </TableRow>
+                      {/* Expanded Device Rows */}
+                      {expandedGroups[group.groupId] && group.devices.map((device) => (
+                        <TableRow key={device.deviceId} className="bg-muted/30">
+                          <TableCell></TableCell>
+                          <TableCell>
+                            <div className="pl-4">
+                              <div className="text-sm">{device.deviceName}</div>
+                              <div className="text-xs text-muted-foreground">{device.deviceId}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {formatCurrency(device.totalSales)}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {device.totalCups}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {device.orderCount}
+                          </TableCell>
+                          <TableCell></TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  ))}
+                  {/* Totals Row */}
+                  {groupedSummary.length > 1 && (
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell></TableCell>
+                      <TableCell>Total</TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(data?.totals?.totalSales || 0)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {data?.totals?.totalCups || 0}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {data?.totals?.totalOrders || 0}
+                      </TableCell>
+                      <TableCell></TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             ) : (
+              /* Device View Table (Original) */
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -430,9 +580,23 @@ export default function OrderSummaryPage() {
 
         {/* Mobile Card View */}
         <div className="md:hidden space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <BarChart3 className="h-4 w-4" />
-            Sales by Device
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <BarChart3 className="h-4 w-4" />
+              Sales by {viewMode === "group" ? "Group" : "Device"}
+            </div>
+            {isAdmin && (
+              <Tabs value={viewMode} onValueChange={setViewMode}>
+                <TabsList className="h-7">
+                  <TabsTrigger value="device" className="text-xs px-2 h-5 gap-1">
+                    <Monitor className="h-3 w-3" />
+                  </TabsTrigger>
+                  <TabsTrigger value="group" className="text-xs px-2 h-5 gap-1">
+                    <Users className="h-3 w-3" />
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
           </div>
           {loading ? (
             <div className="space-y-3">
@@ -444,7 +608,61 @@ export default function OrderSummaryPage() {
             <div className="text-center py-8 text-muted-foreground text-sm">
               No orders found for the selected period
             </div>
+          ) : viewMode === "group" ? (
+            /* Group View - Mobile */
+            <>
+              {groupedSummary.map((group) => (
+                <Card key={group.groupId}>
+                  <CardContent className="p-0">
+                    <div
+                      className="p-3 cursor-pointer"
+                      onClick={() => toggleGroupExpand(group.groupId)}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {expandedGroups[group.groupId] ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <div>
+                            <p className="font-medium text-sm">{group.groupName}</p>
+                            <p className="text-xs text-muted-foreground">{group.devices.length} devices</p>
+                          </div>
+                        </div>
+                        <p className="text-lg font-bold">{formatCurrency(group.totalSales)}</p>
+                      </div>
+                      <div className="flex gap-4 text-xs text-muted-foreground pl-6">
+                        <span>{group.totalCups} cups</span>
+                        <span>{group.orderCount} orders</span>
+                      </div>
+                    </div>
+                    {/* Expanded Devices */}
+                    {expandedGroups[group.groupId] && (
+                      <div className="border-t bg-muted/30">
+                        {group.devices.map((device) => (
+                          <div key={device.deviceId} className="p-3 border-b last:border-b-0">
+                            <div className="flex items-start justify-between">
+                              <div className="pl-6">
+                                <p className="text-sm">{device.deviceName}</p>
+                                <p className="text-xs text-muted-foreground">{device.deviceId}</p>
+                              </div>
+                              <p className="font-medium">{formatCurrency(device.totalSales)}</p>
+                            </div>
+                            <div className="flex gap-4 text-xs text-muted-foreground pl-6 mt-1">
+                              <span>{device.totalCups} cups</span>
+                              <span>{device.orderCount} orders</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </>
           ) : (
+            /* Device View - Mobile */
             <>
               {data?.summary?.map((item) => (
                 <Card key={item.deviceId}>
