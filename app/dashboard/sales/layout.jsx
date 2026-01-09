@@ -189,7 +189,7 @@ export default function SalesLayout({ children }) {
       {/* Mobile Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <Image src="/supercane-logo.png" alt="Supercane" width={220} height={80} className="h-20 w-auto" />
+          <Image src="/supercane-logo.png" alt="Supercane" width={280} height={96} className="h-[92px] w-auto" />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationToggle />
@@ -226,7 +226,7 @@ export default function SalesLayout({ children }) {
         <div className="relative flex h-24 items-center justify-center border-b px-4">
           {!isCollapsed && (
             <Link href="/dashboard" className="flex items-center">
-              <Image src="/supercane-logo.png" alt="Supercane" width={220} height={80} className="h-20 w-auto" />
+              <Image src="/supercane-logo.png" alt="Supercane" width={280} height={96} className="h-[92px] w-auto" />
             </Link>
           )}
           <Button
