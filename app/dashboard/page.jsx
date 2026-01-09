@@ -34,9 +34,9 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
+      <header className="sticky top-0 z-40 flex h-24 items-center justify-between border-b bg-background px-6">
         <div className="flex items-center gap-2">
-          <Image src="/supercane-logo.png" alt="Supercane" width={180} height={52} className="h-[52px] w-auto" />
+          <Image src="/supercane-logo.png" alt="Supercane" width={220} height={80} className="h-20 w-auto" />
         </div>
         <div className="flex items-center gap-4">
           <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
