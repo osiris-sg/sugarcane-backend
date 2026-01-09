@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, getDeviceNameById } from '@/lib/db';
 
 // Fault code to name mapping (from TelegramHelper.smali)
 const FAULT_CODE_NAMES = {
@@ -33,14 +33,17 @@ const E50D_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, type, faultCode, faultName, orderId, timeBlock, priority } = body;
+    const { deviceId, deviceName: reportedName, type, faultCode, faultName, orderId, timeBlock, priority } = body;
 
-    if (!deviceId || !deviceName || !type) {
+    if (!deviceId || !type) {
       return NextResponse.json(
-        { success: false, error: 'deviceId, deviceName, and type are required' },
+        { success: false, error: 'deviceId and type are required' },
         { status: 400 }
       );
     }
+
+    // Look up the correct device name from database
+    const deviceName = await getDeviceNameById(deviceId, reportedName);
 
     // Skip Z014 fault code - don't store in database
     if (faultCode === 'Z014') {

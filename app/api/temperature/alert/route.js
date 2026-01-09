@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, getDeviceNameById } from '@/lib/db';
 
 // POST /api/temperature/alert - Receive temperature alert from device
 export async function POST(request) {
@@ -7,7 +7,7 @@ export async function POST(request) {
     const body = await request.json();
     const {
       deviceId,
-      deviceName,
+      deviceName: reportedName,
       currentTemp1,
       currentTemp2,
       initialTemp1,
@@ -23,11 +23,14 @@ export async function POST(request) {
       );
     }
 
+    // Look up the correct device name from database
+    const deviceName = await getDeviceNameById(deviceId, reportedName);
+
     // Create temperature alert record
     const alert = await db.temperatureAlert.create({
       data: {
         deviceId: String(deviceId),
-        deviceName: deviceName || 'Unknown',
+        deviceName,
         currentTemp1: currentTemp1 || 0,
         currentTemp2: currentTemp2 || 0,
         initialTemp1: initialTemp1 || 0,
@@ -40,7 +43,7 @@ export async function POST(request) {
 
     // Send Telegram notification
     const telegramMessage = `🌡️ *TEMPERATURE ALERT*\n\n` +
-      `📍 Device: ${deviceName || deviceId}\n` +
+      `📍 Device: ${deviceName}\n` +
       `⚠️ Type: ${alertType}\n` +
       `📝 Reason: ${reason}\n\n` +
       `📊 Current Temps:\n` +
