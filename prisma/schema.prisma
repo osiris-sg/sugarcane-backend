@@ -94,6 +94,11 @@ model Device {
   group       Group?   @relation(fields: [groupId], references: [id])
   driverId    String?           // Clerk user ID for assigned driver
 
+  // GPS coordinates (reported by app on startup)
+  latitude    Float?            // GPS latitude
+  longitude   Float?            // GPS longitude
+  gpsUpdatedAt DateTime?        // When GPS was last updated
+
   // Temperature readings (updated on each D002 event)
   refrigerationTemp   Float?    // Refrigeration compartment temperature
   machineTemp         Float?    // Machine/ambient temperature
