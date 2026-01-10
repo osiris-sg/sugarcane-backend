@@ -507,6 +507,7 @@ export default function OrderListPage() {
                   <TableRow>
                     <SortableTableHead column="orderId" label="Order ID" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="deviceId" label="Terminal" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="deviceName" label="Device Name" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="createdAt" label="Time" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="isSuccess" label="Status" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="payWay" label="PayWay" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
@@ -519,7 +520,7 @@ export default function OrderListPage() {
                 <TableBody>
                   {paginatedOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                         No orders found
                       </TableCell>
                     </TableRow>
@@ -528,6 +529,7 @@ export default function OrderListPage() {
                       <TableRow key={order.id} className={!order.isSuccess ? "bg-red-50" : ""}>
                         <TableCell className="font-mono text-xs">{order.orderId}</TableCell>
                         <TableCell className="font-mono text-sm">{order.deviceId}</TableCell>
+                        <TableCell className="text-sm">{order.deviceName || "-"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDateTime(order.createdAt)}
                         </TableCell>
