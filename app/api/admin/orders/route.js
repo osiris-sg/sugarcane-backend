@@ -45,7 +45,17 @@ export async function GET(request) {
     }
 
     // Build where clause
-    const where = { isSuccess: true };
+    const where = {};
+
+    // Filter by success status (default: show all)
+    const successFilter = searchParams.get('isSuccess');
+    if (successFilter === 'true') {
+      where.isSuccess = true;
+    } else if (successFilter === 'false') {
+      where.isSuccess = false;
+    }
+    // If not specified, show all orders
+
     if (payWay) {
       where.payWay = payWay;
     }
@@ -118,12 +128,14 @@ export async function GET(request) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    // Monthly stats only count successful orders
+    const monthlyStatsWhere = { ...where };
+    monthlyStatsWhere.isSuccess = true;
+    monthlyStatsWhere.createdAt = { gte: startOfMonth };
+    monthlyStatsWhere.payWay = { not: "1000" }; // Exclude free orders
+
     const monthlyStats = await db.order.aggregate({
-      where: {
-        ...where,
-        createdAt: { gte: startOfMonth },
-        payWay: { not: "1000" }, // Exclude free orders
-      },
+      where: monthlyStatsWhere,
       _sum: { amount: true },
       _count: true,
     });

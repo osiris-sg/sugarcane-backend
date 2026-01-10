@@ -225,8 +225,8 @@ export default function OrderListPage() {
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const paginatedOrders = sortedOrders.slice(startIndex, endIndex);
 
-  // Calculate stats based on filtered orders (excluding free orders - payWay 1000)
-  const paidFilteredOrders = filteredOrders.filter((o) => o.payWay !== "1000");
+  // Calculate stats based on filtered orders (only successful, non-free orders)
+  const paidFilteredOrders = filteredOrders.filter((o) => o.payWay !== "1000" && o.isSuccess);
   const filteredTotal = paidFilteredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
   const filteredCount = paidFilteredOrders.length;
 
@@ -250,15 +250,18 @@ export default function OrderListPage() {
 
   // Export to CSV
   function exportToCSV() {
-    const headers = ["Order ID", "Device ID", "Device Name", "Amount", "Payment Method", "Quantity", "Date"];
+    const headers = ["Order ID", "Terminal ID", "Device Name", "Date", "Status", "PayWay", "Amount", "Refund", "TotalCount", "DeliverCount"];
     const rows = filteredOrders.map((o) => [
       o.orderId,
       o.deviceId,
       o.deviceName,
-      (o.amount / 100).toFixed(2),
-      getPaymentMethod(o.payWay)?.label || "-",
-      o.quantity || 1,
       new Date(o.createdAt).toISOString(),
+      o.isSuccess ? "Success" : "Failed",
+      getPaymentMethod(o.payWay)?.label || "-",
+      (o.amount / 100).toFixed(2),
+      o.refundAmount ? (o.refundAmount / 100).toFixed(2) : "",
+      o.totalCount ?? o.quantity ?? 1,
+      o.deliverCount ?? o.quantity ?? 1,
     ]);
 
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -503,31 +506,42 @@ export default function OrderListPage() {
                 <TableHeader className="sticky top-0 bg-background">
                   <TableRow>
                     <SortableTableHead column="orderId" label="Order ID" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortableTableHead column="deviceName" label="Device" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="deviceId" label="Terminal" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="createdAt" label="Time" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="isSuccess" label="Status" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="payWay" label="PayWay" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="amount" label="Amount" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortableTableHead column="payWay" label="Payment" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortableTableHead column="quantity" label="Qty" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortableTableHead column="createdAt" label="Date" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="refundAmount" label="Refund" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="totalCount" label="Total" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortableTableHead column="deliverCount" label="Delivered" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                         No orders found
                       </TableCell>
                     </TableRow>
                   ) : (
                     paginatedOrders.map((order) => (
-                      <TableRow key={order.id}>
+                      <TableRow key={order.id} className={!order.isSuccess ? "bg-red-50" : ""}>
                         <TableCell className="font-mono text-xs">{order.orderId}</TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{order.deviceName}</div>
-                            <div className="text-xs text-muted-foreground">{order.deviceId}</div>
-                          </div>
+                        <TableCell className="font-mono text-sm">{order.deviceId}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDateTime(order.createdAt)}
                         </TableCell>
-                        <TableCell className="font-medium">{formatCurrency(order.amount)}</TableCell>
+                        <TableCell>
+                          {order.isSuccess ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              Success
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                              Failed
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {order.payWay ? (
                             <Badge variant="outline" className="gap-1">
@@ -544,10 +558,12 @@ export default function OrderListPage() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>{order.quantity || 1}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDateTime(order.createdAt)}
+                        <TableCell className="font-medium">{formatCurrency(order.amount)}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {order.refundAmount ? formatCurrency(order.refundAmount) : "-"}
                         </TableCell>
+                        <TableCell>{order.totalCount ?? order.quantity ?? 1}</TableCell>
+                        <TableCell>{order.deliverCount ?? order.quantity ?? 1}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -599,12 +615,23 @@ export default function OrderListPage() {
             </Card>
           ) : (
             paginatedOrders.map((order) => (
-              <Card key={order.id}>
+              <Card key={order.id} className={!order.isSuccess ? "border-red-200 bg-red-50/50" : ""}>
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <p className="font-medium">{order.deviceName}</p>
-                      <p className="text-xs text-muted-foreground">{order.deviceId}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{order.deviceId}</p>
+                        {order.isSuccess ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                            Success
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
+                            Failed
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{order.deviceName}</p>
                     </div>
                     <p className="text-lg font-bold">{formatCurrency(order.amount)}</p>
                   </div>
@@ -620,7 +647,9 @@ export default function OrderListPage() {
                           {getPaymentMethod(order.payWay)?.label}
                         </Badge>
                       ) : null}
-                      <span className="text-muted-foreground">x{order.quantity || 1}</span>
+                      <span className="text-muted-foreground">
+                        {order.deliverCount ?? order.quantity ?? 1}/{order.totalCount ?? order.quantity ?? 1}
+                      </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
                       {formatDateShort(order.createdAt)}
