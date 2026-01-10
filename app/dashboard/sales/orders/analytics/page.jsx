@@ -28,6 +28,15 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
 
 // Helper to get date range based on filter
 function getDateRange(dateRange) {
@@ -46,28 +55,105 @@ function getDateRange(dateRange) {
   return { startDate, endDate: now, days };
 }
 
-function MiniLineChart({ data, color = "#22c55e", height = 40 }) {
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
+// Custom tooltip for revenue chart with period comparison
+function RevenueChartTooltip({ active, payload, label, compareEnabled, metric = "Gross volume" }) {
+  if (!active || !payload || payload.length === 0) return null;
 
-  const points = data.map((value, index) => {
-    const x = (index / (data.length - 1)) * 100;
-    const y = 100 - ((value - min) / range) * 80 - 10;
-    return `${x},${y}`;
-  }).join(" ");
+  const current = payload.find(p => p.dataKey === "current");
+  const previous = payload.find(p => p.dataKey === "previous");
+
+  // Calculate percentage change
+  let percentChange = null;
+  if (current?.value != null && previous?.value != null && previous.value > 0) {
+    percentChange = ((current.value - previous.value) / previous.value * 100).toFixed(2);
+  }
 
   return (
-    <svg viewBox="0 0 100 100" className="w-full" style={{ height }}>
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <div className="bg-white border rounded-lg shadow-lg p-3 min-w-[180px]">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-gray-700">{metric}</span>
+        {percentChange !== null && (
+          <span className={`text-sm font-medium ${parseFloat(percentChange) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {parseFloat(percentChange) >= 0 ? '+' : ''}{percentChange}%
+          </span>
+        )}
+      </div>
+      {current && (
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-3 h-3 rounded-full bg-violet-500" />
+          <span className="text-xs text-gray-500">{current.payload.currentLabel}</span>
+          <span className="text-sm font-semibold ml-auto">${current.value?.toFixed(2)}</span>
+        </div>
+      )}
+      {compareEnabled && previous && (
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-gray-400" />
+          <span className="text-xs text-gray-500">{previous.payload.previousLabel}</span>
+          <span className="text-sm font-semibold ml-auto text-gray-500">${previous.value?.toFixed(2)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Revenue Line Chart component
+function RevenueChart({ data, compareEnabled, height = 200 }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
+        No data available
+      </div>
+    );
+  }
+
+  // Get min and max for Y axis
+  const allValues = data.flatMap(d => [d.current, compareEnabled ? d.previous : null].filter(v => v != null));
+  const maxValue = Math.max(...allValues, 0);
+  const yAxisMax = Math.ceil(maxValue / 100) * 100 || 100;
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+        <XAxis
+          dataKey="shortLabel"
+          axisLine={false}
+          tickLine={false}
+          tick={{ fontSize: 11, fill: '#9ca3af' }}
+          interval="preserveStartEnd"
+        />
+        <YAxis
+          orientation="right"
+          axisLine={false}
+          tickLine={false}
+          tick={{ fontSize: 11, fill: '#9ca3af' }}
+          tickFormatter={(value) => value >= 1000 ? `$${(value/1000).toFixed(1)}K` : `$${value}`}
+          domain={[0, yAxisMax]}
+          width={50}
+        />
+        <Tooltip content={<RevenueChartTooltip compareEnabled={compareEnabled} />} />
+        {/* Previous period line (dashed gray) - render first so it's behind */}
+        {compareEnabled && (
+          <Line
+            type="monotone"
+            dataKey="previous"
+            stroke="#9ca3af"
+            strokeWidth={2}
+            strokeDasharray="5 5"
+            dot={false}
+            activeDot={{ r: 4, fill: '#9ca3af', stroke: '#fff', strokeWidth: 2 }}
+          />
+        )}
+        {/* Current period line (solid purple) */}
+        <Line
+          type="monotone"
+          dataKey="current"
+          stroke="#8b5cf6"
+          strokeWidth={2.5}
+          dot={false}
+          activeDot={{ r: 5, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -122,10 +208,10 @@ export default function SalesOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [salesData, setSalesData] = useState({
-    grossVolume: { amount: 0, change: 0, isPositive: true, data: [] },
-    netVolume: { amount: 0, change: 0, isPositive: true, data: [] },
+    grossVolume: { amount: 0, previousAmount: 0, change: 0, isPositive: true },
+    netVolume: { amount: 0, previousAmount: 0, change: 0, isPositive: true },
     payments: { succeeded: 0, refunded: 0, failed: 0, total: 0 },
-    dailyData: [],
+    chartData: [], // Array of { current, previous, currentLabel, previousLabel, shortLabel }
   });
 
   useEffect(() => {
@@ -170,27 +256,21 @@ export default function SalesOverviewPage() {
       if (data.success) {
         const orders = data.orders || [];
 
+        // Only count successful, non-free orders
+        const successfulOrders = orders.filter(o => o.isSuccess && o.payWay !== "1000");
+
         // Calculate gross volume (total successful sales)
-        const grossAmount = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        const grossAmount = successfulOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
 
         // Group orders by date for chart
         const dailyTotals = {};
-        orders.forEach(order => {
+        successfulOrders.forEach(order => {
           const date = new Date(order.createdAt).toISOString().split('T')[0];
           if (!dailyTotals[date]) {
             dailyTotals[date] = 0;
           }
           dailyTotals[date] += order.amount || 0;
         });
-
-        // Create array of daily data for chart (last N days)
-        const chartData = [];
-        for (let i = days - 1; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const dateStr = d.toISOString().split('T')[0];
-          chartData.push(dailyTotals[dateStr] || 0);
-        }
 
         // Fetch previous period for comparison
         const prevStartDate = new Date(startDate);
@@ -206,8 +286,44 @@ export default function SalesOverviewPage() {
 
         const prevRes = await fetch(`/api/admin/orders?${prevParams.toString()}&limit=10000`);
         const prevData = await prevRes.json();
-        const prevOrders = prevData.orders || [];
+        const prevOrders = (prevData.orders || []).filter(o => o.isSuccess && o.payWay !== "1000");
         const prevGrossAmount = prevOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+
+        // Group previous period orders by date
+        const prevDailyTotals = {};
+        prevOrders.forEach(order => {
+          const date = new Date(order.createdAt).toISOString().split('T')[0];
+          if (!prevDailyTotals[date]) {
+            prevDailyTotals[date] = 0;
+          }
+          prevDailyTotals[date] += order.amount || 0;
+        });
+
+        // Create aligned chart data for both periods
+        const chartData = [];
+        for (let i = 0; i < days; i++) {
+          // Current period date (from oldest to newest)
+          const currentDate = new Date(startDate);
+          currentDate.setDate(currentDate.getDate() + i);
+          const currentDateStr = currentDate.toISOString().split('T')[0];
+
+          // Previous period date (same offset from prev start)
+          const previousDate = new Date(prevStartDate);
+          previousDate.setDate(previousDate.getDate() + i);
+          const previousDateStr = previousDate.toISOString().split('T')[0];
+
+          // Format labels
+          const formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          const formatShort = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+          chartData.push({
+            current: (dailyTotals[currentDateStr] || 0) / 100,
+            previous: (prevDailyTotals[previousDateStr] || 0) / 100,
+            currentLabel: formatLabel(currentDate),
+            previousLabel: formatLabel(previousDate),
+            shortLabel: formatShort(currentDate),
+          });
+        }
 
         // Calculate change percentage
         let changePercent = 0;
@@ -219,24 +335,24 @@ export default function SalesOverviewPage() {
 
         setSalesData({
           grossVolume: {
-            amount: grossAmount / 100, // Convert cents to dollars
+            amount: grossAmount / 100,
+            previousAmount: prevGrossAmount / 100,
             change: Math.abs(changePercent).toFixed(1),
             isPositive: changePercent >= 0,
-            data: chartData.map(v => v / 100), // Convert to dollars
           },
           netVolume: {
-            amount: grossAmount / 100, // Same as gross for now (no refunds tracked)
+            amount: grossAmount / 100,
+            previousAmount: prevGrossAmount / 100,
             change: Math.abs(changePercent).toFixed(1),
             isPositive: changePercent >= 0,
-            data: chartData.map(v => v / 100),
           },
           payments: {
-            succeeded: orders.length,
+            succeeded: successfulOrders.length,
             refunded: 0,
-            failed: 0,
+            failed: orders.filter(o => !o.isSuccess).length,
             total: orders.length,
           },
-          dailyData: chartData,
+          chartData,
         });
       }
     } catch (error) {
@@ -395,12 +511,12 @@ export default function SalesOverviewPage() {
           </Card>
 
           {/* Gross Volume */}
-          <Card>
+          <Card className="lg:col-span-1">
             <CardHeader className="pb-2 px-4 md:px-6">
               <CardTitle className="text-sm md:text-base font-medium">Gross Volume</CardTitle>
             </CardHeader>
             <CardContent className="px-4 md:px-6">
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-xl md:text-2xl font-bold">
                   ${salesData.grossVolume.amount.toLocaleString("en-SG", {
                     minimumFractionDigits: 2,
@@ -423,29 +539,28 @@ export default function SalesOverviewPage() {
                   </span>
                 )}
               </div>
+              {compareEnabled && salesData.grossVolume.previousAmount > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  ${salesData.grossVolume.previousAmount.toLocaleString("en-SG", { minimumFractionDigits: 2 })} previous period
+                </p>
+              )}
               <div className="mt-3 md:mt-4">
-                {salesData.grossVolume.data.length > 0 ? (
-                  <MiniLineChart
-                    data={salesData.grossVolume.data}
-                    color={salesData.grossVolume.isPositive ? "#22c55e" : "#ef4444"}
-                    height={32}
-                  />
-                ) : (
-                  <div className="h-8 flex items-center justify-center text-xs md:text-sm text-muted-foreground">
-                    No data
-                  </div>
-                )}
+                <RevenueChart
+                  data={salesData.chartData}
+                  compareEnabled={compareEnabled}
+                  height={180}
+                />
               </div>
             </CardContent>
           </Card>
 
           {/* Net Volume */}
-          <Card>
+          <Card className="lg:col-span-1">
             <CardHeader className="pb-2 px-4 md:px-6">
               <CardTitle className="text-sm md:text-base font-medium">Net Volume</CardTitle>
             </CardHeader>
             <CardContent className="px-4 md:px-6">
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-xl md:text-2xl font-bold">
                   ${salesData.netVolume.amount.toLocaleString("en-SG", {
                     minimumFractionDigits: 2,
@@ -468,18 +583,17 @@ export default function SalesOverviewPage() {
                   </span>
                 )}
               </div>
+              {compareEnabled && salesData.netVolume.previousAmount > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  ${salesData.netVolume.previousAmount.toLocaleString("en-SG", { minimumFractionDigits: 2 })} previous period
+                </p>
+              )}
               <div className="mt-3 md:mt-4">
-                {salesData.netVolume.data.length > 0 ? (
-                  <MiniLineChart
-                    data={salesData.netVolume.data}
-                    color={salesData.netVolume.isPositive ? "#22c55e" : "#ef4444"}
-                    height={32}
-                  />
-                ) : (
-                  <div className="h-8 flex items-center justify-center text-xs md:text-sm text-muted-foreground">
-                    No data
-                  </div>
-                )}
+                <RevenueChart
+                  data={salesData.chartData}
+                  compareEnabled={compareEnabled}
+                  height={180}
+                />
               </div>
             </CardContent>
           </Card>
