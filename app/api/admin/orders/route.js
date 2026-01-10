@@ -128,14 +128,31 @@ export async function GET(request) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Monthly stats only count successful orders
-    const monthlyStatsWhere = { ...where };
-    monthlyStatsWhere.isSuccess = true;
-    monthlyStatsWhere.createdAt = { gte: startOfMonth };
-    monthlyStatsWhere.payWay = { not: "1000" }; // Exclude free orders
+    // Build base where clause for stats (respects device filtering for franchisees)
+    const baseStatsWhere = {};
+    if (allowedDeviceIds !== null) {
+      baseStatsWhere.deviceId = { in: allowedDeviceIds };
+    }
 
+    // All-time stats (successful, non-free orders)
+    const allTimeStats = await db.order.aggregate({
+      where: {
+        ...baseStatsWhere,
+        isSuccess: true,
+        payWay: { not: "1000" },
+      },
+      _sum: { amount: true },
+      _count: true,
+    });
+
+    // Monthly stats (successful, non-free orders)
     const monthlyStats = await db.order.aggregate({
-      where: monthlyStatsWhere,
+      where: {
+        ...baseStatsWhere,
+        isSuccess: true,
+        createdAt: { gte: startOfMonth },
+        payWay: { not: "1000" },
+      },
       _sum: { amount: true },
       _count: true,
     });
@@ -143,6 +160,8 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       orders: enrichedOrders,
+      allTimeTotal: allTimeStats._sum.amount || 0,
+      allTimeCount: allTimeStats._count || 0,
       monthlyTotal: monthlyStats._sum.amount || 0,
       monthlyCount: monthlyStats._count || 0,
     });

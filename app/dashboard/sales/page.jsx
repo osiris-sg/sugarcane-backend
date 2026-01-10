@@ -102,6 +102,8 @@ export default function OrderListPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [allTimeTotal, setAllTimeTotal] = useState(0);
+  const [allTimeCount, setAllTimeCount] = useState(0);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [monthlyCount, setMonthlyCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -129,6 +131,8 @@ export default function OrderListPage() {
 
       if (data.success) {
         setOrders(data.orders || []);
+        setAllTimeTotal(data.allTimeTotal || 0);
+        setAllTimeCount(data.allTimeCount || 0);
         setMonthlyTotal(data.monthlyTotal || 0);
         setMonthlyCount(data.monthlyCount || 0);
       }
@@ -321,10 +325,8 @@ export default function OrderListPage() {
                   <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground truncate">
-                    {hasFilters ? "Filtered" : "Total"}
-                  </p>
-                  <p className="text-base md:text-xl font-bold">{formatCurrency(filteredTotal)}</p>
+                  <p className="text-xs text-muted-foreground truncate">All Time Rev</p>
+                  <p className="text-base md:text-xl font-bold">{formatCurrency(allTimeTotal)}</p>
                 </div>
               </div>
             </CardContent>
@@ -337,10 +339,8 @@ export default function OrderListPage() {
                   <ShoppingCart className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground truncate">
-                    {hasFilters ? "Filtered" : "Orders"}
-                  </p>
-                  <p className="text-base md:text-xl font-bold">{filteredCount}</p>
+                  <p className="text-xs text-muted-foreground truncate">All Time Ord</p>
+                  <p className="text-base md:text-xl font-bold">{allTimeCount}</p>
                 </div>
               </div>
             </CardContent>
