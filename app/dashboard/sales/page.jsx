@@ -45,6 +45,15 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 // Helper to format date/time in Singapore timezone
 function formatDateTime(dateString) {
@@ -98,6 +107,56 @@ function getPaymentMethod(payWay) {
 
 const ITEMS_PER_PAGE = 50;
 
+// Custom tooltip for Today chart
+function TodayChartTooltip({ active, payload }) {
+  if (!active || !payload || payload.length === 0) return null;
+  const data = payload[0].payload;
+  return (
+    <div className="bg-white border rounded-lg shadow-lg p-2 text-sm">
+      <p className="text-gray-500">{data.timeLabel}</p>
+      <p className="font-semibold">${data.cumulative.toFixed(2)}</p>
+    </div>
+  );
+}
+
+// Today's cumulative chart
+function TodayChart({ data, height = 120 }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
+        No data yet
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(...data.map(d => d.cumulative), 100);
+  const yAxisMax = Math.ceil(maxValue / 100) * 100 || 100;
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+        <XAxis
+          dataKey="timeLabel"
+          axisLine={false}
+          tickLine={false}
+          tick={{ fontSize: 10, fill: '#9ca3af' }}
+          interval="preserveStartEnd"
+        />
+        <YAxis hide domain={[0, yAxisMax]} />
+        <Tooltip content={<TodayChartTooltip />} />
+        <Line
+          type="monotone"
+          dataKey="cumulative"
+          stroke="#6366f1"
+          strokeWidth={2}
+          dot={false}
+          activeDot={{ r: 4, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 export default function OrderListPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +167,12 @@ export default function OrderListPage() {
   const [monthlyCount, setMonthlyCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Today's data
+  const [todayTotal, setTodayTotal] = useState(0);
+  const [yesterdayTotal, setYesterdayTotal] = useState(0);
+  const [todayChartData, setTodayChartData] = useState([]);
+  const [currentTime, setCurrentTime] = useState("");
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -135,6 +200,60 @@ export default function OrderListPage() {
         setAllTimeCount(data.allTimeCount || 0);
         setMonthlyTotal(data.monthlyTotal || 0);
         setMonthlyCount(data.monthlyCount || 0);
+
+        // Calculate today's and yesterday's data
+        const allOrders = data.orders || [];
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterdayStart = new Date(todayStart);
+        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+        // Filter successful, non-free orders
+        const paidOrders = allOrders.filter(o => o.isSuccess && o.payWay !== "1000");
+
+        // Today's orders
+        const todayOrders = paidOrders.filter(o => new Date(o.createdAt) >= todayStart);
+        const todaySum = todayOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        setTodayTotal(todaySum);
+
+        // Yesterday's orders
+        const yesterdayOrders = paidOrders.filter(o => {
+          const d = new Date(o.createdAt);
+          return d >= yesterdayStart && d < todayStart;
+        });
+        const yesterdaySum = yesterdayOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        setYesterdayTotal(yesterdaySum);
+
+        // Build hourly cumulative data for today's chart
+        const hourlyTotals = {};
+        todayOrders.forEach(order => {
+          const hour = new Date(order.createdAt).getHours();
+          if (!hourlyTotals[hour]) hourlyTotals[hour] = 0;
+          hourlyTotals[hour] += order.amount || 0;
+        });
+
+        // Create cumulative chart data
+        const chartData = [];
+        let cumulative = 0;
+        const currentHour = now.getHours();
+        for (let h = 0; h <= currentHour; h++) {
+          cumulative += (hourlyTotals[h] || 0) / 100; // Convert to dollars
+          const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+          const ampm = h < 12 ? 'AM' : 'PM';
+          chartData.push({
+            hour: h,
+            timeLabel: `${hour12}:00 ${ampm}`,
+            cumulative,
+          });
+        }
+        setTodayChartData(chartData);
+
+        // Set current time
+        setCurrentTime(now.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }));
       }
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -316,6 +435,33 @@ export default function OrderListPage() {
       </header>
 
       <main className="p-4 md:p-6">
+        {/* Today Section */}
+        <Card className="mb-4 md:mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-semibold">Today</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-6 md:gap-10 mb-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Gross volume</p>
+                <p className="text-2xl md:text-3xl font-bold">{formatCurrency(todayTotal)}</p>
+                <p className="text-xs text-muted-foreground">{currentTime}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Yesterday</p>
+                <p className="text-2xl md:text-3xl font-bold text-muted-foreground">{formatCurrency(yesterdayTotal)}</p>
+              </div>
+            </div>
+            <div className="h-[120px] md:h-[150px]">
+              <TodayChart data={todayChartData} height={120} />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <span>12:00 AM</span>
+              <span>11:59 PM</span>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Summary Cards */}
         <div className="mb-4 md:mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
           <Card>
