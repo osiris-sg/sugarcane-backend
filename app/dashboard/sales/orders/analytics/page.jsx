@@ -28,6 +28,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   LineChart,
   Line,
@@ -154,6 +155,80 @@ function RevenueChart({ data, compareEnabled, height = 200 }) {
         />
       </LineChart>
     </ResponsiveContainer>
+  );
+}
+
+// Skeleton for chart card
+function ChartCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-2 px-4 md:px-6">
+        <Skeleton className="h-5 w-24" />
+      </CardHeader>
+      <CardContent className="px-4 md:px-6">
+        <div className="flex items-baseline gap-2 mb-1">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-5 w-16" />
+        </div>
+        <Skeleton className="h-4 w-40 mb-4" />
+        <Skeleton className="h-[180px] w-full" />
+      </CardContent>
+    </Card>
+  );
+}
+
+// Skeleton for payment status card
+function PaymentCardSkeleton() {
+  return (
+    <Card className="md:col-span-2 lg:col-span-1">
+      <CardHeader className="pb-2 px-4 md:px-6">
+        <Skeleton className="h-5 w-20" />
+      </CardHeader>
+      <CardContent className="px-4 md:px-6">
+        <Skeleton className="h-3 w-full mb-3" />
+        <div className="flex flex-wrap gap-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Skeleton for stats card
+function StatsCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-2 px-4 md:px-6">
+        <Skeleton className="h-5 w-28" />
+      </CardHeader>
+      <CardContent className="px-4 md:px-6">
+        <Skeleton className="h-8 w-20 mb-2" />
+        <Skeleton className="h-4 w-32" />
+      </CardContent>
+    </Card>
+  );
+}
+
+// Skeleton for period summary
+function SummarySkeleton() {
+  return (
+    <Card className="mt-4 md:mt-6">
+      <CardHeader className="px-4 md:px-6">
+        <Skeleton className="h-5 w-32" />
+      </CardHeader>
+      <CardContent className="px-4 md:px-6">
+        <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-lg bg-muted/50 p-3 md:p-4">
+              <Skeleton className="h-4 w-20 mb-2" />
+              <Skeleton className="h-7 w-16" />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -498,6 +573,23 @@ export default function SalesOverviewPage() {
 
       {/* Main Content */}
       <main className="p-4 md:p-6">
+        {loading ? (
+          <>
+            {/* Loading Skeletons */}
+            <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <PaymentCardSkeleton />
+              <ChartCardSkeleton />
+              <ChartCardSkeleton />
+            </div>
+            <div className="mt-4 md:mt-6 grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+            </div>
+            <SummarySkeleton />
+          </>
+        ) : (
+          <>
         {/* Top Row - Payments and Volume */}
         <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Payments */}
@@ -697,6 +789,8 @@ export default function SalesOverviewPage() {
             </div>
           </CardContent>
         </Card>
+          </>
+        )}
       </main>
     </div>
   );
