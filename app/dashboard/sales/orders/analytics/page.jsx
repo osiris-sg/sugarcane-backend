@@ -237,14 +237,25 @@ function TodayChartTooltip({ active, payload }) {
   if (!active || !payload || payload.length === 0) return null;
   const data = payload[0].payload;
   return (
-    <div className="bg-white border rounded-lg shadow-lg p-2 text-sm">
-      <p className="text-gray-500">{data.timeLabel}</p>
-      <p className="font-semibold">${data.cumulative.toFixed(2)}</p>
+    <div className="bg-white border rounded-lg shadow-lg p-3 text-sm min-w-[140px]">
+      <p className="text-gray-500 font-medium mb-2">{data.timeLabel}</p>
+      <div className="flex items-center gap-2 mb-1">
+        <div className="w-3 h-3 rounded-full bg-indigo-500" />
+        <span className="text-gray-600">Today</span>
+        <span className="font-semibold ml-auto">${data.cumulative?.toFixed(2) || '0.00'}</span>
+      </div>
+      {data.yesterdayCumulative != null && (
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-gray-300" />
+          <span className="text-gray-500">Yesterday</span>
+          <span className="font-semibold ml-auto text-gray-500">${data.yesterdayCumulative?.toFixed(2) || '0.00'}</span>
+        </div>
+      )}
     </div>
   );
 }
 
-// Today's cumulative chart
+// Today's cumulative chart with yesterday comparison
 function TodayChart({ data, height = 120 }) {
   if (!data || data.length === 0) {
     return (
@@ -254,7 +265,9 @@ function TodayChart({ data, height = 120 }) {
     );
   }
 
-  const maxValue = Math.max(...data.map(d => d.cumulative), 100);
+  // Get max from both today and yesterday for Y axis
+  const allValues = data.flatMap(d => [d.cumulative, d.yesterdayCumulative].filter(v => v != null));
+  const maxValue = Math.max(...allValues, 100);
   const yAxisMax = Math.ceil(maxValue / 100) * 100 || 100;
 
   return (
@@ -269,6 +282,16 @@ function TodayChart({ data, height = 120 }) {
         />
         <YAxis hide domain={[0, yAxisMax]} />
         <Tooltip content={<TodayChartTooltip />} />
+        {/* Yesterday's line (gray, behind) */}
+        <Line
+          type="monotone"
+          dataKey="yesterdayCumulative"
+          stroke="#d1d5db"
+          strokeWidth={2}
+          dot={false}
+          activeDot={{ r: 3, fill: '#9ca3af', stroke: '#fff', strokeWidth: 1 }}
+        />
+        {/* Today's line (purple, front) */}
         <Line
           type="monotone"
           dataKey="cumulative"
@@ -382,7 +405,7 @@ export default function SalesOverviewPage() {
         });
         const yesterdaySum = yesterdayOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
 
-        // Build hourly cumulative data for today's chart
+        // Build hourly totals for today
         const hourlyTotals = {};
         todayOrders.forEach(order => {
           const hour = new Date(order.createdAt).getHours();
@@ -390,18 +413,32 @@ export default function SalesOverviewPage() {
           hourlyTotals[hour] += order.amount || 0;
         });
 
-        // Create cumulative chart data
+        // Build hourly totals for yesterday
+        const yesterdayHourlyTotals = {};
+        yesterdayOrders.forEach(order => {
+          const hour = new Date(order.createdAt).getHours();
+          if (!yesterdayHourlyTotals[hour]) yesterdayHourlyTotals[hour] = 0;
+          yesterdayHourlyTotals[hour] += order.amount || 0;
+        });
+
+        // Create cumulative chart data with both today and yesterday
         const chartData = [];
         let cumulative = 0;
+        let yesterdayCumulative = 0;
         const currentHour = now.getHours();
-        for (let h = 0; h <= currentHour; h++) {
-          cumulative += (hourlyTotals[h] || 0) / 100;
+        // Show full 24 hours for yesterday, up to current hour for today
+        for (let h = 0; h <= 23; h++) {
+          yesterdayCumulative += (yesterdayHourlyTotals[h] || 0) / 100;
+          if (h <= currentHour) {
+            cumulative += (hourlyTotals[h] || 0) / 100;
+          }
           const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
           const ampm = h < 12 ? 'AM' : 'PM';
           chartData.push({
             hour: h,
             timeLabel: `${hour12}:00 ${ampm}`,
-            cumulative,
+            cumulative: h <= currentHour ? cumulative : null,
+            yesterdayCumulative,
           });
         }
 
@@ -615,122 +652,6 @@ export default function SalesOverviewPage() {
             </p>
           </div>
         </div>
-
-        {/* Mobile Filter Toggle */}
-        <div className="md:hidden border-t bg-muted/30 px-4 py-2">
-          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full justify-between">
-                <span className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filters
-                </span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Device" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Devices</SelectItem>
-                    {devices.map((device) => (
-                      <SelectItem key={device.deviceId} value={device.deviceId}>
-                        {device.deviceName || device.deviceId}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={dateRange} onValueChange={setDateRange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="24h">Last 24 hours</SelectItem>
-                    <SelectItem value="7d">Last 7 days</SelectItem>
-                    <SelectItem value="30d">Last 30 days</SelectItem>
-                    <SelectItem value="90d">Last 90 days</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Select value={interval} onValueChange={setInterval}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant={compareEnabled ? "default" : "outline"}
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setCompareEnabled(!compareEnabled)}
-                >
-                  Compare
-                </Button>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-
-        {/* Desktop Filters */}
-        <div className="hidden md:flex items-center gap-4 border-t bg-muted/30 px-6 py-3">
-          <div className="flex items-center gap-2">
-            <Monitor className="h-4 w-4 text-muted-foreground" />
-            <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select device" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Devices</SelectItem>
-                {devices.map((device) => (
-                  <SelectItem key={device.deviceId} value={device.deviceId}>
-                    {device.deviceName || device.deviceId}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="24h">Last 24 hours</SelectItem>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="30d">Last 30 days</SelectItem>
-                <SelectItem value="90d">Last 90 days</SelectItem>
-                <SelectItem value="custom">Custom range</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Select value={interval} onValueChange={setInterval}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant={compareEnabled ? "default" : "outline"}
-            size="sm"
-            onClick={() => setCompareEnabled(!compareEnabled)}
-          >
-            Compare to previous
-          </Button>
-        </div>
       </header>
 
       {/* Main Content */}
@@ -765,6 +686,124 @@ export default function SalesOverviewPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Filters Section */}
+        <div className="mb-4 md:mb-6">
+          {/* Mobile Filters */}
+          <div className="md:hidden">
+            <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full justify-between mb-3">
+                  <span className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filters
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Device" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Devices</SelectItem>
+                      {devices.map((device) => (
+                        <SelectItem key={device.deviceId} value={device.deviceId}>
+                          {device.deviceName || device.deviceId}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={dateRange} onValueChange={setDateRange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="24h">Last 24 hours</SelectItem>
+                      <SelectItem value="7d">Last 7 days</SelectItem>
+                      <SelectItem value="30d">Last 30 days</SelectItem>
+                      <SelectItem value="90d">Last 90 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={interval} onValueChange={setInterval}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant={compareEnabled ? "default" : "outline"}
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setCompareEnabled(!compareEnabled)}
+                  >
+                    Compare
+                  </Button>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+
+          {/* Desktop Filters */}
+          <div className="hidden md:flex items-center gap-4 p-3 bg-muted/30 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Monitor className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select device" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Devices</SelectItem>
+                  {devices.map((device) => (
+                    <SelectItem key={device.deviceId} value={device.deviceId}>
+                      {device.deviceName || device.deviceId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Select value={dateRange} onValueChange={setDateRange}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="24h">Last 24 hours</SelectItem>
+                  <SelectItem value="7d">Last 7 days</SelectItem>
+                  <SelectItem value="30d">Last 30 days</SelectItem>
+                  <SelectItem value="90d">Last 90 days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Select value={interval} onValueChange={setInterval}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant={compareEnabled ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCompareEnabled(!compareEnabled)}
+            >
+              Compare to previous
+            </Button>
+          </div>
+        </div>
 
         {loading ? (
           <>
