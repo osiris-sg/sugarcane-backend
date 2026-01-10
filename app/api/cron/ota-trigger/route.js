@@ -19,18 +19,28 @@ const verifyCronAuth = (request) => {
   return adminKey === validKey;
 };
 
-// Reference to in-memory update config (same as /api/app/version)
-const globalForUpdate = globalThis;
-if (!globalForUpdate.updateConfig) {
-  globalForUpdate.updateConfig = {
-    version: "1.0.0",
-    versionCode: 1,
-    apkUrl: "https://sugarcane-backend-five.vercel.app/api/app/download",
-    releaseNotes: "Initial release",
-    forceUpdate: false,
-    triggerUpdate: null,
-    triggerTimestamp: null,
-  };
+// Helper to get or create config from database
+async function getConfig() {
+  let config = await db.otaConfig.findUnique({
+    where: { id: 'singleton' }
+  });
+
+  if (!config) {
+    config = await db.otaConfig.create({
+      data: {
+        id: 'singleton',
+        version: '1.0.0',
+        versionCode: 1,
+        apkUrl: 'https://sugarcane-backend-five.vercel.app/api/app/download',
+        releaseNotes: 'Initial release',
+        forceUpdate: false,
+        triggerUpdate: [],
+        triggerTimestamp: null,
+      }
+    });
+  }
+
+  return config;
 }
 
 export async function GET(request) {
@@ -70,22 +80,28 @@ export async function GET(request) {
     }
 
     const triggered = [];
-    const config = globalForUpdate.updateConfig;
+    let config = await getConfig();
 
     for (const ota of dueOtas) {
       // Trigger the OTA update
+      let newTriggerUpdate;
       if (ota.devices.length === 0) {
         // All devices
-        config.triggerUpdate = "all";
+        newTriggerUpdate = ["all"];
       } else {
         // Merge with existing triggers if any
-        if (Array.isArray(config.triggerUpdate)) {
-          config.triggerUpdate = [...new Set([...config.triggerUpdate, ...ota.devices])];
-        } else {
-          config.triggerUpdate = ota.devices;
-        }
+        const existingDevices = config.triggerUpdate.filter(d => d !== "all");
+        newTriggerUpdate = [...new Set([...existingDevices, ...ota.devices])];
       }
-      config.triggerTimestamp = Date.now();
+
+      // Update database
+      config = await db.otaConfig.update({
+        where: { id: 'singleton' },
+        data: {
+          triggerUpdate: newTriggerUpdate,
+          triggerTimestamp: BigInt(Date.now()),
+        }
+      });
 
       // Mark as triggered in database
       await db.scheduledOta.update({

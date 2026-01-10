@@ -1,30 +1,29 @@
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 
-// In-memory storage for update trigger (use Redis/DB in production)
-const globalForUpdate = globalThis;
-if (!globalForUpdate.updateConfig) {
-  globalForUpdate.updateConfig = {
-    // Version string shown to users
-    version: "1.0.0",
+// Helper to get or create config from database
+async function getConfig() {
+  let config = await db.otaConfig.findUnique({
+    where: { id: 'singleton' }
+  });
 
-    // Version code - increment this for each release
-    versionCode: 1,
+  if (!config) {
+    // Create default config
+    config = await db.otaConfig.create({
+      data: {
+        id: 'singleton',
+        version: '1.0.0',
+        versionCode: 1,
+        apkUrl: 'https://sugarcane-backend-five.vercel.app/api/app/download',
+        releaseNotes: 'Initial release',
+        forceUpdate: false,
+        triggerUpdate: [],
+        triggerTimestamp: null,
+      }
+    });
+  }
 
-    // URL to download the APK
-    apkUrl: "https://sugarcane-backend-five.vercel.app/api/app/download",
-
-    // Release notes
-    releaseNotes: "Initial release",
-
-    // Force update flag - set to true to force all devices to update
-    forceUpdate: false,
-
-    // Trigger update for specific devices (by device ID) or "all"
-    triggerUpdate: null,  // null, "all", or ["deviceId1", "deviceId2"]
-
-    // Timestamp when update was triggered
-    triggerTimestamp: null,
-  };
+  return config;
 }
 
 // GET /api/app/version
@@ -34,18 +33,19 @@ export async function GET(request) {
   const deviceId = searchParams.get('deviceId');
   const currentVersion = searchParams.get('currentVersion');
 
-  const config = globalForUpdate.updateConfig;
+  const config = await getConfig();
 
   // Check if this device should update
   let shouldUpdate = false;
 
-  if (config.triggerUpdate === "all") {
+  // triggerUpdate is an array: empty = no trigger, ["all"] = all devices, or specific device IDs
+  if (config.triggerUpdate.includes("all")) {
     shouldUpdate = true;
-  } else if (Array.isArray(config.triggerUpdate) && deviceId) {
+  } else if (config.triggerUpdate.length > 0 && deviceId) {
     shouldUpdate = config.triggerUpdate.includes(deviceId);
   }
 
-  // Also check version code
+  // Also check version code - if device already has this version or newer, don't update
   if (currentVersion && parseInt(currentVersion) >= config.versionCode) {
     shouldUpdate = false; // Already up to date
   }
@@ -58,7 +58,7 @@ export async function GET(request) {
     releaseNotes: config.releaseNotes,
     forceUpdate: config.forceUpdate,
     shouldUpdate: shouldUpdate,
-    triggerTimestamp: config.triggerTimestamp,
+    triggerTimestamp: config.triggerTimestamp ? Number(config.triggerTimestamp) : null,
     timestamp: Date.now(),
   });
 }
@@ -79,23 +79,38 @@ export async function POST(request) {
       );
     }
 
-    const config = globalForUpdate.updateConfig;
+    let config = await getConfig();
 
     switch (action) {
       case 'trigger':
         // Trigger update for all devices or specific ones
-        config.triggerUpdate = data.devices || "all";
-        config.triggerTimestamp = Date.now();
+        const devices = data.devices || ["all"];
+        const triggerUpdate = Array.isArray(devices) ? devices : [devices];
+
+        config = await db.otaConfig.update({
+          where: { id: 'singleton' },
+          data: {
+            triggerUpdate: triggerUpdate,
+            triggerTimestamp: BigInt(Date.now()),
+          }
+        });
+
         return NextResponse.json({
           success: true,
-          message: `Update triggered for: ${config.triggerUpdate}`,
-          triggerTimestamp: config.triggerTimestamp,
+          message: `Update triggered for: ${triggerUpdate.join(', ')}`,
+          triggerTimestamp: Number(config.triggerTimestamp),
         });
 
       case 'clear':
         // Clear update trigger
-        config.triggerUpdate = null;
-        config.triggerTimestamp = null;
+        config = await db.otaConfig.update({
+          where: { id: 'singleton' },
+          data: {
+            triggerUpdate: [],
+            triggerTimestamp: null,
+          }
+        });
+
         return NextResponse.json({
           success: true,
           message: 'Update trigger cleared',
@@ -103,22 +118,35 @@ export async function POST(request) {
 
       case 'update':
         // Update version info
-        if (data.version) config.version = data.version;
-        if (data.versionCode) config.versionCode = data.versionCode;
-        if (data.apkUrl) config.apkUrl = data.apkUrl;
-        if (data.releaseNotes) config.releaseNotes = data.releaseNotes;
-        if (typeof data.forceUpdate === 'boolean') config.forceUpdate = data.forceUpdate;
+        const updateData = {};
+        if (data.version) updateData.version = data.version;
+        if (data.versionCode) updateData.versionCode = data.versionCode;
+        if (data.apkUrl) updateData.apkUrl = data.apkUrl;
+        if (data.releaseNotes) updateData.releaseNotes = data.releaseNotes;
+        if (typeof data.forceUpdate === 'boolean') updateData.forceUpdate = data.forceUpdate;
+
+        config = await db.otaConfig.update({
+          where: { id: 'singleton' },
+          data: updateData,
+        });
+
         return NextResponse.json({
           success: true,
           message: 'Version info updated',
-          config: config,
+          config: {
+            ...config,
+            triggerTimestamp: config.triggerTimestamp ? Number(config.triggerTimestamp) : null,
+          },
         });
 
       case 'status':
         // Get current status
         return NextResponse.json({
           success: true,
-          config: config,
+          config: {
+            ...config,
+            triggerTimestamp: config.triggerTimestamp ? Number(config.triggerTimestamp) : null,
+          },
         });
 
       default:
@@ -128,6 +156,7 @@ export async function POST(request) {
         );
     }
   } catch (error) {
+    console.error('OTA Version API Error:', error);
     return NextResponse.json(
       { error: error.message },
       { status: 500 }

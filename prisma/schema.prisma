@@ -404,3 +404,16 @@ model ScheduledOta {
 
   @@index([status, scheduledAt])
 }
+
+// OTA Config - stored in database to persist across serverless instances
+model OtaConfig {
+  id              String    @id @default("singleton")  // Always use "singleton" as ID
+  version         String    @default("1.0.0")
+  versionCode     Int       @default(1)
+  apkUrl          String    @default("https://sugarcane-backend-five.vercel.app/api/app/download")
+  releaseNotes    String    @default("Initial release")
+  forceUpdate     Boolean   @default(false)
+  triggerUpdate   String[]  @default([])              // Empty = no trigger, ["all"] = all devices, or device IDs
+  triggerTimestamp BigInt?
+  updatedAt       DateTime  @updatedAt
+}
