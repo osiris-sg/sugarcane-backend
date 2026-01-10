@@ -614,9 +614,8 @@ export default function SalesOverviewPage() {
         {loading ? (
           <>
             {/* Loading Skeletons */}
-            <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:gap-6 md:grid-cols-2">
               <PaymentCardSkeleton />
-              <ChartCardSkeleton />
               <ChartCardSkeleton />
             </div>
             <div className="mt-4 md:mt-6 grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -629,9 +628,9 @@ export default function SalesOverviewPage() {
         ) : (
           <>
         {/* Top Row - Payments and Volume */}
-        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2">
           {/* Payments */}
-          <Card className="md:col-span-2 lg:col-span-1">
+          <Card>
             <CardHeader className="pb-2 px-4 md:px-6">
               <CardTitle className="text-sm md:text-base font-medium">Payments</CardTitle>
             </CardHeader>
@@ -641,7 +640,7 @@ export default function SalesOverviewPage() {
           </Card>
 
           {/* Gross Volume */}
-          <Card className="lg:col-span-1">
+          <Card>
             <CardHeader className="pb-2 px-4 md:px-6">
               <CardTitle className="text-sm md:text-base font-medium">Gross Volume</CardTitle>
             </CardHeader>
@@ -684,49 +683,6 @@ export default function SalesOverviewPage() {
             </CardContent>
           </Card>
 
-          {/* Net Volume */}
-          <Card className="lg:col-span-1">
-            <CardHeader className="pb-2 px-4 md:px-6">
-              <CardTitle className="text-sm md:text-base font-medium">Net Volume</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 md:px-6">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-xl md:text-2xl font-bold">
-                  ${salesData.netVolume.amount.toLocaleString("en-SG", {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
-                {salesData.netVolume.change > 0 && (
-                  <span
-                    className={`flex items-center text-xs md:text-sm ${
-                      salesData.netVolume.isPositive
-                        ? "text-green-500"
-                        : "text-red-500"
-                    }`}
-                  >
-                    {salesData.netVolume.isPositive ? (
-                      <TrendingUp className="mr-1 h-3 w-3 md:h-4 md:w-4" />
-                    ) : (
-                      <TrendingDown className="mr-1 h-3 w-3 md:h-4 md:w-4" />
-                    )}
-                    {salesData.netVolume.change}%
-                  </span>
-                )}
-              </div>
-              {compareEnabled && salesData.netVolume.previousAmount > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  ${salesData.netVolume.previousAmount.toLocaleString("en-SG", { minimumFractionDigits: 2 })} previous period
-                </p>
-              )}
-              <div className="mt-3 md:mt-4">
-                <RevenueChart
-                  data={salesData.chartData}
-                  compareEnabled={compareEnabled}
-                  height={180}
-                />
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Bottom Row */}
