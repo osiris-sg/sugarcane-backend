@@ -325,8 +325,12 @@ export default function OrderListPage() {
                   <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground truncate">All Time Rev</p>
-                  <p className="text-base md:text-xl font-bold">{formatCurrency(allTimeTotal)}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {hasFilters ? "Filtered Rev" : "All Time Rev"}
+                  </p>
+                  <p className="text-base md:text-xl font-bold">
+                    {formatCurrency(hasFilters ? filteredTotal : allTimeTotal)}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -339,8 +343,12 @@ export default function OrderListPage() {
                   <ShoppingCart className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground truncate">All Time Ord</p>
-                  <p className="text-base md:text-xl font-bold">{allTimeCount}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {hasFilters ? "Filtered Ord" : "All Time Ord"}
+                  </p>
+                  <p className="text-base md:text-xl font-bold">
+                    {hasFilters ? filteredCount : allTimeCount}
+                  </p>
                 </div>
               </div>
             </CardContent>
