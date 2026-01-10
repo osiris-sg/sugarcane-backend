@@ -295,7 +295,7 @@ export default function SalesOverviewPage() {
 
   useEffect(() => {
     fetchSalesData();
-  }, [dateRange, selectedDevice]);
+  }, [dateRange, selectedDevice, interval]);
 
   async function fetchDevices() {
     try {
@@ -376,28 +376,70 @@ export default function SalesOverviewPage() {
 
         // Create aligned chart data for both periods
         const chartData = [];
-        for (let i = 0; i < days; i++) {
-          // Current period date (from oldest to newest)
-          const currentDate = new Date(startDate);
-          currentDate.setDate(currentDate.getDate() + i);
-          const currentDateStr = currentDate.toISOString().split('T')[0];
+        const formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-          // Previous period date (same offset from prev start)
-          const previousDate = new Date(prevStartDate);
-          previousDate.setDate(previousDate.getDate() + i);
-          const previousDateStr = previousDate.toISOString().split('T')[0];
+        if (interval === 'weekly') {
+          // Aggregate by week
+          const numWeeks = Math.ceil(days / 7);
+          for (let w = 0; w < numWeeks; w++) {
+            let currentWeekTotal = 0;
+            let previousWeekTotal = 0;
+            let weekStartDate = new Date(startDate);
+            weekStartDate.setDate(weekStartDate.getDate() + (w * 7));
+            let prevWeekStartDate = new Date(prevStartDate);
+            prevWeekStartDate.setDate(prevWeekStartDate.getDate() + (w * 7));
 
-          // Format labels
-          const formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          const formatShort = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            // Sum up 7 days for each week
+            for (let d = 0; d < 7; d++) {
+              const dayOffset = w * 7 + d;
+              if (dayOffset >= days) break;
 
-          chartData.push({
-            current: (dailyTotals[currentDateStr] || 0) / 100,
-            previous: (prevDailyTotals[previousDateStr] || 0) / 100,
-            currentLabel: formatLabel(currentDate),
-            previousLabel: formatLabel(previousDate),
-            shortLabel: formatShort(currentDate),
-          });
+              const currentDate = new Date(startDate);
+              currentDate.setDate(currentDate.getDate() + dayOffset);
+              const currentDateStr = currentDate.toISOString().split('T')[0];
+              currentWeekTotal += dailyTotals[currentDateStr] || 0;
+
+              const previousDate = new Date(prevStartDate);
+              previousDate.setDate(previousDate.getDate() + dayOffset);
+              const previousDateStr = previousDate.toISOString().split('T')[0];
+              previousWeekTotal += prevDailyTotals[previousDateStr] || 0;
+            }
+
+            // Week end date for label
+            let weekEndDate = new Date(weekStartDate);
+            weekEndDate.setDate(weekEndDate.getDate() + 6);
+            if (weekEndDate > endDate) weekEndDate = endDate;
+
+            let prevWeekEndDate = new Date(prevWeekStartDate);
+            prevWeekEndDate.setDate(prevWeekEndDate.getDate() + 6);
+
+            chartData.push({
+              current: currentWeekTotal / 100,
+              previous: previousWeekTotal / 100,
+              currentLabel: `${formatLabel(weekStartDate)} - ${formatLabel(weekEndDate)}`,
+              previousLabel: `${formatLabel(prevWeekStartDate)} - ${formatLabel(prevWeekEndDate)}`,
+              shortLabel: formatLabel(weekStartDate),
+            });
+          }
+        } else {
+          // Daily - one point per day
+          for (let i = 0; i < days; i++) {
+            const currentDate = new Date(startDate);
+            currentDate.setDate(currentDate.getDate() + i);
+            const currentDateStr = currentDate.toISOString().split('T')[0];
+
+            const previousDate = new Date(prevStartDate);
+            previousDate.setDate(previousDate.getDate() + i);
+            const previousDateStr = previousDate.toISOString().split('T')[0];
+
+            chartData.push({
+              current: (dailyTotals[currentDateStr] || 0) / 100,
+              previous: (prevDailyTotals[previousDateStr] || 0) / 100,
+              currentLabel: formatLabel(currentDate),
+              previousLabel: formatLabel(previousDate),
+              shortLabel: formatLabel(currentDate),
+            });
+          }
         }
 
         // Calculate change percentage
@@ -495,10 +537,8 @@ export default function SalesOverviewPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="hourly">Hourly</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -554,10 +594,8 @@ export default function SalesOverviewPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="hourly">Hourly</SelectItem>
               <SelectItem value="daily">Daily</SelectItem>
               <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
             </SelectContent>
           </Select>
 
