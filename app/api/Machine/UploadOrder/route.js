@@ -1,5 +1,6 @@
 import { db, getDeviceNameById } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { sendAlert } from '@/lib/telegram';
 
 export async function POST(request) {
   try {
@@ -130,6 +131,45 @@ export async function POST(request) {
     }
 
     console.log('[UploadOrder] Order saved:', saved.id);
+
+    // Check for consecutive failed transactions (only if this was a failed order)
+    if (!orderSuccess) {
+      try {
+        // Get the last 11 orders for this device to check if we just hit 10 consecutive failures
+        const recentOrders = await db.order.findMany({
+          where: { deviceId },
+          orderBy: { createdAt: 'desc' },
+          take: 11,
+          select: { isSuccess: true },
+        });
+
+        // Only send alert when we hit EXACTLY 10 consecutive failures
+        // (first 10 are failed, and either there's no 11th order OR the 11th was successful)
+        if (recentOrders.length >= 10) {
+          const first10 = recentOrders.slice(0, 10);
+          const allFirst10Failed = first10.every(o => o.isSuccess === false);
+
+          // Check if the 11th order (if exists) was successful - meaning this is a new streak
+          const eleventhOrder = recentOrders[10];
+          const isNewStreak = !eleventhOrder || eleventhOrder.isSuccess === true;
+
+          if (allFirst10Failed && isNewStreak) {
+            // Send Telegram alert
+            const alertMessage = `⚠️ <b>Payment Processor Alert</b>\n\n` +
+              `Machine: <b>${deviceName}</b>\n` +
+              `Device ID: <code>${deviceId}</code>\n\n` +
+              `🔴 <b>10 consecutive failed transactions detected!</b>\n\n` +
+              `The payment processor for this machine might have an issue. Please check the device.`;
+
+            await sendAlert(alertMessage, 'fault');
+            console.log(`[UploadOrder] Sent consecutive failure alert for device ${deviceId}`);
+          }
+        }
+      } catch (alertError) {
+        console.error('[UploadOrder] Error checking consecutive failures:', alertError);
+        // Don't fail the request if alert fails
+      }
+    }
 
     return NextResponse.json({ success: true, orderId: saved.id });
   } catch (error) {
