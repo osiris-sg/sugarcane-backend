@@ -15,6 +15,7 @@ export async function GET(request) {
     const offset = (page - 1) * limit;
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const search = searchParams.get('search');
 
     // Get current user's role and group
     const { userId } = await auth();
@@ -97,6 +98,15 @@ export async function GET(request) {
       if (endDate) {
         where.createdAt.lte = new Date(endDate);
       }
+    }
+
+    // Add search filter (searches orderId, deviceId, deviceName)
+    if (search) {
+      where.OR = [
+        { orderId: { contains: search, mode: 'insensitive' } },
+        { deviceId: { contains: search, mode: 'insensitive' } },
+        { deviceName: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
     // Get total count for pagination

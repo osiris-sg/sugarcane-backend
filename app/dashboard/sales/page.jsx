@@ -115,6 +115,7 @@ export default function OrderListPage() {
 
   // Filters
   const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deviceFilter, setDeviceFilter] = useState("all");
   const [payWayFilter, setPayWayFilter] = useState("all");
   const [dateRange, setDateRange] = useState("all"); // all, today, week, month, custom
@@ -123,6 +124,14 @@ export default function OrderListPage() {
 
   // Sorting
   const { sortKey, sortDirection, handleSort, sortData } = useTableSort("createdAt", "desc");
+
+  // Debounce search text - wait 500ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchText);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   // Build query params for API call
   function buildQueryParams(page = 1) {
@@ -166,6 +175,11 @@ export default function OrderListPage() {
     // Add payment method filter
     if (payWayFilter !== "all") {
       params.set("payWay", payWayFilter);
+    }
+
+    // Add search filter
+    if (debouncedSearch) {
+      params.set("search", debouncedSearch);
     }
 
     return params.toString();
@@ -215,10 +229,15 @@ export default function OrderListPage() {
     fetchDevices();
   }, []);
 
+  // Reset to page 1 when filters change (except page itself)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [deviceFilter, dateRange, customStartDate, customEndDate, payWayFilter, debouncedSearch]);
+
   // Fetch orders when filters or page change
   useEffect(() => {
     fetchOrders(currentPage);
-  }, [deviceFilter, dateRange, customStartDate, customEndDate, payWayFilter, currentPage]);
+  }, [deviceFilter, dateRange, customStartDate, customEndDate, payWayFilter, debouncedSearch, currentPage]);
 
   function handleRefresh() {
     setRefreshing(true);
@@ -235,23 +254,8 @@ export default function OrderListPage() {
     setCurrentPage(1);
   }
 
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchText, deviceFilter, payWayFilter, dateRange, customStartDate, customEndDate]);
-
-  // Filter orders (only search text is client-side, rest are server-side)
-  const filteredOrders = orders.filter((order) => {
-    if (searchText) {
-      const search = searchText.toLowerCase();
-      return (
-        order.orderId?.toLowerCase().includes(search) ||
-        order.deviceId?.toLowerCase().includes(search) ||
-        order.deviceName?.toLowerCase().includes(search)
-      );
-    }
-    return true;
-  });
+  // All filtering is now server-side
+  const filteredOrders = orders;
 
   // Get unique payment methods from current orders (devices come from allDevices)
   const uniquePayWays = [...new Set(orders.map((o) => o.payWay).filter(Boolean))];
@@ -531,7 +535,7 @@ export default function OrderListPage() {
                       </Button>
                     )}
                     <span className="text-sm text-muted-foreground ml-auto">
-                      {searchText ? `${filteredOrders.length} on page` : `${totalCount} total`}
+                      {totalCount} total
                     </span>
                   </div>
                 </div>
