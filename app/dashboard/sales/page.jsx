@@ -541,7 +541,20 @@ export default function OrderListPage() {
         </Card>
 
         {/* Orders Table - Desktop */}
-        <Card className="hidden md:block">
+        <Card className="hidden md:block relative overflow-hidden">
+          {/* Loading bar */}
+          {refreshing && (
+            <div className="absolute top-0 left-0 right-0 h-1 bg-muted overflow-hidden z-10">
+              <div className="h-full bg-primary w-1/3 animate-pulse"
+                   style={{ animation: 'slide 1s ease-in-out infinite' }} />
+            </div>
+          )}
+          <style>{`
+            @keyframes slide {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(400%); }
+            }
+          `}</style>
           <CardContent className="p-0">
             <div className="max-h-[calc(100vh-420px)] overflow-auto">
               <Table>
@@ -651,6 +664,13 @@ export default function OrderListPage() {
 
         {/* Orders List - Mobile (Card view) */}
         <div className="md:hidden space-y-3">
+          {/* Loading bar - Mobile */}
+          {refreshing && (
+            <div className="h-1 bg-muted rounded overflow-hidden">
+              <div className="h-full bg-primary w-1/3"
+                   style={{ animation: 'slide 1s ease-in-out infinite' }} />
+            </div>
+          )}
           {sortedOrders.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
