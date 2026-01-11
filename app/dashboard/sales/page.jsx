@@ -100,14 +100,17 @@ const ITEMS_PER_PAGE = 50;
 
 export default function OrderListPage() {
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [allTimeTotal, setAllTimeTotal] = useState(0);
   const [allTimeCount, setAllTimeCount] = useState(0);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [monthlyCount, setMonthlyCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [allDevices, setAllDevices] = useState([]);
 
 
   // Filters
@@ -121,13 +124,58 @@ export default function OrderListPage() {
   // Sorting
   const { sortKey, sortDirection, handleSort, sortData } = useTableSort("createdAt", "desc");
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
+  // Build query params for API call
+  function buildQueryParams(page = 1) {
+    const params = new URLSearchParams();
+    params.set("limit", String(ITEMS_PER_PAGE));
+    params.set("page", String(page));
 
-  async function fetchOrders() {
+    // Add device filter
+    if (deviceFilter !== "all") {
+      params.set("deviceId", deviceFilter);
+    }
+
+    // Add date range filter
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (dateRange) {
+      case "today":
+        params.set("startDate", todayStart.toISOString());
+        break;
+      case "week":
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(weekStart.getDate() - 7);
+        params.set("startDate", weekStart.toISOString());
+        break;
+      case "month":
+        const monthStart = new Date(todayStart);
+        monthStart.setDate(monthStart.getDate() - 30);
+        params.set("startDate", monthStart.toISOString());
+        break;
+      case "custom":
+        if (customStartDate) {
+          params.set("startDate", new Date(customStartDate).toISOString());
+        }
+        if (customEndDate) {
+          params.set("endDate", new Date(customEndDate + "T23:59:59").toISOString());
+        }
+        break;
+    }
+
+    // Add payment method filter
+    if (payWayFilter !== "all") {
+      params.set("payWay", payWayFilter);
+    }
+
+    return params.toString();
+  }
+
+  async function fetchOrders(page = currentPage) {
     try {
-      const res = await fetch("/api/admin/orders?limit=500");
+      setRefreshing(true);
+      const queryString = buildQueryParams(page);
+      const res = await fetch(`/api/admin/orders?${queryString}`);
       const data = await res.json();
 
       if (data.success) {
@@ -136,14 +184,41 @@ export default function OrderListPage() {
         setAllTimeCount(data.allTimeCount || 0);
         setMonthlyTotal(data.monthlyTotal || 0);
         setMonthlyCount(data.monthlyCount || 0);
+        if (data.pagination) {
+          setTotalPages(data.pagination.totalPages || 1);
+          setTotalCount(data.pagination.totalCount || 0);
+        }
       }
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
       setRefreshing(false);
     }
   }
+
+  // Fetch all devices for filter dropdown
+  async function fetchDevices() {
+    try {
+      const res = await fetch("/api/admin/devices");
+      const data = await res.json();
+      if (data.success && data.devices) {
+        setAllDevices(data.devices.map(d => ({ id: d.deviceId, name: d.location || d.deviceId })));
+      }
+    } catch (error) {
+      console.error("Error fetching devices:", error);
+    }
+  }
+
+  // Fetch devices once on mount
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  // Fetch orders when filters or page change
+  useEffect(() => {
+    fetchOrders(currentPage);
+  }, [deviceFilter, dateRange, customStartDate, customEndDate, payWayFilter, currentPage]);
 
   function handleRefresh() {
     setRefreshing(true);
@@ -165,47 +240,8 @@ export default function OrderListPage() {
     setCurrentPage(1);
   }, [searchText, deviceFilter, payWayFilter, dateRange, customStartDate, customEndDate]);
 
-  // Get date range boundaries
-  function getDateRangeBounds() {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    switch (dateRange) {
-      case "today":
-        return { start: todayStart, end: null };
-      case "week":
-        const weekStart = new Date(todayStart);
-        weekStart.setDate(weekStart.getDate() - 7);
-        return { start: weekStart, end: null };
-      case "month":
-        const monthStart = new Date(todayStart);
-        monthStart.setDate(monthStart.getDate() - 30);
-        return { start: monthStart, end: null };
-      case "custom":
-        return {
-          start: customStartDate ? new Date(customStartDate) : null,
-          end: customEndDate ? new Date(customEndDate + "T23:59:59") : null,
-        };
-      default:
-        return { start: null, end: null };
-    }
-  }
-
-  // Filter orders
-  const { start: dateStart, end: dateEnd } = getDateRangeBounds();
+  // Filter orders (only search text is client-side, rest are server-side)
   const filteredOrders = orders.filter((order) => {
-    if (deviceFilter !== "all" && order.deviceId !== deviceFilter) {
-      return false;
-    }
-    if (payWayFilter !== "all" && order.payWay !== payWayFilter) {
-      return false;
-    }
-    // Date range filter
-    if (dateStart || dateEnd) {
-      const orderDate = new Date(order.createdAt);
-      if (dateStart && orderDate < dateStart) return false;
-      if (dateEnd && orderDate > dateEnd) return false;
-    }
     if (searchText) {
       const search = searchText.toLowerCase();
       return (
@@ -217,18 +253,15 @@ export default function OrderListPage() {
     return true;
   });
 
-  // Get unique devices and payment methods for filters
-  const uniqueDevices = [...new Map(orders.map((o) => [o.deviceId, { id: o.deviceId, name: o.deviceName }])).values()];
+  // Get unique payment methods from current orders (devices come from allDevices)
   const uniquePayWays = [...new Set(orders.map((o) => o.payWay).filter(Boolean))];
 
-  // Sort filtered orders
+  // Sort filtered orders (client-side sorting of current page)
   const sortedOrders = sortData(filteredOrders);
 
-  // Pagination
-  const totalPages = Math.ceil(sortedOrders.length / ITEMS_PER_PAGE);
+  // Server-side pagination - orders are already paginated from API
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedOrders = sortedOrders.slice(startIndex, endIndex);
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalCount);
 
   // Calculate stats based on filtered orders (only successful, non-free orders)
   const paidFilteredOrders = filteredOrders.filter((o) => o.payWay !== "1000" && o.isSuccess);
@@ -239,7 +272,7 @@ export default function OrderListPage() {
   const getFilterLabel = () => {
     const parts = [];
     if (deviceFilter !== "all") {
-      const device = uniqueDevices.find((d) => d.id === deviceFilter);
+      const device = allDevices.find((d) => d.id === deviceFilter);
       parts.push(device?.name || deviceFilter);
     }
     if (dateRange === "today") parts.push("Today");
@@ -278,7 +311,7 @@ export default function OrderListPage() {
     a.click();
   }
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -427,7 +460,7 @@ export default function OrderListPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Devices</SelectItem>
-                        {uniqueDevices.map((device) => (
+                        {allDevices.map((device) => (
                           <SelectItem key={device.id} value={device.id}>
                             {device.name || device.id}
                           </SelectItem>
@@ -498,7 +531,7 @@ export default function OrderListPage() {
                       </Button>
                     )}
                     <span className="text-sm text-muted-foreground ml-auto">
-                      {filteredOrders.length} of {orders.length}
+                      {searchText ? `${filteredOrders.length} on page` : `${totalCount} total`}
                     </span>
                   </div>
                 </div>
@@ -527,14 +560,14 @@ export default function OrderListPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedOrders.length === 0 ? (
+                  {sortedOrders.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                         No orders found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedOrders.map((order) => (
+                    sortedOrders.map((order) => (
                       <TableRow key={order.id} className={!order.isSuccess ? "bg-red-50" : ""}>
                         <TableCell className="font-mono text-xs">{order.orderId}</TableCell>
                         <TableCell className="font-mono text-sm">{order.deviceId}</TableCell>
@@ -587,26 +620,26 @@ export default function OrderListPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t px-4 py-3">
               <p className="text-sm text-muted-foreground">
-                Showing {startIndex + 1}-{Math.min(endIndex, sortedOrders.length)} of {sortedOrders.length}
+                Showing {startIndex + 1}-{endIndex} of {totalCount}
               </p>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
+                  disabled={currentPage === 1 || refreshing}
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Previous
                 </Button>
                 <span className="text-sm">
-                  Page {currentPage} of {totalPages}
+                  {refreshing ? "Loading..." : `Page ${currentPage} of ${totalPages}`}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
+                  disabled={currentPage === totalPages || refreshing}
                 >
                   Next
                   <ChevronRight className="h-4 w-4" />
@@ -618,14 +651,14 @@ export default function OrderListPage() {
 
         {/* Orders List - Mobile (Card view) */}
         <div className="md:hidden space-y-3">
-          {paginatedOrders.length === 0 ? (
+          {sortedOrders.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 No orders found
               </CardContent>
             </Card>
           ) : (
-            paginatedOrders.map((order) => (
+            sortedOrders.map((order) => (
               <Card key={order.id} className={!order.isSuccess ? "border-red-200 bg-red-50/50" : ""}>
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between mb-2">
@@ -678,18 +711,18 @@ export default function OrderListPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
+                disabled={currentPage === 1 || refreshing}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm text-muted-foreground">
-                {currentPage} / {totalPages}
+                {refreshing ? "..." : `${currentPage} / ${totalPages}`}
               </span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+                disabled={currentPage === totalPages || refreshing}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>

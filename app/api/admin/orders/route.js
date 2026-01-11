@@ -10,7 +10,9 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const payWay = searchParams.get('payWay'); // Filter by payment method (cash, card, etc.)
     const deviceId = searchParams.get('deviceId');
-    const limit = parseInt(searchParams.get('limit') || '100');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const page = parseInt(searchParams.get('page') || '1');
+    const offset = (page - 1) * limit;
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
@@ -97,11 +99,15 @@ export async function GET(request) {
       }
     }
 
-    // Fetch orders
+    // Get total count for pagination
+    const totalCount = await db.order.count({ where });
+
+    // Fetch orders with pagination
     const orders = await db.order.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: limit,
+      skip: offset,
     });
 
     // Get unique device IDs to fetch their groups
@@ -165,6 +171,12 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       orders: enrichedOrders,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      },
       allTimeTotal: allTimeStats._sum.amount || 0,
       allTimeCount: allTimeStats._count || 0,
       monthlyTotal: monthlyStats._sum.amount || 0,
