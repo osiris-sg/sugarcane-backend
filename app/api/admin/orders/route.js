@@ -47,14 +47,19 @@ export async function GET(request) {
     // Build where clause
     const where = {};
 
-    // Filter by success status (default: show all)
-    const successFilter = searchParams.get('isSuccess');
-    if (successFilter === 'true') {
+    // Filter by success status
+    // Franchisees can only see successful orders
+    if (!isAdmin) {
       where.isSuccess = true;
-    } else if (successFilter === 'false') {
-      where.isSuccess = false;
+    } else {
+      // Admins can filter by success status (default: show all)
+      const successFilter = searchParams.get('isSuccess');
+      if (successFilter === 'true') {
+        where.isSuccess = true;
+      } else if (successFilter === 'false') {
+        where.isSuccess = false;
+      }
     }
-    // If not specified, show all orders
 
     if (payWay) {
       where.payWay = payWay;
