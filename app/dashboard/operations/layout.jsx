@@ -218,17 +218,18 @@ export default function OperationsLayout({ children }) {
             <ChevronLeft className="h-4 w-4" />
             <span>Back to Dashboard</span>
           </Link>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground">
-            <UserButton afterSignOutUrl="/sign-in" />
-            <span>Account</span>
+          <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <UserButton afterSignOutUrl="/sign-in" />
+              <span>Account</span>
+            </div>
+            <button
+              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-red-600"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            onClick={() => signOut({ redirectUrl: "/sign-in" })}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </button>
         </div>
       </aside>
 
@@ -281,23 +282,31 @@ export default function OperationsLayout({ children }) {
           </Link>
           <div
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground",
+              "flex items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground",
               isCollapsed && "justify-center"
             )}
           >
-            <UserButton afterSignOutUrl="/sign-in" />
-            {!isCollapsed && <span>Account</span>}
+            <div className="flex items-center gap-2">
+              <UserButton afterSignOutUrl="/sign-in" />
+              {!isCollapsed && <span>Account</span>}
+            </div>
+            {!isCollapsed && (
+              <button
+                onClick={() => signOut({ redirectUrl: "/sign-in" })}
+                className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-red-600"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            )}
           </div>
-          <button
-            onClick={() => signOut({ redirectUrl: "/sign-in" })}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600",
-              isCollapsed && "justify-center"
-            )}
-          >
-            <LogOut className="h-4 w-4" />
-            {!isCollapsed && <span>Logout</span>}
-          </button>
+          {isCollapsed && (
+            <button
+              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </aside>
 
