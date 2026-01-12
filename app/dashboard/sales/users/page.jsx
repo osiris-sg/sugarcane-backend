@@ -175,10 +175,10 @@ export default function UsersPage() {
     });
   }
 
-  const ownerCount = users.filter((u) => u.role === "owner").length;
-  const franchiseeCount = users.filter((u) => u.role === "franchisee").length;
-  const opsmanagerCount = users.filter((u) => u.role === "opsmanager").length;
-  const driverCount = users.filter((u) => u.role === "driver").length;
+  const ownerCount = users.filter((u) => ["owner", "admin", "OWNER", "ADMIN"].includes(u.role)).length;
+  const franchiseeCount = users.filter((u) => ["franchisee", "FRANCHISEE"].includes(u.role)).length;
+  const opsmanagerCount = users.filter((u) => ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(u.role)).length;
+  const driverCount = users.filter((u) => ["driver", "DRIVER"].includes(u.role)).length;
 
   // Pagination
   const { totalItems, totalPages, getPageItems } = usePagination(users, ITEMS_PER_PAGE);
