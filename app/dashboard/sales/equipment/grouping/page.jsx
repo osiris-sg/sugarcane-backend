@@ -217,8 +217,26 @@ export default function DeviceGroupingPage() {
     }
   };
 
-  const removeDeviceFromGroup = async (deviceId) => {
-    await assignDeviceToGroup(deviceId, null);
+  const removeDeviceFromGroup = async (deviceId, groupId) => {
+    try {
+      const device = devices.find((d) => d.id === deviceId);
+      if (!device) return;
+
+      const res = await fetch("/api/admin/devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceId: device.deviceId,
+          removeFromGroupId: groupId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Error removing device from group:", error);
+    }
   };
 
   const unassignedDevices = devices.filter((d) => !d.groupId);
@@ -461,7 +479,7 @@ export default function DeviceGroupingPage() {
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                    onClick={() => removeDeviceFromGroup(device.id)}
+                                    onClick={() => removeDeviceFromGroup(device.id, group.id)}
                                   >
                                     <X className="h-4 w-4" />
                                   </Button>

@@ -8,15 +8,16 @@ export async function GET(request) {
   try {
     const groups = await db.group.findMany({
       include: {
-        _count: {
-          select: { devices: true }
-        },
         devices: {
-          select: {
-            id: true,
-            deviceId: true,
-            deviceName: true,
-            location: true,
+          include: {
+            device: {
+              select: {
+                id: true,
+                deviceId: true,
+                deviceName: true,
+                location: true,
+              }
+            }
           }
         }
       },
@@ -26,8 +27,13 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       groups: groups.map(g => ({
-        ...g,
-        deviceCount: g._count.devices,
+        id: g.id,
+        name: g.name,
+        createdAt: g.createdAt,
+        updatedAt: g.updatedAt,
+        deviceCount: g.devices.length,
+        // Flatten device info from the join table
+        devices: g.devices.map(dg => dg.device),
       })),
       count: groups.length,
     });
@@ -84,13 +90,8 @@ export async function DELETE(request) {
       );
     }
 
-    // First, unassign all devices from this group
-    await db.device.updateMany({
-      where: { groupId },
-      data: { groupId: null },
-    });
-
-    // Then delete the group
+    // DeviceGroup entries will be cascade deleted due to onDelete: Cascade
+    // Just delete the group
     await db.group.delete({
       where: { id: groupId },
     });
@@ -125,11 +126,22 @@ export async function PATCH(request) {
       );
     }
 
-    // Update devices to belong to this group
-    await db.device.updateMany({
-      where: { id: { in: deviceIds } },
-      data: { groupId },
-    });
+    // Create DeviceGroup entries for each device
+    for (const deviceId of deviceIds) {
+      await db.deviceGroup.upsert({
+        where: {
+          deviceId_groupId: {
+            deviceId,
+            groupId,
+          }
+        },
+        create: {
+          deviceId,
+          groupId,
+        },
+        update: {},
+      });
+    }
 
     return NextResponse.json({
       success: true,

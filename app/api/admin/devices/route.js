@@ -121,7 +121,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, location, price, isActive, groupId } = body;
+    const { deviceId, deviceName, location, price, isActive, groupId, removeFromGroupId } = body;
 
     if (!deviceId) {
       return NextResponse.json(
@@ -189,25 +189,32 @@ export async function POST(request) {
       },
     });
 
+    // Handle removing device from a specific group
+    if (removeFromGroupId) {
+      await db.deviceGroup.deleteMany({
+        where: {
+          deviceId: device.id,
+          groupId: removeFromGroupId,
+        }
+      });
+    }
+
     // Handle group assignment via many-to-many
-    if (groupId !== undefined) {
-      if (groupId) {
-        // Add device to this group (if not already)
-        await db.deviceGroup.upsert({
-          where: {
-            deviceId_groupId: {
-              deviceId: device.id,
-              groupId: groupId,
-            }
-          },
-          create: {
+    if (groupId !== undefined && groupId) {
+      // Add device to this group (if not already)
+      await db.deviceGroup.upsert({
+        where: {
+          deviceId_groupId: {
             deviceId: device.id,
             groupId: groupId,
-          },
-          update: {},
-        });
-      }
-      // Note: We don't remove from other groups here to support multi-group
+          }
+        },
+        create: {
+          deviceId: device.id,
+          groupId: groupId,
+        },
+        update: {},
+      });
     }
 
     // Fetch updated device with groups
