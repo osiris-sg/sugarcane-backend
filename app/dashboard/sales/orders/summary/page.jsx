@@ -35,6 +35,7 @@ export default function OrderSummaryPage() {
   const { user } = useUser();
   const role = user?.publicMetadata?.role || "franchisee";
   const isAdmin = role === "owner" || role === "admin";
+  const isPartnerships = role === "partnerships";
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [period, setPeriod] = useState("day");
@@ -206,22 +207,24 @@ export default function OrderSummaryPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Group</label>
-                  <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="All Groups" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Groups</SelectItem>
-                      {data?.filters?.groups?.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {!isPartnerships && (
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Group</label>
+                    <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All Groups" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Groups</SelectItem>
+                        {data?.filters?.groups?.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Device</label>
@@ -316,22 +319,24 @@ export default function OrderSummaryPage() {
               )}
 
               {/* Group Filter */}
-              <div className="space-y-1">
-                <label className="text-sm text-muted-foreground">Group</label>
-                <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="All Groups" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Groups</SelectItem>
-                    {data?.filters?.groups?.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isPartnerships && (
+                <div className="space-y-1">
+                  <label className="text-sm text-muted-foreground">Group</label>
+                  <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="All Groups" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Groups</SelectItem>
+                      {data?.filters?.groups?.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Device Filter */}
               <div className="space-y-1">
@@ -498,7 +503,7 @@ export default function OrderSummaryPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Device</TableHead>
-                    <TableHead>Group</TableHead>
+                    {!isPartnerships && <TableHead>Group</TableHead>}
                     <TableHead className="text-right">Total Sales</TableHead>
                     <TableHead className="text-right">Total Cups</TableHead>
                     <TableHead className="text-right">Orders</TableHead>
@@ -515,11 +520,13 @@ export default function OrderSummaryPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {item.groupName || (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
+                      {!isPartnerships && (
+                        <TableCell>
+                          {item.groupName || (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right font-medium">
                         {formatCurrency(item.totalSales)}
                       </TableCell>
@@ -535,7 +542,7 @@ export default function OrderSummaryPage() {
                   {data?.summary?.length > 1 && (
                     <TableRow className="bg-muted/50 font-semibold">
                       <TableCell>Total</TableCell>
-                      <TableCell></TableCell>
+                      {!isPartnerships && <TableCell></TableCell>}
                       <TableCell className="text-right">
                         {formatCurrency(data?.totals?.totalSales || 0)}
                       </TableCell>
@@ -656,7 +663,7 @@ export default function OrderSummaryPage() {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-medium text-sm">{item.deviceName}</p>
-                        <p className="text-xs text-muted-foreground">{item.groupName || "-"}</p>
+                        {!isPartnerships && <p className="text-xs text-muted-foreground">{item.groupName || "-"}</p>}
                       </div>
                       <p className="text-lg font-bold">{formatCurrency(item.totalSales)}</p>
                     </div>

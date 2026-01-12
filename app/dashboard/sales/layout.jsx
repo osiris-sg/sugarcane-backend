@@ -46,6 +46,7 @@ const sidebarItemsPartnerships = [
     title: "Order Management",
     icon: ClipboardList,
     children: [
+      { title: "Order List", href: "/dashboard/sales", icon: FileText },
       { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
     ],
   },
