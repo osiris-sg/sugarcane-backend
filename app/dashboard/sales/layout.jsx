@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useUser, useClerk } from "@clerk/nextjs";
+import { useUser, useClerk, UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Monitor,
@@ -24,6 +24,7 @@ import {
   LogOut,
   Menu,
   X,
+  User,
 } from "lucide-react";
 import { NotificationToggle } from "@/components/notification-toggle";
 import { cn } from "@/lib/utils";
@@ -261,6 +262,15 @@ export default function SalesLayout({ children }) {
             <ChevronLeft className="h-4 w-4" />
             {!isCollapsed && <span>Back to Dashboard</span>}
           </Link>
+          <div
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground",
+              isCollapsed && "justify-center"
+            )}
+          >
+            <UserButton afterSignOutUrl="/sign-in" />
+            {!isCollapsed && <span>Account</span>}
+          </div>
           <button
             onClick={() => signOut({ redirectUrl: "/sign-in" })}
             className={cn(
@@ -304,6 +314,10 @@ export default function SalesLayout({ children }) {
             <ChevronLeft className="h-4 w-4" />
             <span>Back to Dashboard</span>
           </Link>
+          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground">
+            <UserButton afterSignOutUrl="/sign-in" />
+            <span>Account</span>
+          </div>
           <button
             onClick={() => signOut({ redirectUrl: "/sign-in" })}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600"
