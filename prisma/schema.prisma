@@ -1,6 +1,3 @@
-// Prisma schema for Sugarcane Backend
-// Uses Neon DB (PostgreSQL)
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,30 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Telegram subscriber roles
-enum SubscriberRole {
-  ADMIN       // Full access to all notifications
-  OPSMANAGER  // Operations manager
-  DAYOPS      // Day shift operations
-  NIGHTOPS    // Night shift operations
-}
-
-// Telegram subscribers
 model Subscriber {
-  id           String          @id @default(cuid())
-  chatId       String          @unique
-  username     String?
-  firstName    String?
-  lastName     String?
-  role         SubscriberRole?  // null = pending approval
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id        String          @id @default(cuid())
+  chatId    String          @unique
+  username  String?
+  firstName String?
+  lastName  String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  role      SubscriberRole?
 
   @@index([chatId])
   @@index([role])
 }
 
-// Pending password verification for maintenance subscription
 model PendingVerification {
   id        String   @id @default(cuid())
   chatId    String   @unique
@@ -43,216 +30,168 @@ model PendingVerification {
   @@index([chatId])
 }
 
-// Notification log (optional - for tracking sent notifications)
 model NotificationLog {
-  id          String   @id @default(cuid())
-  type        String   // "stock", "fault", "maintenance_login", "topup"
-  deviceId    String?
-  deviceName  String?
-  message     String
-  recipients  Int      // Number of recipients sent to
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  type       String
+  deviceId   String?
+  deviceName String?
+  message    String
+  recipients Int
+  createdAt  DateTime @default(now())
 
   @@index([type, createdAt])
 }
 
-// Maintenance login tracking
 model MaintenanceLogin {
-  id          String   @id @default(cuid())
-  deviceId    String            // Terminal ID
-  deviceName  String            // Device display name
-  userId      String?           // User ID if driver login
-  userName    String            // "Kumara Guru", "Maintenance", "Admin"
-  pin         String?           // PIN used (for audit)
-  loginType   String            // "driver", "maintenance", "admin"
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  deviceId   String
+  deviceName String
+  userId     String?
+  userName   String
+  pin        String?
+  loginType  String
+  createdAt  DateTime @default(now())
 
   @@index([deviceId, createdAt])
   @@index([userId])
   @@index([createdAt])
 }
 
-// Franchisee groups
 model Group {
-  id          String   @id @default(cuid())
-  name        String   @unique  // Franchisee name (e.g., "Jeffrey", "Trevors")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  devices     Device[]
-  users       User[]
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  devices   Device[]
+  users     User[]
 }
 
-// Device configuration (price, name linked to device ID)
 model Device {
-  id          String   @id @default(cuid())
-  deviceId    String   @unique  // Terminal ID from the vending machine
-  deviceName  String            // Display name (e.g., "VY06 The Octagon")
-  location    String?           // Location (e.g., "116 Jln Tenteram")
-  price       Int               // Price in cents (e.g., 250 = $2.50)
-  isActive    Boolean  @default(false)  // Only activated when device reports temperature
-  groupId     String?           // Foreign key to Group (Franchisee)
-  group       Group?   @relation(fields: [groupId], references: [id])
-  driverId    String?           // Clerk user ID for assigned driver
-
-  // GPS coordinates (reported by app on startup)
-  latitude    Float?            // GPS latitude
-  longitude   Float?            // GPS longitude
-  gpsUpdatedAt DateTime?        // When GPS was last updated
-
-  // Temperature readings (updated on each D002 event)
-  refrigerationTemp   Float?    // Refrigeration compartment temperature
-  machineTemp         Float?    // Machine/ambient temperature
-  tempUpdatedAt       DateTime? // When temperature was last updated
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String    @id @default(cuid())
+  deviceId          String    @unique
+  deviceName        String
+  price             Int
+  isActive          Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  location          String?
+  groupId           String?
+  driverId          String?
+  machineTemp       Float?
+  refrigerationTemp Float?
+  tempUpdatedAt     DateTime?
+  gpsUpdatedAt      DateTime?
+  latitude          Float?
+  longitude         Float?
+  group             Group?    @relation(fields: [groupId], references: [id])
 
   @@index([deviceId])
   @@index([groupId])
   @@index([driverId])
 }
 
-// Stock levels for each device
 model Stock {
-  id          String    @id @default(cuid())
-  deviceId    String    @unique  // Terminal ID from the vending machine
-  deviceName  String             // Display name for easy reference
-  quantity    Int       @default(0)   // Current stock count
-  maxStock    Int       @default(80)  // Maximum stock capacity
-  lastAlertAt DateTime?              // When last recurring alert was sent
-  alertLevel  String?                // Current alert level (25/15/0)
-  lastSaleAt  DateTime?              // When last sale occurred (for zero sales alert)
-
-  // Low stock tracking (same escalation as issues)
-  isLowStock          Boolean   @default(false)  // Currently in low stock state
-  lowStockTriggeredAt DateTime?                  // When low stock was first detected
-  priority            Int       @default(1)      // 1=Low, 2=Med, 3=High
-  remindersTodayCount Int       @default(0)      // Reminders sent today (max 3)
-  reminderResetDate   DateTime?                  // Date when counter was last reset
-
-  updatedAt   DateTime  @updatedAt
-  createdAt   DateTime  @default(now())
+  id                  String    @id @default(cuid())
+  deviceId            String    @unique
+  deviceName          String
+  quantity            Int       @default(0)
+  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime  @default(now())
+  alertLevel          String?
+  lastAlertAt         DateTime?
+  maxStock            Int       @default(80)
+  lastSaleAt          DateTime?
+  isLowStock          Boolean   @default(false)
+  lowStockTriggeredAt DateTime?
+  priority            Int       @default(1)
+  reminderResetDate   DateTime?
+  remindersTodayCount Int       @default(0)
 
   @@index([deviceId])
 }
 
-// Orders from vending machines
 model Order {
-  id            String   @id @default(cuid())
-  orderId       String            // Original order ID from device
-  deviceId      String            // Terminal ID
-  deviceName    String            // Device display name (location)
-  amount        Int               // Final amount in cents (after correction)
-  payAmount     Int?              // Raw payment amount from device (may be 100x)
-  refundAmount  Int?              // Refund amount if any
-  quantity      Int      @default(1)  // Number of items delivered
-  totalCount    Int?              // Total items ordered
-  deliverCount  Int?              // Items actually delivered
-  payWay        String?           // Payment method (1=cash, 2=cashless, etc.)
-  isSuccess     Boolean  @default(true)  // true=success, false=failed
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  orderId      String
+  deviceId     String
+  deviceName   String
+  amount       Int
+  quantity     Int      @default(1)
+  payWay       String?
+  isSuccess    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  deliverCount Int?
+  payAmount    Int?
+  refundAmount Int?
+  totalCount   Int?
 
   @@index([deviceId, createdAt])
   @@index([createdAt])
   @@index([isSuccess])
 }
 
-// Stock history log (for tracking changes)
 model StockHistory {
   id          String   @id @default(cuid())
   deviceId    String
   deviceName  String
-  previousQty Int              // Stock before change
-  newQty      Int              // Stock after change
-  change      Int              // Difference (+/-)
-  reason      String           // "sale", "topup", "remove", "convert", "adjustment"
+  previousQty Int
+  newQty      Int
+  change      Int
+  reason      String
   createdAt   DateTime @default(now())
 
   @@index([deviceId, createdAt])
 }
 
-// Storage levels for each device (raw sugarcane stored locally)
 model Storage {
-  id          String    @id @default(cuid())
-  deviceId    String    @unique  // Terminal ID from the vending machine
-  deviceName  String             // Display name for easy reference
-  quantity    Int       @default(0)   // Current storage count
-  updatedAt   DateTime  @updatedAt
-  createdAt   DateTime  @default(now())
+  id         String   @id @default(cuid())
+  deviceId   String   @unique
+  deviceName String
+  quantity   Int      @default(0)
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
 
   @@index([deviceId])
 }
 
-// Storage history log (for tracking changes)
 model StorageHistory {
   id          String   @id @default(cuid())
   deviceId    String
   deviceName  String
-  previousQty Int              // Storage before change
-  newQty      Int              // Storage after change
-  change      Int              // Difference (+/-)
-  reason      String           // "add", "remove", "convert"
+  previousQty Int
+  newQty      Int
+  change      Int
+  reason      String
   createdAt   DateTime @default(now())
 
   @@index([deviceId, createdAt])
 }
 
-// Issue types for maintenance tracking
-enum IssueType {
-  DEVICE_ERROR    // Device fault codes (E316, etc.)
-  ZERO_SALES      // Zero sales detected by cron
-}
-
-// Issue status workflow
-enum IssueStatus {
-  OPEN            // Issue created, not yet responded to
-  CHECKING        // Staff is checking (responded)
-  RESOLVED        // Issue resolved
-  UNRESOLVED      // Issue not resolved, escalated to manager
-  MACHINE_OK      // Machine is working fine (false alarm)
-}
-
-// Issue tracking for device errors and zero sales
 model Issue {
-  id                String      @id @default(cuid())
-  deviceId          String
-  deviceName        String
-  type              IssueType
-
-  // For DEVICE_ERROR type
-  faultCode         String?     // E.g., "E316", "E50D"
-  faultName         String?     // E.g., "Fruits out of stock"
-  orderId           String?     // Associated order if any
-
-  // For ZERO_SALES type
-  timeBlock         String?     // E.g., "8am-10am"
-  stockQuantity     Int?        // Stock level when zero sales detected
-  stockMax          Int?        // Max stock capacity
-
-  // Timestamps for KPI tracking
-  triggeredAt       DateTime    @default(now())  // When issue was detected
-  respondedAt       DateTime?   // When staff clicked "Checking"
-  resolvedAt        DateTime?   // When staff clicked Resolved/Unresolved
-
-  // Computed KPIs (stored for reporting)
-  responseTimeMs    Int?        // respondedAt - triggeredAt
-  resolutionTimeMs  Int?        // resolvedAt - respondedAt
-
-  // Priority level: 1=Low, 2=Medium, 3=High
-  priority          Int         @default(1)
-
-  // Resolution info
-  status            IssueStatus @default(OPEN)
-  resolution        String?     // "resolved" or "unresolved"
-
-  // Reminder tracking (max 3 per day, then escalate to priority 2)
-  lastReminderAt      DateTime?   // When last reminder was sent
-  reminderCount       Int         @default(0)  // Total reminders sent
-  remindersTodayCount Int         @default(0)  // Reminders sent today (resets daily)
-  reminderResetDate   DateTime?   // Date when remindersTodayCount was last reset
-
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                  String      @id @default(cuid())
+  deviceId            String
+  deviceName          String
+  type                IssueType
+  faultCode           String?
+  faultName           String?
+  orderId             String?
+  timeBlock           String?
+  triggeredAt         DateTime    @default(now())
+  respondedAt         DateTime?
+  resolvedAt          DateTime?
+  responseTimeMs      Int?
+  resolutionTimeMs    Int?
+  status              IssueStatus @default(OPEN)
+  resolution          String?
+  lastReminderAt      DateTime?
+  reminderCount       Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  priority            Int         @default(1)
+  reminderResetDate   DateTime?
+  remindersTodayCount Int         @default(0)
+  stockMax            Int?
+  stockQuantity       Int?
 
   @@index([deviceId, status])
   @@index([type, status])
@@ -260,109 +199,79 @@ model Issue {
   @@index([status, lastReminderAt])
 }
 
-// Location history for tracking device movements
 model LocationHistory {
-  id          String   @id @default(cuid())
-  deviceId    String
-  location    String            // Location name
-  startedAt   DateTime @default(now())  // When device was placed at this location
-  endedAt     DateTime?         // When device was moved (null if current)
-  durationMs  Int?              // How long it was at this location
+  id         String    @id @default(cuid())
+  deviceId   String
+  location   String
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  durationMs Int?
 
   @@index([deviceId, startedAt])
 }
 
-// Maintenance activity log (for clean/wash down and customer feedback)
 model MaintenanceActivity {
-  id              String    @id @default(cuid())
-  deviceId        String
-  deviceName      String
-  activityType    String    // "clean_wash" or "customer_feedback"
-
-  startedAt       DateTime
-  completedAt     DateTime?
-  durationMs      Int?      // completedAt - startedAt
-
-  status          String    // "in_progress", "completed", "unresolved"
-  notes           String?
-
-  createdAt       DateTime  @default(now())
+  id           String    @id @default(cuid())
+  deviceId     String
+  deviceName   String
+  activityType String
+  startedAt    DateTime
+  completedAt  DateTime?
+  durationMs   Int?
+  status       String
+  notes        String?
+  createdAt    DateTime  @default(now())
 
   @@index([deviceId, activityType])
   @@index([createdAt])
 }
 
-// Temperature readings from devices (reported on D002 - door closed)
 model Temperature {
-  id                  String   @id @default(cuid())
-  deviceId            String
-  deviceName          String
-  refrigerationTemp   Float    // Refrigeration compartment temperature
-  machineTemp         Float    // Machine/ambient temperature
-  createdAt           DateTime @default(now())
+  id                String   @id @default(cuid())
+  deviceId          String
+  deviceName        String
+  refrigerationTemp Float
+  machineTemp       Float
+  createdAt         DateTime @default(now())
 
   @@index([deviceId, createdAt])
 }
 
-// Temperature alert types
-enum TemperatureAlertType {
-  TEMPERATURE_RISING    // Temp still rising after 5 min post Z008->D002
-  THRESHOLD_EXCEEDED    // Temp above configured threshold
-}
-
-// Temperature alert status
-enum TemperatureAlertStatus {
-  OPEN        // Alert created, needs attention
-  ACKNOWLEDGED // Staff has seen it
-  RESOLVED    // Issue resolved
-}
-
-// Temperature alerts (when temp anomaly detected)
 model TemperatureAlert {
-  id              String                   @id @default(cuid())
-  deviceId        String
-  deviceName      String
-  currentTemp1    Float                    // Current refrigeration temp
-  currentTemp2    Float                    // Current machine temp
-  initialTemp1    Float                    // Initial temp at Z008
-  initialTemp2    Float                    // Initial temp at Z008
-  reason          String                   // Description of why alert triggered
-  alertType       String                   // TEMPERATURE_RISING or THRESHOLD_EXCEEDED
-  status          String                   @default("OPEN")
-  acknowledgedAt  DateTime?
-  resolvedAt      DateTime?
-  createdAt       DateTime                 @default(now())
+  id             String    @id @default(cuid())
+  deviceId       String
+  deviceName     String
+  currentTemp1   Float
+  currentTemp2   Float
+  initialTemp1   Float
+  initialTemp2   Float
+  reason         String
+  alertType      String
+  status         String    @default("OPEN")
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
 
   @@index([deviceId, status])
   @@index([createdAt])
 }
 
-// User roles
-enum UserRole {
-  ADMIN         // Full access
-  MANAGER       // Operations manager
-  FINANCE       // Finance - sales access only, can see all devices
-  FRANCHISEE    // Franchisee owner
-  DRIVER        // Driver/operator
-}
-
-// Users synced from Clerk
 model User {
-  id            String    @id @default(cuid())
-  clerkId       String    @unique              // Clerk user ID
-  username      String    @unique
-  firstName     String?
-  lastName      String?
-  role          UserRole  @default(FRANCHISEE)
-  phone         String?
-  imageUrl      String?
-  isActive      Boolean   @default(true)
-  loginPin      String?                        // 4-digit PIN for driver login
-  groupId       String?                        // Franchisee's assigned group
-  group         Group?    @relation(fields: [groupId], references: [id])
-  lastSignInAt  DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  clerkId      String    @unique
+  firstName    String?
+  lastName     String?
+  role         UserRole  @default(FRANCHISEE)
+  phone        String?
+  imageUrl     String?
+  isActive     Boolean   @default(true)
+  lastSignInAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  loginPin     String?
+  username     String    @unique
+  groupId      String?
+  group        Group?    @relation(fields: [groupId], references: [id])
 
   @@index([clerkId])
   @@index([username])
@@ -371,49 +280,84 @@ model User {
   @@index([groupId])
 }
 
-// Push notification subscriptions for PWA
 model PushSubscription {
   id        String   @id @default(cuid())
-  clerkId   String                        // Clerk user ID
-  endpoint  String   @unique              // Push service endpoint
-  p256dh    String                        // Public key for encryption
-  auth      String                        // Auth secret for encryption
+  clerkId   String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([clerkId])
 }
 
-// OTA update status
-enum OtaStatus {
-  SCHEDULED       // Waiting to be triggered
-  TRIGGERED       // Update has been triggered
-  CANCELLED       // Cancelled before trigger
-}
-
-// Scheduled OTA updates
 model ScheduledOta {
-  id            String    @id @default(cuid())
-  devices       String[]              // Array of device IDs, empty = all devices
-  scheduledAt   DateTime              // When to trigger (in UTC)
-  status        OtaStatus @default(SCHEDULED)
-  triggeredAt   DateTime?             // When actually triggered
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  notes         String?               // Optional notes about this OTA
+  id          String    @id @default(cuid())
+  devices     String[]
+  scheduledAt DateTime
+  status      OtaStatus @default(SCHEDULED)
+  triggeredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  notes       String?
 
   @@index([status, scheduledAt])
 }
 
-// OTA Config - stored in database to persist across serverless instances
 model OtaConfig {
-  id              String    @id @default("singleton")  // Always use "singleton" as ID
-  version         String    @default("1.0.0")
-  versionCode     Int       @default(1)
-  apkUrl          String    @default("https://sugarcane-backend-five.vercel.app/api/app/download")
-  releaseNotes    String    @default("Initial release")
-  forceUpdate     Boolean   @default(false)
-  triggerUpdate   String[]  @default([])              // Empty = no trigger, ["all"] = all devices, or device IDs
+  id               String   @id @default("singleton")
+  version          String   @default("1.0.0")
+  versionCode      Int      @default(1)
+  apkUrl           String   @default("https://sugarcane-backend-five.vercel.app/api/app/download")
+  releaseNotes     String   @default("Initial release")
+  forceUpdate      Boolean  @default(false)
+  triggerUpdate    String[] @default([])
   triggerTimestamp BigInt?
-  updatedAt       DateTime  @updatedAt
+  updatedAt        DateTime @updatedAt
+}
+
+enum SubscriberRole {
+  ADMIN
+  OPSMANAGER
+  DAYOPS
+  NIGHTOPS
+}
+
+enum IssueType {
+  DEVICE_ERROR
+  ZERO_SALES
+}
+
+enum IssueStatus {
+  OPEN
+  CHECKING
+  RESOLVED
+  UNRESOLVED
+  MACHINE_OK
+}
+
+enum TemperatureAlertType {
+  TEMPERATURE_RISING
+  THRESHOLD_EXCEEDED
+}
+
+enum TemperatureAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  FRANCHISEE
+  DRIVER
+  FINANCE
+}
+
+enum OtaStatus {
+  SCHEDULED
+  TRIGGERED
+  CANCELLED
 }

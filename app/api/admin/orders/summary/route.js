@@ -117,9 +117,9 @@ export async function GET(request) {
       orderWhere.deviceId = { in: deviceIds };
     }
 
-    // Aggregate orders by device
+    // Aggregate orders by deviceId only (not deviceName, as orders may have inconsistent names)
     const ordersByDevice = await db.order.groupBy({
-      by: ['deviceId', 'deviceName'],
+      by: ['deviceId'],
       where: orderWhere,
       _sum: {
         amount: true,
@@ -128,10 +128,10 @@ export async function GET(request) {
       _count: true,
     });
 
-    // Combine with device info
+    // Combine with device info - use device name from Device table, not orders
     const summary = ordersByDevice.map(item => ({
       deviceId: item.deviceId,
-      deviceName: item.deviceName,
+      deviceName: deviceMap[item.deviceId]?.location || deviceMap[item.deviceId]?.deviceName || item.deviceId,
       location: deviceMap[item.deviceId]?.location || null,
       groupId: deviceMap[item.deviceId]?.groupId || null,
       groupName: deviceMap[item.deviceId]?.groupName || null,
