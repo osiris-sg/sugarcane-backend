@@ -58,24 +58,36 @@ model MaintenanceLogin {
 }
 
 model Group {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  devices   Device[]
+  id        String        @id @default(cuid())
+  name      String        @unique
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  devices   DeviceGroup[]
   users     User[]
 }
 
+model DeviceGroup {
+  id        String   @id @default(cuid())
+  deviceId  String
+  groupId   String
+  createdAt DateTime @default(now())
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, groupId])
+  @@index([deviceId])
+  @@index([groupId])
+}
+
 model Device {
-  id                String    @id @default(cuid())
-  deviceId          String    @unique
+  id                String        @id @default(cuid())
+  deviceId          String        @unique
   deviceName        String
   price             Int
-  isActive          Boolean   @default(false)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  isActive          Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
   location          String?
-  groupId           String?
   driverId          String?
   machineTemp       Float?
   refrigerationTemp Float?
@@ -83,10 +95,9 @@ model Device {
   gpsUpdatedAt      DateTime?
   latitude          Float?
   longitude         Float?
-  group             Group?    @relation(fields: [groupId], references: [id])
+  groups            DeviceGroup[]
 
   @@index([deviceId])
-  @@index([groupId])
   @@index([driverId])
 }
 

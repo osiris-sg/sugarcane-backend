@@ -70,10 +70,10 @@ export async function GET(request) {
         dateTo = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     }
 
-    // Get devices with their groups (for filtering and display)
+    // Get devices with their groups (for filtering and display) - using many-to-many
     const deviceWhere = {};
     if (groupId) {
-      deviceWhere.groupId = groupId;
+      deviceWhere.groups = { some: { groupId: groupId } };
     }
     if (deviceId) {
       deviceWhere.deviceId = deviceId;
@@ -81,17 +81,21 @@ export async function GET(request) {
 
     const devices = await db.device.findMany({
       where: deviceWhere,
-      include: { group: true },
+      include: {
+        groups: { include: { group: true } }
+      },
     });
 
     // Create a map of deviceId to device info
     const deviceMap = {};
     devices.forEach(d => {
+      // Use first group for backward compatibility
+      const primaryGroup = d.groups[0]?.group || null;
       deviceMap[d.deviceId] = {
         deviceName: d.deviceName,
         location: d.location,
-        groupId: d.groupId,
-        groupName: d.group?.name || null,
+        groupId: primaryGroup?.id || null,
+        groupName: primaryGroup?.name || null,
       };
     });
 
@@ -155,17 +159,25 @@ export async function GET(request) {
       orderBy: { name: 'asc' },
     });
 
-    // Get devices for filter dropdown (franchisees only see their own devices)
-    const devicesWhere = userGroupId ? { groupId: userGroupId } : {};
+    // Get devices for filter dropdown (franchisees only see their own devices) - using many-to-many
+    const devicesWhere = userGroupId
+      ? { groups: { some: { groupId: userGroupId } } }
+      : {};
     const allDevices = await db.device.findMany({
       where: devicesWhere,
       orderBy: { deviceName: 'asc' },
-      select: {
-        deviceId: true,
-        deviceName: true,
-        groupId: true,
+      include: {
+        groups: { include: { group: true } }
       },
     });
+
+    // Format devices for response with backward-compatible groupId
+    const formattedDevices = allDevices.map(d => ({
+      deviceId: d.deviceId,
+      deviceName: d.deviceName,
+      location: d.location,
+      groupId: d.groups[0]?.group?.id || null,
+    }));
 
     return NextResponse.json({
       success: true,
@@ -177,7 +189,7 @@ export async function GET(request) {
       },
       filters: {
         groups,
-        devices: allDevices,
+        devices: formattedDevices,
       },
       dateRange: {
         from: dateFrom?.toISOString(),

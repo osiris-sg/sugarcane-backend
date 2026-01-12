@@ -37,11 +37,13 @@ export async function GET(request) {
       }
     }
 
-    // If franchisee or partnerships user, get device IDs that belong to their group
+    // If franchisee or partnerships user, get device IDs that belong to their group (many-to-many)
     let allowedDeviceIds = null;
     if (userGroupId) {
       const groupDevices = await db.device.findMany({
-        where: { groupId: userGroupId },
+        where: {
+          groups: { some: { groupId: userGroupId } }
+        },
         select: { deviceId: true },
       });
       allowedDeviceIds = groupDevices.map(d => d.deviceId);

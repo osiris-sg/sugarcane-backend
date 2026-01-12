@@ -32,13 +32,17 @@ export async function GET(request) {
       }
     }
 
-    // Build where clause for devices
-    const whereClause = userGroupId ? { groupId: userGroupId } : {};
+    // Build where clause for devices using many-to-many relationship
+    const whereClause = userGroupId
+      ? { groups: { some: { groupId: userGroupId } } }
+      : {};
 
     const devices = await db.device.findMany({
       where: whereClause,
       include: {
-        group: true,  // Include group relation
+        groups: {
+          include: { group: true }
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -78,8 +82,18 @@ export async function GET(request) {
         isUnresponsive = true;
       }
 
+      // Extract groups from many-to-many relationship
+      const deviceGroups = device.groups || [];
+      // For backward compatibility, use first group as primary
+      const primaryGroup = deviceGroups[0]?.group || null;
+
       return {
         ...device,
+        // Backward compatibility: provide groupId and group from first group
+        groupId: primaryGroup?.id || null,
+        group: primaryGroup,
+        // New: provide all groups
+        allGroups: deviceGroups.map(dg => dg.group),
         stockQuantity: stock?.quantity ?? null,
         stockMax: stock?.maxStock ?? null,
         cupStock: stock ? Math.round((stock.quantity / stock.maxStock) * 100) : null,
@@ -162,7 +176,6 @@ export async function POST(request) {
         ...(location !== undefined && { location }),
         ...(price !== undefined && { price: parseInt(price) }),
         ...(isActive !== undefined && { isActive }),
-        ...(groupId !== undefined && { groupId: groupId || null }),
       },
       create: {
         deviceId: deviceId,
@@ -170,17 +183,53 @@ export async function POST(request) {
         location: location || null,
         price: price ? parseInt(price) : 250, // Default $2.50
         isActive: isActive !== undefined ? isActive : false, // Default inactive until device reports temperature
-        groupId: groupId || null,
       },
       include: {
-        group: true,
+        groups: { include: { group: true } },
       },
     });
+
+    // Handle group assignment via many-to-many
+    if (groupId !== undefined) {
+      if (groupId) {
+        // Add device to this group (if not already)
+        await db.deviceGroup.upsert({
+          where: {
+            deviceId_groupId: {
+              deviceId: device.id,
+              groupId: groupId,
+            }
+          },
+          create: {
+            deviceId: device.id,
+            groupId: groupId,
+          },
+          update: {},
+        });
+      }
+      // Note: We don't remove from other groups here to support multi-group
+    }
+
+    // Fetch updated device with groups
+    const updatedDevice = await db.device.findUnique({
+      where: { id: device.id },
+      include: {
+        groups: { include: { group: true } },
+      },
+    });
+
+    // Format response for backward compatibility
+    const primaryGroup = updatedDevice.groups[0]?.group || null;
 
     return NextResponse.json({
       success: true,
       message: 'Device saved successfully',
-      device: device,
+      device: {
+        ...updatedDevice,
+        groupId: primaryGroup?.id || null,
+        group: primaryGroup,
+        allGroups: updatedDevice.groups.map(dg => dg.group),
+      },
     });
   } catch (error) {
     console.error('Error saving device:', error);
