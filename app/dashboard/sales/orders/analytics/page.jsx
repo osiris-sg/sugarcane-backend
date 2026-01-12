@@ -711,7 +711,7 @@ export default function SalesOverviewPage() {
                       <SelectItem value="all">All Devices</SelectItem>
                       {devices.map((device) => (
                         <SelectItem key={device.deviceId} value={device.deviceId}>
-                          {device.deviceName || device.deviceId}
+                          {device.location || device.deviceName || device.deviceId}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -763,7 +763,7 @@ export default function SalesOverviewPage() {
                   <SelectItem value="all">All Devices</SelectItem>
                   {devices.map((device) => (
                     <SelectItem key={device.deviceId} value={device.deviceId}>
-                      {device.deviceName || device.deviceId}
+                      {device.location || device.deviceName || device.deviceId}
                     </SelectItem>
                   ))}
                 </SelectContent>
