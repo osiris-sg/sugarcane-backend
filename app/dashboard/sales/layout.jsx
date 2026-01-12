@@ -187,7 +187,8 @@ export default function SalesLayout({ children }) {
   const { signOut } = useClerk();
   const pathname = usePathname();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin" || role === "finance";
+  const roleLower = role?.toLowerCase();
+  const isAdmin = roleLower === "owner" || roleLower === "admin" || roleLower === "finance";
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -195,7 +196,7 @@ export default function SalesLayout({ children }) {
   }, [pathname]);
 
   // Use different sidebar items based on role
-  const isPartnerships = role === "partnerships";
+  const isPartnerships = roleLower === "partnerships";
   const filteredItems = isPartnerships
     ? sidebarItemsPartnerships
     : isAdmin

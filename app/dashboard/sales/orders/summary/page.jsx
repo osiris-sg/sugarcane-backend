@@ -34,8 +34,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export default function OrderSummaryPage() {
   const { user } = useUser();
   const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
-  const isPartnerships = role === "partnerships";
+  const roleLower = role?.toLowerCase();
+  const isAdmin = roleLower === "owner" || roleLower === "admin";
+  const isPartnerships = roleLower === "partnerships";
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [period, setPeriod] = useState("day");
