@@ -125,18 +125,21 @@ export async function GET(request) {
     // Get unique device IDs to fetch their groups
     const deviceIds = [...new Set(orders.map(o => o.deviceId))];
 
-    // Fetch devices with their groups
+    // Fetch devices with their groups (many-to-many)
     const devices = await db.device.findMany({
       where: { deviceId: { in: deviceIds } },
-      include: { group: true },
+      include: {
+        groups: { include: { group: true } }
+      },
     });
 
-    // Create a map for quick lookup
+    // Create a map for quick lookup (use first group for backward compatibility)
     const deviceMap = {};
     devices.forEach(d => {
+      const primaryGroup = d.groups[0]?.group || null;
       deviceMap[d.deviceId] = {
-        groupId: d.groupId,
-        groupName: d.group?.name || null,
+        groupId: primaryGroup?.id || null,
+        groupName: primaryGroup?.name || null,
       };
     });
 
