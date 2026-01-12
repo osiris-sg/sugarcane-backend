@@ -102,6 +102,8 @@ export default function OrderListPage() {
   const [orders, setOrders] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filteredTotal, setFilteredTotal] = useState(0);
+  const [filteredCount, setFilteredCount] = useState(0);
   const [allTimeTotal, setAllTimeTotal] = useState(0);
   const [allTimeCount, setAllTimeCount] = useState(0);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
@@ -194,6 +196,8 @@ export default function OrderListPage() {
 
       if (data.success) {
         setOrders(data.orders || []);
+        setFilteredTotal(data.filteredTotal || 0);
+        setFilteredCount(data.filteredCount || 0);
         setAllTimeTotal(data.allTimeTotal || 0);
         setAllTimeCount(data.allTimeCount || 0);
         setMonthlyTotal(data.monthlyTotal || 0);
@@ -267,10 +271,7 @@ export default function OrderListPage() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalCount);
 
-  // Calculate stats based on filtered orders (only successful, non-free orders)
-  const paidFilteredOrders = filteredOrders.filter((o) => o.payWay !== "1000" && o.isSuccess);
-  const filteredTotal = paidFilteredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
-  const filteredCount = paidFilteredOrders.length;
+  // Filtered stats now come from server (filteredTotal, filteredCount state variables)
 
   // Get label suffix based on active filters
   const getFilterLabel = () => {

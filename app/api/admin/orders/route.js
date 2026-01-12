@@ -155,6 +155,22 @@ export async function GET(request) {
       baseStatsWhere.deviceId = { in: allowedDeviceIds };
     }
 
+    // Filtered stats - stats for current filter criteria (successful, non-free orders)
+    // Build filtered where clause excluding free orders and only successful
+    const filteredStatsWhere = {
+      ...where,
+      isSuccess: true,
+      payWay: { not: "1000" },
+    };
+    // If where already has isSuccess: true, that's fine (it will be overwritten with same value)
+    // If admin is viewing failed orders, we still want filtered stats for successful ones in that filter
+
+    const filteredStats = await db.order.aggregate({
+      where: filteredStatsWhere,
+      _sum: { amount: true },
+      _count: true,
+    });
+
     // All-time stats (successful, non-free orders)
     const allTimeStats = await db.order.aggregate({
       where: {
@@ -187,6 +203,8 @@ export async function GET(request) {
         totalCount,
         totalPages: Math.ceil(totalCount / limit),
       },
+      filteredTotal: filteredStats._sum.amount || 0,
+      filteredCount: filteredStats._count || 0,
       allTimeTotal: allTimeStats._sum.amount || 0,
       allTimeCount: allTimeStats._count || 0,
       monthlyTotal: monthlyStats._sum.amount || 0,
