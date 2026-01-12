@@ -120,7 +120,7 @@ export default function OrderListPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deviceFilter, setDeviceFilter] = useState("all");
   const [payWayFilter, setPayWayFilter] = useState("all");
-  const [dateRange, setDateRange] = useState("all"); // all, today, week, month, custom
+  const [dateRange, setDateRange] = useState("today"); // all, today, week, month, custom
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
 
