@@ -11,7 +11,6 @@ import {
   Zap,
   Package,
   RefreshCw,
-  Plus,
   MapPin,
 } from "lucide-react";
 import Link from "next/link";
@@ -154,12 +153,6 @@ export default function OperationsPage() {
             <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Real-time overview of all vending units</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/dashboard/sales/equipment">
-              <Button variant="default" size="sm" className="h-8 md:h-9">
-                <Plus className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">Add Device</span>
-              </Button>
-            </Link>
             <Button variant="outline" size="sm" className="h-8 md:h-9" onClick={handleRefresh} disabled={refreshing}>
               <RefreshCw className={`h-4 w-4 md:mr-2 ${refreshing ? "animate-spin" : ""}`} />
               <span className="hidden md:inline">Refresh</span>
