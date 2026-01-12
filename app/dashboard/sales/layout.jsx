@@ -35,6 +35,22 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+// Sidebar items for partnerships role (very restricted)
+const sidebarItemsPartnerships = [
+  {
+    title: "Order Summary",
+    href: "/dashboard/sales/orders/summary",
+    icon: BarChart3,
+  },
+  {
+    title: "Order Management",
+    icon: ClipboardList,
+    children: [
+      { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
+    ],
+  },
+];
+
 // Sidebar items for non-admin users (franchisee view)
 const sidebarItemsFranchisee = [
   {
@@ -178,7 +194,12 @@ export default function SalesLayout({ children }) {
   }, [pathname]);
 
   // Use different sidebar items based on role
-  const filteredItems = isAdmin ? sidebarItemsAdmin : sidebarItemsFranchisee;
+  const isPartnerships = role === "partnerships";
+  const filteredItems = isPartnerships
+    ? sidebarItemsPartnerships
+    : isAdmin
+      ? sidebarItemsAdmin
+      : sidebarItemsFranchisee;
 
   const handleMobileNavigate = () => {
     setIsMobileMenuOpen(false);

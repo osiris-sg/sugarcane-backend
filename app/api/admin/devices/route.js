@@ -26,8 +26,8 @@ export async function GET(request) {
         select: { role: true, groupId: true },
       });
 
-      // Franchisees can only see their own group's devices
-      if (dbUser?.role === 'FRANCHISEE' && dbUser.groupId) {
+      // Franchisees and Partnerships users can only see their own group's devices
+      if ((dbUser?.role === 'FRANCHISEE' || dbUser?.role === 'PARTNERSHIPS') && dbUser.groupId) {
         userGroupId = dbUser.groupId;
       }
     }

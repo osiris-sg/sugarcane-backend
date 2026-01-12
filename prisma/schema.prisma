@@ -354,6 +354,7 @@ enum UserRole {
   FRANCHISEE
   DRIVER
   FINANCE
+  PARTNERSHIPS
 }
 
 enum OtaStatus {

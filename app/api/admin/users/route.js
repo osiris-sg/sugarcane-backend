@@ -12,6 +12,7 @@ function mapRoleToEnum(role) {
     finance: 'FINANCE',
     franchisee: 'FRANCHISEE',
     driver: 'DRIVER',
+    partnerships: 'PARTNERSHIPS',
   };
   return roleMap[role?.toLowerCase()] || 'FRANCHISEE';
 }

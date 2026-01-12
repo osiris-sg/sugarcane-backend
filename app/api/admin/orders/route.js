@@ -29,15 +29,15 @@ export async function GET(request) {
       });
 
       if (dbUser) {
-        // Franchisees can only see their own group's data
-        if (dbUser.role === 'FRANCHISEE' && dbUser.groupId) {
+        // Franchisees and Partnerships users can only see their own group's data
+        if ((dbUser.role === 'FRANCHISEE' || dbUser.role === 'PARTNERSHIPS') && dbUser.groupId) {
           userGroupId = dbUser.groupId;
           isAdmin = false;
         }
       }
     }
 
-    // If franchisee, get device IDs that belong to their group
+    // If franchisee or partnerships user, get device IDs that belong to their group
     let allowedDeviceIds = null;
     if (userGroupId) {
       const groupDevices = await db.device.findMany({
@@ -71,7 +71,7 @@ export async function GET(request) {
       where.deviceId = deviceId;
     }
 
-    // If franchisee, filter by their allowed devices
+    // If restricted user (franchisee/partnerships), filter by their allowed devices
     if (allowedDeviceIds !== null) {
       if (deviceId) {
         // If specific device requested, make sure it's in their allowed list
