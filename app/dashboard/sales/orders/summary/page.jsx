@@ -237,7 +237,7 @@ export default function OrderSummaryPage() {
                     <SelectItem value="all">All Devices</SelectItem>
                     {filteredDevices.map((device) => (
                       <SelectItem key={device.deviceId} value={device.deviceId}>
-                        {device.deviceName}
+                        {device.location || device.deviceName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -350,7 +350,7 @@ export default function OrderSummaryPage() {
                     <SelectItem value="all">All Devices</SelectItem>
                     {filteredDevices.map((device) => (
                       <SelectItem key={device.deviceId} value={device.deviceId}>
-                        {device.deviceName}
+                        {device.location || device.deviceName}
                       </SelectItem>
                     ))}
                   </SelectContent>
