@@ -12,29 +12,73 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
-// Send message to Telegram
+// Telegram message limit
+const TELEGRAM_MAX_LENGTH = 4000; // Leave some buffer from 4096
+
+// Split long message into chunks
+function splitMessage(text, maxLength = TELEGRAM_MAX_LENGTH) {
+  if (text.length <= maxLength) {
+    return [text];
+  }
+
+  const chunks = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLength) {
+      chunks.push(remaining);
+      break;
+    }
+
+    // Find a good split point (double newline preferred, then single newline)
+    let splitIndex = remaining.lastIndexOf('\n\n', maxLength);
+    if (splitIndex === -1 || splitIndex < maxLength / 2) {
+      splitIndex = remaining.lastIndexOf('\n', maxLength);
+    }
+    if (splitIndex === -1 || splitIndex < maxLength / 2) {
+      splitIndex = maxLength;
+    }
+
+    chunks.push(remaining.substring(0, splitIndex));
+    remaining = remaining.substring(splitIndex).trimStart();
+  }
+
+  return chunks;
+}
+
+// Send message to Telegram (handles long messages by splitting)
 async function sendTelegramMessage(chatId, text) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+  const chunks = splitMessage(text);
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-      }),
-    });
-    const result = await response.json();
-    if (!result.ok) {
-      console.error(`[DailySummary] Telegram error for ${chatId}:`, result.description);
+  let allSuccess = true;
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = i > 0 ? `(cont'd)\n${chunks[i]}` : chunks[i];
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: chunk,
+          parse_mode: 'HTML',
+        }),
+      });
+      const result = await response.json();
+      if (!result.ok) {
+        console.error(`[DailySummary] Telegram error for ${chatId}:`, result.description);
+        allSuccess = false;
+      } else if (i === 0) {
+        console.log(`[DailySummary] Sent to ${chatId}${chunks.length > 1 ? ` (${chunks.length} parts)` : ''}`);
+      }
+    } catch (error) {
+      console.error(`[DailySummary] Error sending to ${chatId}:`, error);
+      allSuccess = false;
     }
-    return result.ok;
-  } catch (error) {
-    console.error('Error sending Telegram message:', error);
-    return false;
   }
+
+  return allSuccess;
 }
 
 // Send to ALL subscribers with a role (daily summary goes to everyone)
