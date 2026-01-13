@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus, Lock, User, Crown, ArrowLeft, AtSign } from "lucide-react";
+import { UserPlus, Lock, User, Crown, ArrowLeft, AtSign, Shield, Wallet, Handshake } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -218,10 +218,28 @@ export default function AddUserPage() {
                           Owner - Full access to all features
                         </div>
                       </SelectItem>
+                      <SelectItem value="admin">
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-4 w-4" />
+                          Admin - Full access to all features
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="finance">
+                        <div className="flex items-center gap-2">
+                          <Wallet className="h-4 w-4" />
+                          Finance - Access to financial data
+                        </div>
+                      </SelectItem>
                       <SelectItem value="franchisee">
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
-                          Franchisee - View sales data only
+                          Franchisee - View own sales data
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="partnerships">
+                        <div className="flex items-center gap-2">
+                          <Handshake className="h-4 w-4" />
+                          Partnerships - Limited sales view
                         </div>
                       </SelectItem>
                     </SelectContent>
