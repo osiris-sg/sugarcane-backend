@@ -145,10 +145,10 @@ export default function UsersPage() {
     });
   }
 
-  const ownerCount = users.filter((u) => u.role === "owner").length;
-  const franchiseeCount = users.filter((u) => u.role === "franchisee").length;
-  const opsmanagerCount = users.filter((u) => u.role === "opsmanager").length;
-  const driverCount = users.filter((u) => u.role === "driver").length;
+  const ownerCount = users.filter((u) => ["owner", "admin", "OWNER", "ADMIN"].includes(u.role)).length;
+  const franchiseeCount = users.filter((u) => ["franchisee", "FRANCHISEE"].includes(u.role)).length;
+  const opsmanagerCount = users.filter((u) => ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(u.role)).length;
+  const driverCount = users.filter((u) => ["driver", "DRIVER"].includes(u.role)).length;
 
   // Pagination
   const { totalItems, totalPages, getPageItems } = usePagination(users, ITEMS_PER_PAGE);
@@ -287,22 +287,22 @@ export default function UsersPage() {
                       <TableCell>
                         <Badge
                           variant={
-                            user.role === "owner" ? "default" : "secondary"
+                            ["owner", "admin", "OWNER", "ADMIN"].includes(user.role) ? "default" : "secondary"
                           }
                           className={`gap-1 ${
-                            user.role === "opsmanager" ? "bg-purple-100 text-purple-800" :
-                            user.role === "driver" ? "bg-orange-100 text-orange-800" : ""
+                            ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(user.role) ? "bg-purple-100 text-purple-800" :
+                            ["driver", "DRIVER"].includes(user.role) ? "bg-orange-100 text-orange-800" : ""
                           }`}
                         >
-                          {user.role === "owner" && <Crown className="h-3 w-3" />}
-                          {user.role === "franchisee" && <User className="h-3 w-3" />}
-                          {user.role === "opsmanager" && <Briefcase className="h-3 w-3" />}
-                          {user.role === "driver" && <Truck className="h-3 w-3" />}
-                          {user.role}
+                          {["owner", "admin", "OWNER", "ADMIN"].includes(user.role) && <Crown className="h-3 w-3" />}
+                          {["franchisee", "FRANCHISEE"].includes(user.role) && <User className="h-3 w-3" />}
+                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(user.role) && <Briefcase className="h-3 w-3" />}
+                          {["driver", "DRIVER"].includes(user.role) && <Truck className="h-3 w-3" />}
+                          {user.role?.toLowerCase()}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {user.role === "DRIVER" && user.loginPin ? (
+                        {["driver", "DRIVER"].includes(user.role) && user.loginPin ? (
                           <div className="flex items-center gap-1.5">
                             <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
                             <code className="font-mono text-sm tracking-widest bg-muted px-2 py-0.5 rounded">
@@ -427,19 +427,19 @@ export default function UsersPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Badge
-                          variant={user.role === "owner" ? "default" : "secondary"}
+                          variant={["owner", "admin", "OWNER", "ADMIN"].includes(user.role) ? "default" : "secondary"}
                           className={`gap-1 text-xs ${
-                            user.role === "opsmanager" ? "bg-purple-100 text-purple-800" :
-                            user.role === "driver" ? "bg-orange-100 text-orange-800" : ""
+                            ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(user.role) ? "bg-purple-100 text-purple-800" :
+                            ["driver", "DRIVER"].includes(user.role) ? "bg-orange-100 text-orange-800" : ""
                           }`}
                         >
-                          {user.role === "owner" && <Crown className="h-3 w-3" />}
-                          {user.role === "franchisee" && <User className="h-3 w-3" />}
-                          {user.role === "opsmanager" && <Briefcase className="h-3 w-3" />}
-                          {user.role === "driver" && <Truck className="h-3 w-3" />}
-                          {user.role}
+                          {["owner", "admin", "OWNER", "ADMIN"].includes(user.role) && <Crown className="h-3 w-3" />}
+                          {["franchisee", "FRANCHISEE"].includes(user.role) && <User className="h-3 w-3" />}
+                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(user.role) && <Briefcase className="h-3 w-3" />}
+                          {["driver", "DRIVER"].includes(user.role) && <Truck className="h-3 w-3" />}
+                          {user.role?.toLowerCase()}
                         </Badge>
-                        {user.role === "DRIVER" && user.loginPin && (
+                        {["driver", "DRIVER"].includes(user.role) && user.loginPin && (
                           <code className="font-mono text-xs tracking-widest bg-muted px-1.5 py-0.5 rounded">
                             {user.loginPin}
                           </code>
