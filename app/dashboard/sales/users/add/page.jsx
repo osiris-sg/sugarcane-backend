@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus, Lock, User, Crown, ArrowLeft, AtSign, Shield, Wallet } from "lucide-react";
+import { UserPlus, Lock, User, Crown, ArrowLeft, Briefcase, Truck, KeyRound, AtSign } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,8 @@ export default function AddUserPage() {
     password: "",
     confirmPassword: "",
     role: "franchisee",
+    phone: "",
+    loginPin: "",
   });
 
   // Redirect non-admins
@@ -52,6 +54,18 @@ export default function AddUserPage() {
       return;
     }
 
+    // Validate PIN for drivers
+    if (formData.role === "driver") {
+      if (!formData.loginPin) {
+        toast.error("Login PIN is required for drivers");
+        return;
+      }
+      if (!/^\d{4}$/.test(formData.loginPin)) {
+        toast.error("Login PIN must be exactly 4 digits");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -64,6 +78,8 @@ export default function AddUserPage() {
           lastName: formData.lastName,
           password: formData.password,
           role: formData.role,
+          phone: formData.phone,
+          loginPin: formData.role === "driver" ? formData.loginPin : null,
         }),
       });
 
@@ -162,6 +178,19 @@ export default function AddUserPage() {
                 </div>
 
                 <div className="grid gap-2">
+                  <Label htmlFor="phone">Phone Number (Optional)</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="91234567"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="grid gap-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -205,7 +234,7 @@ export default function AddUserPage() {
                   <Select
                     value={formData.role}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, role: value })
+                      setFormData({ ...formData, role: value, loginPin: "" })
                     }
                   >
                     <SelectTrigger>
@@ -218,27 +247,54 @@ export default function AddUserPage() {
                           Owner - Full access to all features
                         </div>
                       </SelectItem>
-                      <SelectItem value="admin">
+                      <SelectItem value="opsmanager">
                         <div className="flex items-center gap-2">
-                          <Shield className="h-4 w-4" />
-                          Admin - Full access to all features
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="finance">
-                        <div className="flex items-center gap-2">
-                          <Wallet className="h-4 w-4" />
-                          Finance - Access to financial data
+                          <Briefcase className="h-4 w-4" />
+                          Ops Manager - Manage operations
                         </div>
                       </SelectItem>
                       <SelectItem value="franchisee">
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
-                          Franchisee - View own sales data
+                          Franchisee - View sales data only
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="driver">
+                        <div className="flex items-center gap-2">
+                          <Truck className="h-4 w-4" />
+                          Driver - Operations staff
                         </div>
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formData.role === "driver" && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="loginPin">4-Digit Login PIN</Label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="loginPin"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="\d{4}"
+                        maxLength={4}
+                        placeholder="Enter 4-digit PIN"
+                        className="pl-9 tracking-widest text-center font-mono text-lg"
+                        required
+                        value={formData.loginPin}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                          setFormData({ ...formData, loginPin: value });
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This PIN will be used by the driver to log in to the machine
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-4">
                   <Button
