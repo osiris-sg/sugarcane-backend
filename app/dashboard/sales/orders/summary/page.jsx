@@ -114,6 +114,13 @@ export default function OrderSummaryPage() {
     groupId === "all" || d.groupId === groupId
   ) || [];
 
+  // Count total devices per group (from all devices, not just those with orders)
+  const deviceCountByGroup = data?.filters?.devices?.reduce((acc, device) => {
+    const gId = device.groupId || "unassigned";
+    acc[gId] = (acc[gId] || 0) + 1;
+    return acc;
+  }, {}) || {};
+
   // Aggregate data by franchisee group
   const groupedData = data?.summary?.reduce((acc, item) => {
     const gName = item.groupName || "Unassigned";
@@ -458,7 +465,7 @@ export default function OrderSummaryPage() {
                       onClick={() => toggleGroupExpand(group.groupId)}
                     >
                       <span className="font-medium">
-                        {group.groupName}({group.devices.length})
+                        {group.groupName}({deviceCountByGroup[group.groupId] || group.devices.length})
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="bg-red-500 text-white text-sm font-medium px-2.5 py-0.5 rounded-full">
@@ -617,7 +624,7 @@ export default function OrderSummaryPage() {
                       onClick={() => toggleGroupExpand(group.groupId)}
                     >
                       <span className="font-medium text-sm">
-                        {group.groupName}({group.devices.length})
+                        {group.groupName}({deviceCountByGroup[group.groupId] || group.devices.length})
                       </span>
                       <div className="flex items-center gap-1.5">
                         <span className="bg-red-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">
