@@ -37,6 +37,8 @@ export default function OrderSummaryPage() {
   const roleLower = role?.toLowerCase();
   const isAdmin = roleLower === "owner" || roleLower === "admin";
   const isPartnerships = roleLower === "partnerships";
+  const isFranchisee = roleLower === "franchisee";
+  const hideGroupInfo = isPartnerships || isFranchisee;
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [period, setPeriod] = useState("day");
@@ -215,7 +217,7 @@ export default function OrderSummaryPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                {!isPartnerships && (
+                {!hideGroupInfo && (
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Group</label>
                     <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
@@ -327,7 +329,7 @@ export default function OrderSummaryPage() {
               )}
 
               {/* Group Filter */}
-              {!isPartnerships && (
+              {!hideGroupInfo && (
                 <div className="space-y-1">
                   <label className="text-sm text-muted-foreground">Group</label>
                   <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
@@ -511,7 +513,7 @@ export default function OrderSummaryPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Device</TableHead>
-                    {!isPartnerships && <TableHead>Group</TableHead>}
+                    {!hideGroupInfo && <TableHead>Group</TableHead>}
                     <TableHead className="text-right">Total Sales</TableHead>
                     <TableHead className="text-right">Total Cups</TableHead>
                     <TableHead className="text-right">Orders</TableHead>
@@ -528,7 +530,7 @@ export default function OrderSummaryPage() {
                           </div>
                         </div>
                       </TableCell>
-                      {!isPartnerships && (
+                      {!hideGroupInfo && (
                         <TableCell>
                           {item.groupName || (
                             <span className="text-muted-foreground">-</span>
@@ -550,7 +552,7 @@ export default function OrderSummaryPage() {
                   {data?.summary?.length > 1 && (
                     <TableRow className="bg-muted/50 font-semibold">
                       <TableCell>Total</TableCell>
-                      {!isPartnerships && <TableCell></TableCell>}
+                      {!hideGroupInfo && <TableCell></TableCell>}
                       <TableCell className="text-right">
                         {formatCurrency(data?.totals?.totalSales || 0)}
                       </TableCell>
@@ -671,7 +673,7 @@ export default function OrderSummaryPage() {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-medium text-sm">{item.deviceName}</p>
-                        {!isPartnerships && <p className="text-xs text-muted-foreground">{item.groupName || "-"}</p>}
+                        {!hideGroupInfo && <p className="text-xs text-muted-foreground">{item.groupName || "-"}</p>}
                       </div>
                       <p className="text-lg font-bold">{formatCurrency(item.totalSales)}</p>
                     </div>
