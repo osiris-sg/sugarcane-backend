@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus, Lock, User, Crown, ArrowLeft, AtSign, Shield, Wallet, Handshake } from "lucide-react";
+import { UserPlus, Lock, User, Crown, ArrowLeft, AtSign, Shield, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -234,12 +234,6 @@ export default function AddUserPage() {
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
                           Franchisee - View own sales data
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="partnerships">
-                        <div className="flex items-center gap-2">
-                          <Handshake className="h-4 w-4" />
-                          Partnerships - Limited sales view
                         </div>
                       </SelectItem>
                     </SelectContent>
