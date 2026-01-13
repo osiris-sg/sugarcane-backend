@@ -17,7 +17,7 @@ function mapRoleToEnum(role) {
   return roleMap[role?.toLowerCase()] || 'FRANCHISEE';
 }
 
-// GET /api/admin/users - List all users (from DB, synced with Clerk)
+// GET /api/admin/users - List all users (from DB, with fresh lastSignInAt from Clerk)
 export async function GET() {
   try {
     // Get users from database with their group info
@@ -26,9 +26,10 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
 
+    const client = await clerkClient();
+
     // If no users in DB, sync from Clerk
     if (dbUsers.length === 0) {
-      const client = await clerkClient();
       const clerkUsers = await client.users.getUserList({ limit: 100 });
 
       // Sync Clerk users to DB
@@ -60,6 +61,7 @@ export async function GET() {
 
       // Fetch again after sync
       const syncedUsers = await db.user.findMany({
+        include: { group: true },
         orderBy: { createdAt: 'desc' },
       });
 
@@ -70,9 +72,40 @@ export async function GET() {
       });
     }
 
+    // Fetch fresh lastSignInAt from Clerk for all users
+    const clerkIds = dbUsers.map(u => u.clerkId).filter(Boolean);
+    const clerkUsersMap = {};
+
+    // Fetch Clerk users in batches (Clerk API returns user list)
+    if (clerkIds.length > 0) {
+      try {
+        const clerkUsers = await client.users.getUserList({
+          userId: clerkIds,
+          limit: 100
+        });
+
+        for (const clerkUser of clerkUsers.data) {
+          clerkUsersMap[clerkUser.id] = {
+            lastSignInAt: clerkUser.lastSignInAt,
+            imageUrl: clerkUser.imageUrl,
+          };
+        }
+      } catch (clerkError) {
+        console.error('Error fetching Clerk users:', clerkError);
+        // Continue with DB data if Clerk fetch fails
+      }
+    }
+
+    // Merge Clerk data with DB data
+    const usersWithClerkData = dbUsers.map(dbUser => ({
+      ...dbUser,
+      lastSignInAt: clerkUsersMap[dbUser.clerkId]?.lastSignInAt || dbUser.lastSignInAt,
+      imageUrl: clerkUsersMap[dbUser.clerkId]?.imageUrl || dbUser.imageUrl,
+    }));
+
     return NextResponse.json({
       success: true,
-      users: dbUsers,
+      users: usersWithClerkData,
     });
   } catch (error) {
     console.error('Error fetching users:', error);
