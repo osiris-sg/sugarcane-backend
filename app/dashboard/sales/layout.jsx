@@ -52,6 +52,24 @@ const sidebarItemsPartnerships = [
   },
 ];
 
+// Sidebar items for finance role (orders only, no device/user management)
+const sidebarItemsFinance = [
+  {
+    title: "Order Summary",
+    href: "/dashboard/sales/orders/summary",
+    icon: BarChart3,
+  },
+  {
+    title: "Order Management",
+    icon: ClipboardList,
+    children: [
+      { title: "Order List", href: "/dashboard/sales", icon: FileText },
+      { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
+      { title: "Refund Records", href: "/dashboard/sales/orders/refunds", icon: RotateCcw },
+    ],
+  },
+];
+
 // Sidebar items for non-admin users (franchisee view)
 const sidebarItemsFranchisee = [
   {
@@ -188,7 +206,7 @@ export default function SalesLayout({ children }) {
   const pathname = usePathname();
   const role = user?.publicMetadata?.role || "franchisee";
   const roleLower = role?.toLowerCase();
-  const isAdmin = roleLower === "owner" || roleLower === "admin" || roleLower === "finance";
+  const isAdmin = roleLower === "owner" || roleLower === "admin";
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -197,11 +215,14 @@ export default function SalesLayout({ children }) {
 
   // Use different sidebar items based on role
   const isPartnerships = roleLower === "partnerships";
+  const isFinance = roleLower === "finance";
   const filteredItems = isPartnerships
     ? sidebarItemsPartnerships
-    : isAdmin
-      ? sidebarItemsAdmin
-      : sidebarItemsFranchisee;
+    : isFinance
+      ? sidebarItemsFinance
+      : isAdmin
+        ? sidebarItemsAdmin
+        : sidebarItemsFranchisee;
 
   const handleMobileNavigate = () => {
     setIsMobileMenuOpen(false);

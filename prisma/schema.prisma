@@ -373,3 +373,16 @@ enum OtaStatus {
   TRIGGERED
   CANCELLED
 }
+
+model SalesPrediction {
+  id              String   @id @default(cuid())
+  predictionDate  DateTime @unique // The date being predicted
+  predictedSales  Float    // Predicted total sales
+  actualSales     Int?     // Filled in after the day passes
+  rollingMean7    Float?   // 7-day rolling average used
+  rollingMean14   Float?   // 14-day rolling average used
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([predictionDate])
+}

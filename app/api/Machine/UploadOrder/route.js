@@ -50,7 +50,12 @@ export async function POST(request) {
       if (isNewFormat) {
         // New format: payAmount is cents * 100 (28000 = 280 cents = $2.80)
         rawAmountStored = payAmount;
-        correctedAmount = payAmount ? Math.round(payAmount / 100) : 0;
+        // Device 852314 sends raw cents (280 = $2.80), don't divide
+        if (deviceId === '852314') {
+          correctedAmount = payAmount || 0;
+        } else {
+          correctedAmount = payAmount ? Math.round(payAmount / 100) : 0;
+        }
         finalQuantity = deliverCount ?? 1;
         console.log(`[UploadOrder] New format - Raw: ${payAmount} → ${correctedAmount} cents, Qty: ${finalQuantity}`);
       } else {

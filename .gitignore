@@ -12,3 +12,6 @@ node_modules/
 
 # RSA keys for payment integration (FOMO Pay)
 /keys/
+
+# ML model files
+scripts/*.joblib
