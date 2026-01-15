@@ -239,7 +239,8 @@ export default function DeviceGroupingPage() {
     }
   };
 
-  const unassignedDevices = devices.filter((d) => !d.groupId);
+  // Show all devices (many-to-many allows same device in multiple groups)
+  const allDevices = devices;
 
   // Drag and drop handlers
   const handleDragStart = (event) => {
@@ -272,7 +273,7 @@ export default function DeviceGroupingPage() {
     ? devices.find((d) => d.id === activeId)
     : null;
 
-  const filteredUnassignedDevices = unassignedDevices.filter((d) => {
+  const filteredDevices = allDevices.filter((d) => {
     const search = searchTerm.toLowerCase();
     return (
       d.deviceId?.toLowerCase().includes(search) ||
@@ -281,13 +282,18 @@ export default function DeviceGroupingPage() {
     );
   });
 
-  const filteredDialogDevices = unassignedDevices.filter((d) => {
+  // Filter devices for dialog - exclude devices already in the selected group
+  const filteredDialogDevices = allDevices.filter((d) => {
     const search = dialogSearchTerm.toLowerCase();
-    return (
+    const matchesSearch =
       d.deviceId?.toLowerCase().includes(search) ||
       d.deviceName?.toLowerCase().includes(search) ||
-      d.location?.toLowerCase().includes(search)
-    );
+      d.location?.toLowerCase().includes(search);
+
+    // Exclude devices already in the selected group
+    const alreadyInGroup = selectedGroup && d.allGroups?.some(g => g.id === selectedGroup.id);
+
+    return matchesSearch && !alreadyInGroup;
   });
 
   const filteredGroups = groups.filter((g) => {
@@ -325,7 +331,7 @@ export default function DeviceGroupingPage() {
           <div>
             <h1 className="text-lg md:text-xl font-semibold">Device Grouping</h1>
             <p className="text-xs md:text-sm text-muted-foreground">
-              {groups.length} groups, {unassignedDevices.length} unassigned
+              {groups.length} groups, {devices.length} devices
             </p>
           </div>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -495,11 +501,11 @@ export default function DeviceGroupingPage() {
               )}
           </div>
 
-          {/* Unassigned Devices */}
+          {/* All Devices */}
             <div className="space-y-4 order-1 lg:order-2">
               <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
                 <Monitor className="h-4 w-4 md:h-5 md:w-5" />
-                Unassigned Devices
+                All Devices
               </h2>
 
               <div className="relative">
@@ -514,15 +520,15 @@ export default function DeviceGroupingPage() {
 
               <Card>
                 <CardContent className="p-2">
-                  {filteredUnassignedDevices.length === 0 ? (
+                  {filteredDevices.length === 0 ? (
                     <p className="text-xs md:text-sm text-muted-foreground py-6 md:py-8 text-center">
-                      {unassignedDevices.length === 0
-                        ? "All devices are assigned"
+                      {allDevices.length === 0
+                        ? "No devices found"
                         : "No devices match your search"}
                     </p>
                   ) : (
                     <div className="space-y-1 max-h-[300px] md:max-h-[500px] overflow-y-auto">
-                      {filteredUnassignedDevices.map((device) => (
+                      {filteredDevices.map((device) => (
                         <DraggableDevice key={device.id} device={device}>
                           <div
                             className={`flex items-center justify-between rounded-lg border p-2 md:p-3 hover:bg-muted/50 transition-colors ${
@@ -533,9 +539,19 @@ export default function DeviceGroupingPage() {
                               <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab hidden lg:block" />
                               <div>
                                 <p className="font-medium text-sm">{device.deviceName}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {device.location || device.deviceId}
-                                </p>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <p className="text-xs text-muted-foreground">
+                                    {device.location || device.deviceId}
+                                  </p>
+                                  {device.allGroups?.length > 0 && (
+                                    <span className="text-xs text-muted-foreground">•</span>
+                                  )}
+                                  {device.allGroups?.map((g) => (
+                                    <Badge key={g.id} variant="secondary" className="text-[10px] px-1 py-0">
+                                      {g.name}
+                                    </Badge>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                             {groups.length > 0 && (
@@ -551,12 +567,14 @@ export default function DeviceGroupingPage() {
                                   }
                                 }}
                               >
-                                <option value="">Assign...</option>
-                                {groups.map((g) => (
-                                  <option key={g.id} value={g.id}>
-                                    {g.name}
-                                  </option>
-                                ))}
+                                <option value="">Add to...</option>
+                                {groups
+                                  .filter((g) => !device.allGroups?.some((dg) => dg.id === g.id))
+                                  .map((g) => (
+                                    <option key={g.id} value={g.id}>
+                                      {g.name}
+                                    </option>
+                                  ))}
                               </select>
                             )}
                           </div>
@@ -593,13 +611,11 @@ export default function DeviceGroupingPage() {
                 />
               </div>
               <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {unassignedDevices.length === 0 ? (
+                {filteredDialogDevices.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    No unassigned devices available
-                  </p>
-                ) : filteredDialogDevices.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No devices match your search
+                    {dialogSearchTerm
+                      ? "No devices match your search"
+                      : "All devices are already in this group"}
                   </p>
                 ) : (
                   filteredDialogDevices.map((device) => (
@@ -614,9 +630,21 @@ export default function DeviceGroupingPage() {
                     >
                       <div>
                         <p className="font-medium">{device.deviceName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {device.deviceId} • {device.location || "No location"}
-                        </p>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <p className="text-xs text-muted-foreground">
+                            {device.deviceId} • {device.location || "No location"}
+                          </p>
+                          {device.allGroups?.length > 0 && (
+                            <>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              {device.allGroups.map((g) => (
+                                <Badge key={g.id} variant="outline" className="text-[10px] px-1 py-0">
+                                  {g.name}
+                                </Badge>
+                              ))}
+                            </>
+                          )}
+                        </div>
                       </div>
                       <Plus className="h-4 w-4 text-muted-foreground" />
                     </div>
