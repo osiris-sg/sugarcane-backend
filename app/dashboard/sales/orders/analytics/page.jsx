@@ -13,7 +13,9 @@ import {
   Monitor,
   Filter,
   ChevronDown,
+  CalendarDays,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,8 +42,19 @@ import {
 } from "recharts";
 
 // Helper to get date range based on filter
-function getDateRange(dateRange) {
+function getDateRange(dateRange, customStart = "", customEnd = "") {
   const now = new Date();
+
+  // Handle custom date range
+  if (dateRange === "custom" && customStart && customEnd) {
+    const startDate = new Date(customStart);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(customEnd);
+    endDate.setHours(23, 59, 59, 999);
+    const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    return { startDate, endDate, days: Math.max(days, 1) };
+  }
+
   let days = 7;
   switch (dateRange) {
     case "24h": days = 1; break;
@@ -355,6 +368,8 @@ export default function SalesOverviewPage() {
   const [selectedDevice, setSelectedDevice] = useState("all");
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const [salesData, setSalesData] = useState({
     grossVolume: { amount: 0, previousAmount: 0, change: 0, isPositive: true },
     netVolume: { amount: 0, previousAmount: 0, change: 0, isPositive: true },
@@ -471,9 +486,15 @@ export default function SalesOverviewPage() {
   }
 
   async function fetchSalesData() {
+    // Skip fetching if custom range is selected but dates are not set
+    if (dateRange === "custom" && (!customStartDate || !customEndDate)) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const { startDate, endDate, days } = getDateRange(dateRange);
+      const { startDate, endDate, days } = getDateRange(dateRange, customStartDate, customEndDate);
 
       // Build query params
       const params = new URLSearchParams({
@@ -725,9 +746,40 @@ export default function SalesOverviewPage() {
                       <SelectItem value="7d">Last 7 days</SelectItem>
                       <SelectItem value="30d">Last 30 days</SelectItem>
                       <SelectItem value="90d">Last 90 days</SelectItem>
+                      <SelectItem value="custom">Custom Range</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                {dateRange === "custom" && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Start</label>
+                        <Input
+                          type="date"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">End</label>
+                        <Input
+                          type="date"
+                          value={customEndDate}
+                          onChange={(e) => setCustomEndDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => fetchSalesData()}
+                      size="sm"
+                      className="w-full"
+                      disabled={!customStartDate || !customEndDate}
+                    >
+                      Apply Dates
+                    </Button>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <Select value={interval} onValueChange={setInterval}>
                     <SelectTrigger className="w-full">
@@ -781,9 +833,40 @@ export default function SalesOverviewPage() {
                   <SelectItem value="7d">Last 7 days</SelectItem>
                   <SelectItem value="30d">Last 30 days</SelectItem>
                   <SelectItem value="90d">Last 90 days</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {dateRange === "custom" && (
+              <>
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-[140px]"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-[140px]"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => fetchSalesData()}
+                  disabled={!customStartDate || !customEndDate}
+                >
+                  Apply
+                </Button>
+              </>
+            )}
 
             <Select value={interval} onValueChange={setInterval}>
               <SelectTrigger className="w-[100px]">
