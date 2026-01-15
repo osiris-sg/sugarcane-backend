@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 // POST /api/Machine/ReportDeviceInfo
 // Called by Android app on startup to report device info
+// Returns terminalId if one is assigned to this device
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -33,6 +34,8 @@ export async function POST(request) {
       },
     });
 
+    console.log(`[ReportDeviceInfo] Device ${deviceId} terminalId: ${device.terminalId || 'not assigned'}`);
+
     return NextResponse.json({
       success: true,
       message: 'Device info recorded',
@@ -41,6 +44,7 @@ export async function POST(request) {
         deviceName: device.deviceName,
         isActive: device.isActive,
         updatedAt: device.updatedAt,
+        terminalId: device.terminalId, // Return terminalId so app can store it
       },
     });
   } catch (error) {

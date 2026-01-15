@@ -96,6 +96,7 @@ model Device {
   latitude          Float?
   longitude         Float?
   groups            DeviceGroup[]
+  terminalId        Int?          // Terminal ID assigned to this device
 
   @@index([deviceId])
   @@index([driverId])
