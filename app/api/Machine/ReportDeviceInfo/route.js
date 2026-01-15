@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 // Called by Android app on startup to report device info
 // App sends Build.SERIAL as "deviceId" in JSON
 // Backend finds Device row where terminalId = Build.SERIAL
-// Returns deviceId from that row (the ID the machine should use)
+// Returns deviceId, price, and drivers for PIN login
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -29,18 +29,43 @@ export async function POST(request) {
       where: { terminalId: String(hardwareId) },
     });
 
+    // Also fetch all drivers for PIN login
+    const users = await db.user.findMany({
+      where: {
+        loginPin: { not: null },
+        isActive: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        loginPin: true,
+        username: true,
+      },
+    });
+
+    // Format drivers for app (same format as /api/drivers)
+    const drivers = users.map(user => ({
+      id: user.id,
+      name: user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
+        : user.username,
+      pin: user.loginPin,
+    }));
+
     if (!device) {
       console.log(`[ReportDeviceInfo] No device found with terminalId=${hardwareId}`);
       return NextResponse.json({
         success: true,
         message: 'Device not registered',
         device: null,
+        drivers: drivers,  // Still return drivers even if device not found
       });
     }
 
-    console.log(`[ReportDeviceInfo] Found device: terminalId=${device.terminalId}, deviceId=${device.deviceId}`);
+    console.log(`[ReportDeviceInfo] Found device: terminalId=${device.terminalId}, deviceId=${device.deviceId}, drivers=${drivers.length}`);
 
-    // Return deviceId - this is what the machine will use as its terminal ID
+    // Return deviceId, price, and drivers
     return NextResponse.json({
       success: true,
       message: 'Device found',
@@ -49,7 +74,9 @@ export async function POST(request) {
         deviceName: device.deviceName,
         isActive: device.isActive,
         terminalId: device.terminalId,  // For reference (same as hardwareId)
+        price: device.price,  // Price in cents
       },
+      drivers: drivers,  // For PIN login
     });
   } catch (error) {
     console.error('[ReportDeviceInfo] Error:', error);
