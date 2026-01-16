@@ -140,6 +140,27 @@ export default function DeviceListPage() {
 
   const activeCount = devices.filter((d) => d.isActive).length;
 
+  const handleDelete = async (deviceId, deviceName) => {
+    if (!confirm(`Are you sure you want to delete "${deviceName}" (${deviceId})?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/devices?deviceId=${deviceId}&adminKey=${process.env.NEXT_PUBLIC_ADMIN_KEY || 'sugarcane123'}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDevices(devices.filter((d) => d.deviceId !== deviceId));
+      } else {
+        alert(data.error || "Failed to delete device");
+      }
+    } catch (error) {
+      console.error("Error deleting device:", error);
+      alert("Failed to delete device");
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-4 md:px-6 shrink-0">
@@ -248,6 +269,7 @@ export default function DeviceListPage() {
                                 size="sm"
                                 variant="outline"
                                 className="bg-red-500 text-white hover:bg-red-600 border-red-500"
+                                onClick={() => handleDelete(device.deviceId, device.deviceName)}
                               >
                                 Delete
                               </Button>
@@ -335,6 +357,7 @@ export default function DeviceListPage() {
                             size="sm"
                             variant="outline"
                             className="flex-1 bg-red-500 text-white hover:bg-red-600 border-red-500"
+                            onClick={() => handleDelete(device.deviceId, device.deviceName)}
                           >
                             Delete
                           </Button>
