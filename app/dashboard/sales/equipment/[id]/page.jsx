@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function EditDevicePage() {
   const params = useParams();
@@ -28,6 +29,7 @@ export default function EditDevicePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [groups, setGroups] = useState([]);
+  const [addToPartnership, setAddToPartnership] = useState(false);
   const [device, setDevice] = useState({
     deviceId: "",
     deviceName: "",
@@ -35,6 +37,8 @@ export default function EditDevicePage() {
     price: "",
     isActive: true,
     groupId: "",
+    tid: "",
+    allGroups: [],
   });
 
   useEffect(() => {
@@ -56,7 +60,14 @@ export default function EditDevicePage() {
             price: found.price ? (found.price / 100).toFixed(2) : "",
             isActive: found.isActive,
             groupId: found.groupId || "",
+            tid: found.tid || "",
+            allGroups: found.allGroups || [],
           });
+          // Check if already in partnership group
+          const inPartnership = found.allGroups?.some(g =>
+            g.name.toLowerCase() === "partnership" || g.name.toLowerCase() === "partnerships"
+          );
+          setAddToPartnership(inPartnership || false);
         }
       }
     } catch (error) {
@@ -81,6 +92,11 @@ export default function EditDevicePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Find partnership group ID if checkbox is selected
+      const partnershipGroup = groups.find(g =>
+        g.name.toLowerCase() === "partnership" || g.name.toLowerCase() === "partnerships"
+      );
+
       // Update device
       const res = await fetch("/api/admin/devices", {
         method: "POST",
@@ -92,6 +108,8 @@ export default function EditDevicePage() {
           price: Math.round(parseFloat(device.price) * 100),
           isActive: device.isActive,
           groupId: device.groupId || null,
+          tid: device.tid || null,
+          additionalGroupIds: addToPartnership && partnershipGroup ? [partnershipGroup.id] : [],
         }),
       });
 
@@ -163,6 +181,22 @@ export default function EditDevicePage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Device ID cannot be changed
+                </p>
+              </div>
+
+              {/* TID */}
+              <div className="space-y-2">
+                <Label htmlFor="tid">TID</Label>
+                <Input
+                  id="tid"
+                  value={device.tid}
+                  onChange={(e) =>
+                    setDevice({ ...device, tid: e.target.value })
+                  }
+                  placeholder="Enter TID"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Payment terminal identifier
                 </p>
               </div>
 
@@ -252,6 +286,20 @@ export default function EditDevicePage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* Also add to Partnership group */}
+              {isAdmin && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="partnership"
+                    checked={addToPartnership}
+                    onCheckedChange={setAddToPartnership}
+                  />
+                  <Label htmlFor="partnership" className="text-sm font-normal cursor-pointer">
+                    Also add to Partnership group
+                  </Label>
                 </div>
               )}
             </CardContent>
