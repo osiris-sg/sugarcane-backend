@@ -97,6 +97,7 @@ model Device {
   longitude         Float?
   groups            DeviceGroup[]
   terminalId        String?          // Terminal ID assigned to this device
+  tid               String?          // TID for payment terminal
 
   @@index([deviceId])
   @@index([driverId])

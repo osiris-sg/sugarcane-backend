@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function AddDevicePage() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function AddDevicePage() {
 
   const [saving, setSaving] = useState(false);
   const [groups, setGroups] = useState([]);
+  const [addToPartnership, setAddToPartnership] = useState(false);
   const [device, setDevice] = useState({
     deviceId: "",
     deviceName: "",
@@ -33,6 +35,7 @@ export default function AddDevicePage() {
     price: "3.00",
     isActive: true,
     groupId: "",
+    tid: "",
   });
 
   useEffect(() => {
@@ -59,6 +62,9 @@ export default function AddDevicePage() {
 
     setSaving(true);
     try {
+      // Find partnership group ID if checkbox is selected
+      const partnershipGroup = groups.find(g => g.name.toLowerCase() === "partnership" || g.name.toLowerCase() === "partnerships");
+
       const res = await fetch("/api/admin/devices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,6 +75,8 @@ export default function AddDevicePage() {
           price: Math.round(parseFloat(device.price || "3") * 100),
           isActive: device.isActive,
           groupId: device.groupId || null,
+          tid: device.tid.trim() || null,
+          additionalGroupIds: addToPartnership && partnershipGroup ? [partnershipGroup.id] : [],
         }),
       });
 
@@ -134,6 +142,22 @@ export default function AddDevicePage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   This ID must match the device's configured ID
+                </p>
+              </div>
+
+              {/* TID */}
+              <div className="space-y-2">
+                <Label htmlFor="tid">TID</Label>
+                <Input
+                  id="tid"
+                  value={device.tid}
+                  onChange={(e) =>
+                    setDevice({ ...device, tid: e.target.value })
+                  }
+                  placeholder="Enter TID"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Payment terminal identifier
                 </p>
               </div>
 
@@ -223,6 +247,20 @@ export default function AddDevicePage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* Also add to Partnership group */}
+              {isAdmin && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="partnership"
+                    checked={addToPartnership}
+                    onCheckedChange={setAddToPartnership}
+                  />
+                  <Label htmlFor="partnership" className="text-sm font-normal cursor-pointer">
+                    Also add to Partnership group
+                  </Label>
                 </div>
               )}
             </CardContent>

@@ -203,6 +203,7 @@ export default function DeviceListPage() {
                   <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-sm z-10">
                     <TableRow>
                       <SortableTableHead column="deviceId" label="Id" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead column="tid" label="TID" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                       <SortableTableHead column="deviceName" label="Name" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                       <SortableTableHead column="location" label="Location" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                       {isAdmin && <SortableTableHead column="groupName" label="Group" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />}
@@ -217,7 +218,7 @@ export default function DeviceListPage() {
                     {paginatedDevices.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={isAdmin ? 9 : 8}
+                          colSpan={isAdmin ? 10 : 9}
                           className="text-center py-8 text-muted-foreground"
                         >
                           No devices found
@@ -227,6 +228,7 @@ export default function DeviceListPage() {
                       paginatedDevices.map((device) => (
                         <TableRow key={device.id}>
                           <TableCell className="font-mono">{device.deviceId}</TableCell>
+                          <TableCell className="font-mono">{device.tid || "-"}</TableCell>
                           <TableCell>{device.deviceName}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">

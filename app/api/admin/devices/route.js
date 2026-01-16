@@ -121,7 +121,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, location, price, isActive, groupId, removeFromGroupId } = body;
+    const { deviceId, deviceName, location, price, isActive, groupId, removeFromGroupId, tid, additionalGroupIds } = body;
 
     if (!deviceId) {
       return NextResponse.json(
@@ -176,6 +176,7 @@ export async function POST(request) {
         ...(location !== undefined && { location }),
         ...(price !== undefined && { price: parseInt(price) }),
         ...(isActive !== undefined && { isActive }),
+        ...(tid !== undefined && { tid }),
       },
       create: {
         deviceId: deviceId,
@@ -183,6 +184,7 @@ export async function POST(request) {
         location: location || null,
         price: price ? parseInt(price) : 250, // Default $2.50
         isActive: isActive !== undefined ? isActive : false, // Default inactive until device reports temperature
+        tid: tid || null,
       },
       include: {
         groups: { include: { group: true } },
@@ -215,6 +217,27 @@ export async function POST(request) {
         },
         update: {},
       });
+    }
+
+    // Handle additional group assignments (e.g., Partnership group)
+    if (additionalGroupIds && Array.isArray(additionalGroupIds)) {
+      for (const addGroupId of additionalGroupIds) {
+        if (addGroupId && addGroupId !== groupId) {
+          await db.deviceGroup.upsert({
+            where: {
+              deviceId_groupId: {
+                deviceId: device.id,
+                groupId: addGroupId,
+              }
+            },
+            create: {
+              deviceId: device.id,
+              groupId: addGroupId,
+            },
+            update: {},
+          });
+        }
+      }
     }
 
     // Fetch updated device with groups
