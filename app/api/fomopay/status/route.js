@@ -10,12 +10,19 @@ const KEY_ID = "09bfd5be-9b94-495d-ac89-74f8aee39071";
 const API_URL = "https://pos.fomopay.net/rpc";
 
 /**
- * Load RSA private key
+ * Load RSA private key from environment variable
  */
 function loadPrivateKey() {
-  const keyPath = path.join(process.cwd(), 'keys', 'posvendor.key.pem');
-  const keyContent = fs.readFileSync(keyPath, 'utf8');
-  return keyContent;
+  if (process.env.FOMOPAY_PRIVATE_KEY) {
+    return process.env.FOMOPAY_PRIVATE_KEY.replace(/\\n/g, '\n');
+  }
+
+  try {
+    const keyPath = path.join(process.cwd(), 'keys', 'posvendor.key.pem');
+    return fs.readFileSync(keyPath, 'utf8');
+  } catch (e) {
+    throw new Error('FOMOPAY_PRIVATE_KEY environment variable not set');
+  }
 }
 
 /**

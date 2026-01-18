@@ -18,12 +18,22 @@ const CONDITION_CODES = {
 };
 
 /**
- * Load RSA private key
+ * Load RSA private key from environment variable
  */
 function loadPrivateKey() {
-  const keyPath = path.join(process.cwd(), 'keys', 'posvendor.key.pem');
-  const keyContent = fs.readFileSync(keyPath, 'utf8');
-  return keyContent;
+  // First try environment variable (for Vercel deployment)
+  if (process.env.FOMOPAY_PRIVATE_KEY) {
+    // Replace escaped newlines with actual newlines
+    return process.env.FOMOPAY_PRIVATE_KEY.replace(/\\n/g, '\n');
+  }
+
+  // Fallback to file for local development
+  try {
+    const keyPath = path.join(process.cwd(), 'keys', 'posvendor.key.pem');
+    return fs.readFileSync(keyPath, 'utf8');
+  } catch (e) {
+    throw new Error('FOMOPAY_PRIVATE_KEY environment variable not set and key file not found');
+  }
 }
 
 /**
