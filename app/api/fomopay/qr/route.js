@@ -183,9 +183,11 @@ async function sendRequest(payloadDict) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { amount, paymentMethod = "PAYNOW", description = "Sugarcane Juice" } = body;
+    // Accept both 'paymentMethod' and 'scheme' (app sends 'scheme')
+    const { amount, paymentMethod, scheme, description = "Sugarcane Juice" } = body;
+    const method = paymentMethod || scheme || "PAYNOW";
 
-    console.log(`[FOMOPAY] QR Request - Amount: ${amount} cents, Method: ${paymentMethod}`);
+    console.log(`[FOMOPAY] QR Request - Amount: ${amount} cents, Method: ${method}`);
 
     if (!amount || amount <= 0) {
       return NextResponse.json({
@@ -195,7 +197,7 @@ export async function POST(request) {
     }
 
     // Create sale request
-    const { fields, stan } = createSaleRequest(amount, paymentMethod, description);
+    const { fields, stan } = createSaleRequest(amount, method, description);
 
     // Send to FOMO Pay
     const response = await sendRequest(fields);
@@ -283,7 +285,7 @@ export async function GET() {
     endpoint: "FOMO Pay QR Generator",
     methods: ["POST"],
     usage: {
-      request: { amount: "number (cents)", paymentMethod: "PAYNOW|ALIPAY|WECHATPAY|GRABPAY (optional)" },
+      request: { amount: "number (cents)", scheme: "PAYNOW|ALIPAY|WECHATPAY|GRABPAY (optional, also accepts 'paymentMethod')" },
       response: { success: "boolean", qrCode: "string", reference: "string" }
     }
   });
