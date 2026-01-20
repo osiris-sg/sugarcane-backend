@@ -98,6 +98,9 @@ model Device {
   groups            DeviceGroup[]
   terminalId        String?          // Terminal ID assigned to this device
   tid               String?          // TID for payment terminal
+  appVersion        String?          // App version name (e.g., "3.2")
+  appVersionCode    Int?             // App version code (e.g., 186777)
+  versionUpdatedAt  DateTime?        // When version was last reported
 
   @@index([deviceId])
   @@index([driverId])

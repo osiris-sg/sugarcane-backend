@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceType, secret, timestamp } = body;
+    const { deviceId, deviceType, secret, timestamp, appVersion, appVersionCode } = body;
 
     // deviceId from app is actually Build.SERIAL (hardware ID)
     const hardwareId = deviceId;
@@ -22,12 +22,25 @@ export async function POST(request) {
       );
     }
 
-    console.log(`[ReportDeviceInfo] Hardware ${hardwareId} reported: type=${deviceType}, secret=${secret ? '***' : 'none'}, timestamp=${timestamp}`);
+    console.log(`[ReportDeviceInfo] Hardware ${hardwareId} reported: type=${deviceType}, secret=${secret ? '***' : 'none'}, timestamp=${timestamp}, appVersion=${appVersion}, appVersionCode=${appVersionCode}`);
 
     // Find device where terminalId matches the hardware ID (Build.SERIAL)
-    const device = await db.device.findFirst({
+    let device = await db.device.findFirst({
       where: { terminalId: String(hardwareId) },
     });
+
+    // Update version info if device found and version provided
+    if (device && (appVersion || appVersionCode)) {
+      device = await db.device.update({
+        where: { id: device.id },
+        data: {
+          appVersion: appVersion || device.appVersion,
+          appVersionCode: appVersionCode ? parseInt(appVersionCode) : device.appVersionCode,
+          versionUpdatedAt: new Date(),
+        },
+      });
+      console.log(`[ReportDeviceInfo] Updated device ${device.deviceId} version to ${appVersion} (${appVersionCode})`);
+    }
 
     // Also fetch all drivers for PIN login
     const users = await db.user.findMany({
@@ -75,6 +88,8 @@ export async function POST(request) {
         isActive: device.isActive,
         terminalId: device.terminalId,  // For reference (same as hardwareId)
         price: device.price,  // Price in cents
+        appVersion: device.appVersion,  // Current app version
+        appVersionCode: device.appVersionCode,  // Current app version code
       },
       drivers: drivers,  // For PIN login
     });
