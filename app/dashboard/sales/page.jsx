@@ -291,29 +291,97 @@ export default function OrderListPage() {
   const filterLabel = getFilterLabel();
   const hasFilters = deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all" || searchText;
 
-  // Export to CSV
-  function exportToCSV() {
-    const headers = ["Order ID", "Terminal ID", "Device Name", "Date", "Status", "PayWay", "Amount", "Refund", "TotalCount", "DeliverCount"];
-    const rows = filteredOrders.map((o) => [
-      o.orderId,
-      o.deviceId,
-      o.deviceName,
-      new Date(o.createdAt).toISOString(),
-      o.isSuccess ? "Success" : "Failed",
-      getPaymentMethod(o.payWay)?.label || "-",
-      (o.amount / 100).toFixed(2),
-      o.refundAmount ? (o.refundAmount / 100).toFixed(2) : "",
-      o.totalCount ?? o.quantity ?? 1,
-      o.deliverCount ?? o.quantity ?? 1,
-    ]);
+  // Export to CSV - fetch all orders matching current filters
+  const [exporting, setExporting] = useState(false);
 
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `orders-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
+  async function exportToCSV() {
+    setExporting(true);
+    try {
+      // Build query params without pagination to get ALL filtered orders
+      const params = new URLSearchParams();
+      params.set("limit", "100000"); // Large limit to get all
+      params.set("page", "1");
+
+      // Add device filter
+      if (deviceFilter !== "all") {
+        params.set("deviceId", deviceFilter);
+      }
+
+      // Add date range filter
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      switch (dateRange) {
+        case "today":
+          params.set("startDate", todayStart.toISOString());
+          break;
+        case "week":
+          const weekStart = new Date(todayStart);
+          weekStart.setDate(weekStart.getDate() - 7);
+          params.set("startDate", weekStart.toISOString());
+          break;
+        case "month":
+          const monthStart = new Date(todayStart);
+          monthStart.setDate(monthStart.getDate() - 30);
+          params.set("startDate", monthStart.toISOString());
+          break;
+        case "custom":
+          if (customStartDate) {
+            params.set("startDate", new Date(customStartDate).toISOString());
+          }
+          if (customEndDate) {
+            params.set("endDate", new Date(customEndDate + "T23:59:59").toISOString());
+          }
+          break;
+      }
+
+      // Add payment method filter
+      if (payWayFilter !== "all") {
+        params.set("payWay", payWayFilter);
+      }
+
+      // Add search filter
+      if (debouncedSearch) {
+        params.set("search", debouncedSearch);
+      }
+
+      const res = await fetch(`/api/admin/orders?${params.toString()}`);
+      const data = await res.json();
+
+      if (!data.success || !data.orders) {
+        alert("Failed to fetch orders for export");
+        return;
+      }
+
+      const allOrders = data.orders;
+
+      const headers = ["Order ID", "Terminal ID", "Device Name", "Date", "Status", "PayWay", "Amount", "Refund", "TotalCount", "DeliverCount"];
+      const rows = allOrders.map((o) => [
+        o.orderId,
+        o.deviceId,
+        o.deviceName,
+        new Date(o.createdAt).toISOString(),
+        o.isSuccess ? "Success" : "Failed",
+        getPaymentMethod(o.payWay)?.label || "-",
+        (o.amount / 100).toFixed(2),
+        o.refundAmount ? (o.refundAmount / 100).toFixed(2) : "",
+        o.totalCount ?? o.quantity ?? 1,
+        o.deliverCount ?? o.quantity ?? 1,
+      ]);
+
+      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `orders-${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+    } catch (error) {
+      console.error("Error exporting orders:", error);
+      alert("Failed to export orders");
+    } finally {
+      setExporting(false);
+    }
   }
 
   if (initialLoading) {
@@ -337,8 +405,8 @@ export default function OrderListPage() {
             <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing}>
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </Button>
-            <Button variant="outline" size="icon" onClick={exportToCSV}>
-              <Download className="h-4 w-4" />
+            <Button variant="outline" size="icon" onClick={exportToCSV} disabled={exporting}>
+              <Download className={`h-4 w-4 ${exporting ? "animate-pulse" : ""}`} />
             </Button>
           </div>
         </div>
@@ -347,9 +415,9 @@ export default function OrderListPage() {
             <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToCSV}>
-            <Download className="mr-2 h-4 w-4" />
-            Export
+          <Button variant="outline" size="sm" onClick={exportToCSV} disabled={exporting}>
+            <Download className={`mr-2 h-4 w-4 ${exporting ? "animate-pulse" : ""}`} />
+            {exporting ? "Exporting..." : "Export"}
           </Button>
         </div>
       </header>
