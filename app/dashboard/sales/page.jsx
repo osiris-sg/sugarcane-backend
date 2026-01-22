@@ -147,6 +147,7 @@ export default function OrderListPage() {
     }
 
     // Add date range filter
+    // Use SGT timezone (UTC+8) for all date calculations
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -165,11 +166,14 @@ export default function OrderListPage() {
         params.set("startDate", monthStart.toISOString());
         break;
       case "custom":
+        // For custom dates, interpret as SGT (Asia/Singapore, UTC+8)
         if (customStartDate) {
-          params.set("startDate", new Date(customStartDate).toISOString());
+          // Parse as SGT midnight (00:00:00+08:00)
+          params.set("startDate", new Date(customStartDate + "T00:00:00+08:00").toISOString());
         }
         if (customEndDate) {
-          params.set("endDate", new Date(customEndDate + "T23:59:59").toISOString());
+          // Parse as SGT end of day (23:59:59+08:00)
+          params.set("endDate", new Date(customEndDate + "T23:59:59+08:00").toISOString());
         }
         break;
     }
@@ -326,11 +330,12 @@ export default function OrderListPage() {
           params.set("startDate", monthStart.toISOString());
           break;
         case "custom":
+          // For custom dates, interpret as SGT (Asia/Singapore, UTC+8)
           if (customStartDate) {
-            params.set("startDate", new Date(customStartDate).toISOString());
+            params.set("startDate", new Date(customStartDate + "T00:00:00+08:00").toISOString());
           }
           if (customEndDate) {
-            params.set("endDate", new Date(customEndDate + "T23:59:59").toISOString());
+            params.set("endDate", new Date(customEndDate + "T23:59:59+08:00").toISOString());
           }
           break;
       }
