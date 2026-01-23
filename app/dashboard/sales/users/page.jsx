@@ -15,6 +15,8 @@ import {
   User,
   Briefcase,
   Truck,
+  Search,
+  X,
 } from "lucide-react";
 import { TablePagination, usePagination } from "@/components/ui/table-pagination";
 
@@ -23,6 +25,7 @@ const ITEMS_PER_PAGE = 20;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -66,6 +69,8 @@ export default function UsersPage() {
   const [newGroupId, setNewGroupId] = useState("");
   const [createNewGroup, setCreateNewGroup] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchText, setSearchText] = useState("");
+  const [roleFilter, setRoleFilter] = useState(null); // null = all, "owner", "franchisee", "opsmanager", "driver"
 
   // Redirect non-admins
   const role = user?.publicMetadata?.role || "franchisee";
@@ -180,9 +185,53 @@ export default function UsersPage() {
   const opsmanagerCount = users.filter((u) => ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(u.role)).length;
   const driverCount = users.filter((u) => ["driver", "DRIVER"].includes(u.role)).length;
 
-  // Pagination
-  const { totalItems, totalPages, getPageItems } = usePagination(users, ITEMS_PER_PAGE);
+  // Filter users based on search and role
+  const filteredUsers = users.filter((u) => {
+    // Search filter
+    const searchLower = searchText.toLowerCase();
+    const matchesSearch = !searchText ||
+      (u.firstName?.toLowerCase().includes(searchLower)) ||
+      (u.lastName?.toLowerCase().includes(searchLower)) ||
+      (u.email?.toLowerCase().includes(searchLower)) ||
+      (`${u.firstName} ${u.lastName}`.toLowerCase().includes(searchLower)) ||
+      (u.group?.name?.toLowerCase().includes(searchLower));
+
+    // Role filter
+    let matchesRole = true;
+    if (roleFilter === "owner") {
+      matchesRole = ["owner", "admin", "OWNER", "ADMIN"].includes(u.role);
+    } else if (roleFilter === "franchisee") {
+      matchesRole = ["franchisee", "FRANCHISEE"].includes(u.role);
+    } else if (roleFilter === "opsmanager") {
+      matchesRole = ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(u.role);
+    } else if (roleFilter === "driver") {
+      matchesRole = ["driver", "DRIVER"].includes(u.role);
+    }
+
+    return matchesSearch && matchesRole;
+  });
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, roleFilter]);
+
+  // Pagination using filtered users
+  const { totalItems, totalPages, getPageItems } = usePagination(filteredUsers, ITEMS_PER_PAGE);
   const paginatedUsers = getPageItems(currentPage);
+
+  // Handle role card click
+  const handleRoleCardClick = (role) => {
+    setRoleFilter(roleFilter === role ? null : role);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchText("");
+    setRoleFilter(null);
+  };
+
+  const hasFilters = searchText || roleFilter;
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -198,9 +247,31 @@ export default function UsersPage() {
       </header>
 
       <main className="flex-1 overflow-auto p-4 md:p-6">
-        {/* Stats */}
+        {/* Search Bar */}
+        <div className="mb-4 flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, email or franchisee..."
+              className="pl-10"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+          </div>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="shrink-0">
+              <X className="mr-1 h-4 w-4" />
+              Clear
+            </Button>
+          )}
+        </div>
+
+        {/* Stats - Clickable Role Cards */}
         <div className="mb-4 md:mb-6 grid grid-cols-3 gap-2 md:gap-4 md:grid-cols-5">
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:shadow-md ${roleFilter === null ? "ring-2 ring-blue-500" : ""}`}
+            onClick={() => setRoleFilter(null)}
+          >
             <CardContent className="flex items-center gap-2 md:gap-4 p-2 md:p-4">
               <div className="rounded-full bg-blue-100 p-2 md:p-3">
                 <Users className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
@@ -211,7 +282,10 @@ export default function UsersPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:shadow-md ${roleFilter === "owner" ? "ring-2 ring-amber-500" : ""}`}
+            onClick={() => handleRoleCardClick("owner")}
+          >
             <CardContent className="flex items-center gap-2 md:gap-4 p-2 md:p-4">
               <div className="rounded-full bg-amber-100 p-2 md:p-3">
                 <Crown className="h-4 w-4 md:h-5 md:w-5 text-amber-600" />
@@ -222,7 +296,10 @@ export default function UsersPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:shadow-md ${roleFilter === "franchisee" ? "ring-2 ring-green-500" : ""}`}
+            onClick={() => handleRoleCardClick("franchisee")}
+          >
             <CardContent className="flex items-center gap-2 md:gap-4 p-2 md:p-4">
               <div className="rounded-full bg-green-100 p-2 md:p-3">
                 <User className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
@@ -233,7 +310,10 @@ export default function UsersPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="hidden md:block">
+          <Card
+            className={`hidden md:block cursor-pointer transition-all hover:shadow-md ${roleFilter === "opsmanager" ? "ring-2 ring-purple-500" : ""}`}
+            onClick={() => handleRoleCardClick("opsmanager")}
+          >
             <CardContent className="flex items-center gap-4 p-4">
               <div className="rounded-full bg-purple-100 p-3">
                 <Briefcase className="h-5 w-5 text-purple-600" />
@@ -244,7 +324,10 @@ export default function UsersPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="hidden md:block">
+          <Card
+            className={`hidden md:block cursor-pointer transition-all hover:shadow-md ${roleFilter === "driver" ? "ring-2 ring-orange-500" : ""}`}
+            onClick={() => handleRoleCardClick("driver")}
+          >
             <CardContent className="flex items-center gap-4 p-4">
               <div className="rounded-full bg-orange-100 p-3">
                 <Truck className="h-5 w-5 text-orange-600" />
@@ -262,7 +345,7 @@ export default function UsersPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              All Users
+              {hasFilters ? `Filtered Users (${filteredUsers.length})` : "All Users"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -270,9 +353,9 @@ export default function UsersPage() {
               <div className="py-8 text-center text-muted-foreground">
                 Loading users...
               </div>
-            ) : users.length === 0 ? (
+            ) : filteredUsers.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
-                No users found
+                {hasFilters ? "No users match your filters" : "No users found"}
               </div>
             ) : (
               <Table>
@@ -395,15 +478,15 @@ export default function UsersPage() {
         <div className="md:hidden space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Users className="h-4 w-4" />
-            All Users ({users.length})
+            {hasFilters ? `Filtered Users (${filteredUsers.length})` : `All Users (${users.length})`}
           </div>
           {loading ? (
             <div className="py-8 text-center text-muted-foreground text-sm">
               Loading users...
             </div>
-          ) : users.length === 0 ? (
+          ) : filteredUsers.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground text-sm">
-              No users found
+              {hasFilters ? "No users match your filters" : "No users found"}
             </div>
           ) : (
             <>
