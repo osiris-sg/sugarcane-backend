@@ -4,6 +4,11 @@ import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
+// Toggle between Order and OrderImport table
+// Set to true to use imported CSV data, false to use original Order table
+const USE_IMPORT_TABLE = true;
+const orderTable = USE_IMPORT_TABLE ? db.orderImport : db.order;
+
 // GET /api/admin/orders/summary - Get order summary by device with filters
 export async function GET(request) {
   try {
@@ -122,7 +127,7 @@ export async function GET(request) {
     }
 
     // Aggregate orders by deviceId only (not deviceName, as orders may have inconsistent names)
-    const ordersByDevice = await db.order.groupBy({
+    const ordersByDevice = await orderTable.groupBy({
       by: ['deviceId'],
       where: orderWhere,
       _sum: {

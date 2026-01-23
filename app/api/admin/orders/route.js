@@ -4,6 +4,11 @@ import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
+// Toggle between Order and OrderImport table
+// Set to true to use imported CSV data, false to use original Order table
+const USE_IMPORT_TABLE = true;
+const orderTable = USE_IMPORT_TABLE ? db.orderImport : db.order;
+
 // GET /api/admin/orders - List orders with optional filters
 export async function GET(request) {
   try {
@@ -112,10 +117,10 @@ export async function GET(request) {
     }
 
     // Get total count for pagination
-    const totalCount = await db.order.count({ where });
+    const totalCount = await orderTable.count({ where });
 
     // Fetch orders with pagination
-    const orders = await db.order.findMany({
+    const orders = await orderTable.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -170,14 +175,14 @@ export async function GET(request) {
     // If where already has isSuccess: true, that's fine (it will be overwritten with same value)
     // If admin is viewing failed orders, we still want filtered stats for successful ones in that filter
 
-    const filteredStats = await db.order.aggregate({
+    const filteredStats = await orderTable.aggregate({
       where: filteredStatsWhere,
       _sum: { amount: true },
       _count: true,
     });
 
     // All-time stats (successful, non-free orders)
-    const allTimeStats = await db.order.aggregate({
+    const allTimeStats = await orderTable.aggregate({
       where: {
         ...baseStatsWhere,
         isSuccess: true,
@@ -188,7 +193,7 @@ export async function GET(request) {
     });
 
     // Monthly stats (successful, non-free orders)
-    const monthlyStats = await db.order.aggregate({
+    const monthlyStats = await orderTable.aggregate({
       where: {
         ...baseStatsWhere,
         isSuccess: true,

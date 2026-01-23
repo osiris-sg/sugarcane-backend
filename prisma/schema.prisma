@@ -146,6 +146,28 @@ model Order {
   @@index([isSuccess])
 }
 
+// Duplicate table for imported CSV data
+model OrderImport {
+  id           String   @id @default(cuid())
+  orderId      String
+  deviceId     String
+  deviceName   String
+  amount       Int
+  quantity     Int      @default(1)
+  payWay       String?
+  isSuccess    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  deliverCount Int?
+  payAmount    Int?
+  refundAmount Int?
+  totalCount   Int?
+
+  @@index([deviceId, createdAt])
+  @@index([createdAt])
+  @@index([isSuccess])
+  @@index([orderId])
+}
+
 model StockHistory {
   id          String   @id @default(cuid())
   deviceId    String
