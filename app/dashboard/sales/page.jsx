@@ -172,8 +172,8 @@ export default function OrderListPage() {
           params.set("startDate", new Date(customStartDate + "T00:00:00+08:00").toISOString());
         }
         if (customEndDate) {
-          // Parse as SGT end of day (23:59:59+08:00)
-          params.set("endDate", new Date(customEndDate + "T23:59:59+08:00").toISOString());
+          // Parse as SGT midnight (00:00:00+08:00) - exclusive end date like old platform
+          params.set("endDate", new Date(customEndDate + "T00:00:00+08:00").toISOString());
         }
         break;
     }
@@ -335,7 +335,8 @@ export default function OrderListPage() {
             params.set("startDate", new Date(customStartDate + "T00:00:00+08:00").toISOString());
           }
           if (customEndDate) {
-            params.set("endDate", new Date(customEndDate + "T23:59:59+08:00").toISOString());
+            // Exclusive end date like old platform
+            params.set("endDate", new Date(customEndDate + "T00:00:00+08:00").toISOString());
           }
           break;
       }

@@ -47,9 +47,9 @@ function getDateRange(dateRange, customStart = "", customEnd = "") {
 
   // Handle custom date range - interpret dates as SGT (UTC+8)
   if (dateRange === "custom" && customStart && customEnd) {
-    // Parse as SGT midnight (00:00:00+08:00) and end of day (23:59:59+08:00)
+    // Parse as SGT midnight (00:00:00+08:00) - exclusive end date like old platform
     const startDate = new Date(customStart + "T00:00:00+08:00");
-    const endDate = new Date(customEnd + "T23:59:59.999+08:00");
+    const endDate = new Date(customEnd + "T00:00:00+08:00");
     const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
     return { startDate, endDate, days: Math.max(days, 1) };
   }
