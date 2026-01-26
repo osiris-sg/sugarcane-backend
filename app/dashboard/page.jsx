@@ -19,7 +19,11 @@ export default function DashboardPage() {
   const isOwnerOrAdmin = role === "owner" || role === "admin";
 
   // Redirect sales-only users (franchisee, finance) directly to sales page
+  // ADMINOPS goes to equipment page (their primary access)
   if (isLoaded && !isOwnerOrAdmin) {
+    if (role === "adminops") {
+      redirect("/dashboard/sales/equipment");
+    }
     redirect("/dashboard/sales");
   }
 
