@@ -35,6 +35,27 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+// Sidebar items for adminops role (User Management + Device Management only)
+const sidebarItemsAdminOps = [
+  {
+    title: "Device Management",
+    icon: Monitor,
+    children: [
+      { title: "Device List", href: "/dashboard/sales/equipment", icon: List },
+      { title: "Device Grouping", href: "/dashboard/sales/equipment/grouping", icon: Layers },
+    ],
+  },
+  {
+    title: "User Management",
+    icon: Users,
+    children: [
+      { title: "User List", href: "/dashboard/sales/users", icon: List },
+      { title: "Add User", href: "/dashboard/sales/users/add", icon: UserPlus },
+      { title: "Roles", href: "/dashboard/sales/users/roles", icon: Shield },
+    ],
+  },
+];
+
 // Sidebar items for partnerships role (very restricted)
 const sidebarItemsPartnerships = [
   {
@@ -216,13 +237,16 @@ export default function SalesLayout({ children }) {
   // Use different sidebar items based on role
   const isPartnerships = roleLower === "partnerships";
   const isFinance = roleLower === "finance";
+  const isAdminOps = roleLower === "adminops";
   const filteredItems = isPartnerships
     ? sidebarItemsPartnerships
     : isFinance
       ? sidebarItemsFinance
-      : isAdmin
-        ? sidebarItemsAdmin
-        : sidebarItemsFranchisee;
+      : isAdminOps
+        ? sidebarItemsAdminOps
+        : isAdmin
+          ? sidebarItemsAdmin
+          : sidebarItemsFranchisee;
 
   const handleMobileNavigate = () => {
     setIsMobileMenuOpen(false);

@@ -393,6 +393,7 @@ enum UserRole {
   DRIVER
   FINANCE
   PARTNERSHIPS
+  ADMINOPS
 }
 
 enum OtaStatus {
