@@ -132,7 +132,7 @@ export async function GET(request) {
       where: orderWhere,
       _sum: {
         amount: true,
-        quantity: true,
+        deliverCount: true,
       },
       _count: true,
     });
@@ -145,7 +145,7 @@ export async function GET(request) {
       groupId: deviceMap[item.deviceId]?.groupId || null,
       groupName: deviceMap[item.deviceId]?.groupName || null,
       totalSales: item._sum.amount || 0,
-      totalCups: item._sum.quantity || 0,
+      totalCups: item._sum.deliverCount || 0,
       orderCount: item._count,
     }));
 
