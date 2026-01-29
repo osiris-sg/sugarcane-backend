@@ -94,5 +94,5 @@ export async function POST(request) {
   }
 }
 
-// Export completedPayments for use by check-status endpoint
-export { completedPayments };
+// Note: completedPayments is stored in-memory for this serverless function instance
+// In production, use a database or Redis for persistent storage across instances
