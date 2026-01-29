@@ -36,7 +36,7 @@ export default function GooglePayPage() {
 
         setStatus('redirecting');
 
-        // Redirect to Airwallex checkout with Google Pay + Card fallback
+        // Redirect to Airwallex checkout with Google Pay only
         payments.redirectToCheckout({
           intent_id: intentId,
           client_secret: clientSecret,

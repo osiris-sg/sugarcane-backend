@@ -36,13 +36,18 @@ export default function ApplePayPage() {
 
         setStatus('redirecting');
 
-        // Redirect to Airwallex checkout with Apple Pay + Card fallback
+        // Redirect to Airwallex checkout with Apple Pay only
         payments.redirectToCheckout({
           intent_id: intentId,
           client_secret: clientSecret,
           currency: currency,
           country_code: 'SG',
           methods: ['applepay'], // Only Apple Pay
+          applePayRequestOptions: {
+            countryCode: 'SG',
+            buttonType: 'plain',
+            buttonColor: 'black',
+          },
           successUrl: `${window.location.origin}/pay/success?intent_id=${intentId}`,
           failUrl: `${window.location.origin}/pay/failed?intent_id=${intentId}`,
         });
