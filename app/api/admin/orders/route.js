@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 // Toggle between Order and OrderImport table
 // Set to true to use imported CSV data, false to use original Order table
-const USE_IMPORT_TABLE = false;
+const USE_IMPORT_TABLE = true;
 const orderTable = USE_IMPORT_TABLE ? db.orderImport : db.order;
 
 // GET /api/admin/orders - List orders with optional filters
