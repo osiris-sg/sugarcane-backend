@@ -138,6 +138,17 @@ async function createPaymentLink(amount, currency, orderId, title, scheme) {
   return await response.json();
 }
 
+// Get the custom payment page path based on scheme
+function getPaymentPagePath(scheme) {
+  const schemeMap = {
+    'APPLEPAY': '/pay/applepay',
+    'GOOGLEPAY': '/pay/googlepay',
+    'SAMSUNGPAY': '/pay/card',
+    'CARD': '/pay/card'
+  };
+  return schemeMap[scheme?.toUpperCase()] || '/pay/card';
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -157,9 +168,37 @@ export async function POST(request) {
     }
 
     const merchantOrderId = orderId || `order_${Date.now()}`;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://sugarcane-backend-five.vercel.app';
+
+    // If scheme is specified (APPLEPAY, GOOGLEPAY, SAMSUNGPAY), use custom hosted page
+    if (scheme && ['APPLEPAY', 'GOOGLEPAY', 'SAMSUNGPAY', 'CARD'].includes(scheme.toUpperCase())) {
+      // Create payment intent for custom hosted page
+      const returnUrl = `${baseUrl}/pay/success`;
+      const paymentIntent = await createPaymentIntent(amount, currency, merchantOrderId, returnUrl);
+
+      console.log('[Airwallex Create Payment] Payment intent created for custom page:', paymentIntent.id);
+
+      // Build URL to our custom payment page
+      const pagePath = getPaymentPagePath(scheme);
+      const customUrl = `${baseUrl}${pagePath}?intent_id=${paymentIntent.id}&client_secret=${encodeURIComponent(paymentIntent.client_secret)}&currency=${currency}&amount=${amount}`;
+
+      console.log('[Airwallex Create Payment] Custom page URL:', customUrl);
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: paymentIntent.id,
+          url: customUrl,
+          qrCodeData: customUrl, // Use custom page URL for QR code
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency,
+          status: paymentIntent.status
+        }
+      });
+    }
 
     if (method === 'link') {
-      // Create payment link (easier for QR code)
+      // Create payment link (for non-scheme payments)
       const paymentLink = await createPaymentLink(amount, currency, merchantOrderId, title, scheme);
 
       console.log('[Airwallex Create Payment] Payment link created:', paymentLink.id);
@@ -179,7 +218,7 @@ export async function POST(request) {
 
     } else {
       // Create payment intent
-      const returnUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://sugarcane-backend-five.vercel.app'}/api/airwallex/return`;
+      const returnUrl = `${baseUrl}/api/airwallex/return`;
       const paymentIntent = await createPaymentIntent(amount, currency, merchantOrderId, returnUrl);
 
       console.log('[Airwallex Create Payment] Payment intent created:', paymentIntent.id);
