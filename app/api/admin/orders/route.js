@@ -170,7 +170,7 @@ export async function GET(request) {
     const filteredStatsWhere = {
       ...where,
       isSuccess: true,
-      payWay: { not: "1000" },
+      payWay: { notIn: ["1000", "Free"] },
     };
     // If where already has isSuccess: true, that's fine (it will be overwritten with same value)
     // If admin is viewing failed orders, we still want filtered stats for successful ones in that filter
@@ -186,7 +186,7 @@ export async function GET(request) {
       where: {
         ...baseStatsWhere,
         isSuccess: true,
-        payWay: { not: "1000" },
+        payWay: { notIn: ["1000", "Free"] },
       },
       _sum: { amount: true },
       _count: true,
@@ -198,7 +198,7 @@ export async function GET(request) {
         ...baseStatsWhere,
         isSuccess: true,
         createdAt: { gte: startOfMonth },
-        payWay: { not: "1000" },
+        payWay: { notIn: ["1000", "Free"] },
       },
       _sum: { amount: true },
       _count: true,
