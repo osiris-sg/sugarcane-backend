@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function ApplePayPage() {
+export default function SamsungPayPage() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
@@ -36,13 +36,13 @@ export default function ApplePayPage() {
 
         setStatus('redirecting');
 
-        // Redirect to Airwallex checkout with Apple Pay + Card fallback
+        // Redirect to Airwallex checkout with Samsung Pay
         payments.redirectToCheckout({
           intent_id: intentId,
           client_secret: clientSecret,
           currency: currency,
           country_code: 'SG',
-          methods: ['applepay'], // Only Apple Pay
+          methods: ['samsungpay'], // Only Samsung Pay
           successUrl: `${window.location.origin}/pay/success?intent_id=${intentId}`,
           failUrl: `${window.location.origin}/pay/failed?intent_id=${intentId}`,
         });
@@ -68,7 +68,7 @@ export default function ApplePayPage() {
   return (
     <html>
       <head>
-        <title>Apple Pay - Sugarcane Juice</title>
+        <title>Samsung Pay - Sugarcane Juice</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <style>{`
           body {
@@ -120,8 +120,8 @@ export default function ApplePayPage() {
       </head>
       <body>
         <div className="container">
-          <div className="logo"></div>
-          <div className="title">Apple Pay</div>
+          <div className="logo">📱</div>
+          <div className="title">Samsung Pay</div>
           {status === 'loading' && (
             <>
               <div className="spinner"></div>
@@ -131,13 +131,13 @@ export default function ApplePayPage() {
           {status === 'initializing' && (
             <>
               <div className="spinner"></div>
-              <div className="status">Initializing Apple Pay...</div>
+              <div className="status">Initializing Samsung Pay...</div>
             </>
           )}
           {status === 'redirecting' && (
             <>
               <div className="spinner"></div>
-              <div className="status">Redirecting to Apple Pay...</div>
+              <div className="status">Redirecting to Samsung Pay...</div>
             </>
           )}
           {status === 'error' && (

@@ -143,7 +143,7 @@ function getPaymentPagePath(scheme) {
   const schemeMap = {
     'APPLEPAY': '/pay/applepay',
     'GOOGLEPAY': '/pay/googlepay',
-    'SAMSUNGPAY': '/pay/card',
+    'SAMSUNGPAY': '/pay/samsungpay',
     'CARD': '/pay/card'
   };
   return schemeMap[scheme?.toUpperCase()] || '/pay/card';
