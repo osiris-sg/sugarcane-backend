@@ -61,13 +61,13 @@ export async function GET(request) {
         dateTo = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         break;
       case 'custom':
+        // Dates are expected as ISO strings with timezone already applied
+        // End date is exclusive (like old platform)
         if (startDate) {
           dateFrom = new Date(startDate);
-          dateFrom.setHours(0, 0, 0, 0);
         }
         if (endDate) {
           dateTo = new Date(endDate);
-          dateTo.setHours(23, 59, 59, 999);
         }
         break;
       default:

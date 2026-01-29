@@ -58,8 +58,16 @@ export default function OrderSummaryPage() {
       if (groupId && groupId !== "all") params.set("groupId", groupId);
       if (deviceId && deviceId !== "all") params.set("deviceId", deviceId);
       if (period === "custom") {
-        if (startDate) params.set("startDate", startDate);
-        if (endDate) params.set("endDate", endDate);
+        // Convert dates to SGT (UTC+8) ISO strings with exclusive end date
+        if (startDate) {
+          const start = new Date(startDate + "T00:00:00+08:00");
+          params.set("startDate", start.toISOString());
+        }
+        if (endDate) {
+          // Exclusive end date - use 00:00:00 of the selected date (like old platform)
+          const end = new Date(endDate + "T00:00:00+08:00");
+          params.set("endDate", end.toISOString());
+        }
       }
 
       const res = await fetch(`/api/admin/orders/summary?${params.toString()}`);
