@@ -79,8 +79,23 @@ async function createPaymentIntent(amount, currency, orderId, returnUrl) {
   return await response.json();
 }
 
+// Map scheme to Airwallex payment method types
+function getPaymentMethodTypes(scheme) {
+  const schemeMap = {
+    'APPLEPAY': ['applepay'],
+    'GOOGLEPAY': ['googlepay'],
+    'SAMSUNGPAY': ['card'], // Samsung Pay uses card tokenization
+    'CARD': ['card'],
+    'PAYNOW': ['paynow'],
+    'ALIPAY': ['alipaycn', 'alipayhk'],
+    'WECHATPAY': ['wechatpay'],
+    'GRABPAY': ['grabpay_sg']
+  };
+  return schemeMap[scheme?.toUpperCase()] || null;
+}
+
 // Create a Payment Link (easier for QR code)
-async function createPaymentLink(amount, currency, orderId, title) {
+async function createPaymentLink(amount, currency, orderId, title, scheme) {
   const token = await getAccessToken();
 
   const payload = {
@@ -91,9 +106,17 @@ async function createPaymentLink(amount, currency, orderId, title) {
     merchant_order_id: orderId,
     request_id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     metadata: {
-      order_id: orderId
+      order_id: orderId,
+      scheme: scheme || 'ALL'
     }
   };
+
+  // Add payment method restriction if scheme is specified
+  const paymentMethods = getPaymentMethodTypes(scheme);
+  if (paymentMethods) {
+    payload.payment_method_types = paymentMethods;
+    console.log('[Airwallex] Restricting to payment methods:', paymentMethods);
+  }
 
   console.log('[Airwallex] Creating payment link:', payload);
 
@@ -123,10 +146,11 @@ export async function POST(request) {
       currency = 'SGD', // Default to SGD
       orderId,          // Order ID from the machine
       title,            // Payment title
+      scheme,           // Payment scheme: APPLEPAY, GOOGLEPAY, SAMSUNGPAY, etc.
       method = 'link'   // 'link' for payment link, 'intent' for payment intent
     } = body;
 
-    console.log('[Airwallex Create Payment] Request:', { amount, currency, orderId, method });
+    console.log('[Airwallex Create Payment] Request:', { amount, currency, orderId, method, scheme });
 
     if (!amount || amount <= 0) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
@@ -136,7 +160,7 @@ export async function POST(request) {
 
     if (method === 'link') {
       // Create payment link (easier for QR code)
-      const paymentLink = await createPaymentLink(amount, currency, merchantOrderId, title);
+      const paymentLink = await createPaymentLink(amount, currency, merchantOrderId, title, scheme);
 
       console.log('[Airwallex Create Payment] Payment link created:', paymentLink.id);
 
