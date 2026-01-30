@@ -133,7 +133,7 @@ model Order {
   deviceName   String
   amount       Int
   quantity     Int      @default(1)
-  payWay       String?
+  payWay       Int?
   isSuccess    Boolean  @default(true)
   createdAt    DateTime @default(now())
   deliverCount Int?

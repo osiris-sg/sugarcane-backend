@@ -168,7 +168,7 @@ export async function POST(request) {
     }
 
     const merchantOrderId = orderId || `order_${Date.now()}`;
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://sugarcane-backend-five.vercel.app';
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://app.supercane.sg';
 
     // If scheme is specified (APPLEPAY, GOOGLEPAY, SAMSUNGPAY), use custom hosted page
     if (scheme && ['APPLEPAY', 'GOOGLEPAY', 'SAMSUNGPAY', 'CARD'].includes(scheme.toUpperCase())) {
