@@ -143,14 +143,17 @@ export async function GET(request) {
     devices.forEach(d => {
       const primaryGroup = d.groups[0]?.group || null;
       deviceMap[d.deviceId] = {
+        location: d.location,
+        deviceName: d.deviceName,
         groupId: primaryGroup?.id || null,
         groupName: primaryGroup?.name || null,
       };
     });
 
-    // Enrich orders with group info
+    // Enrich orders with group info and location from Device table
     const enrichedOrders = orders.map(order => ({
       ...order,
+      deviceName: deviceMap[order.deviceId]?.location || deviceMap[order.deviceId]?.deviceName || order.deviceName,
       groupId: deviceMap[order.deviceId]?.groupId || null,
       groupName: deviceMap[order.deviceId]?.groupName || null,
     }));
