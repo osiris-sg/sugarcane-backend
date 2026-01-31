@@ -763,7 +763,7 @@ export default function OrderListPage() {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{order.deviceId}</p>
+                        <p className="font-medium">{order.deviceName || order.deviceId}</p>
                         {order.isSuccess ? (
                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
                             Success
@@ -774,7 +774,7 @@ export default function OrderListPage() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{order.deviceName}</p>
+                      <p className="text-xs text-muted-foreground">{order.deviceId}</p>
                     </div>
                     <p className="text-lg font-bold">{formatCurrency(order.amount)}</p>
                   </div>
