@@ -281,9 +281,10 @@ export default function OrderListPage() {
     return () => observer.disconnect();
   }, [hasMore, loadingMore, refreshing, mobilePage]);
 
-  // Pull-to-refresh handlers
+  // Pull-to-refresh handlers - use window scroll
   const handleTouchStart = useCallback((e) => {
-    if (containerRef.current?.scrollTop === 0) {
+    // Check if we're at the top of the page
+    if (window.scrollY <= 0) {
       pullStartY.current = e.touches[0].clientY;
       setIsPulling(true);
     }
@@ -291,13 +292,22 @@ export default function OrderListPage() {
 
   const handleTouchMove = useCallback((e) => {
     if (!isPulling) return;
+    // Only allow pull if at top of page
+    if (window.scrollY > 0) {
+      setIsPulling(false);
+      setPullDistance(0);
+      return;
+    }
     const currentY = e.touches[0].clientY;
     const distance = Math.max(0, Math.min(100, currentY - pullStartY.current));
+    if (distance > 0) {
+      e.preventDefault(); // Prevent default scroll when pulling
+    }
     setPullDistance(distance);
   }, [isPulling]);
 
   const handleTouchEnd = useCallback(() => {
-    if (pullDistance > 60) {
+    if (pullDistance > 60 && !refreshing) {
       // Trigger refresh
       setMobilePage(1);
       setMobileOrders([]);
@@ -306,7 +316,7 @@ export default function OrderListPage() {
     }
     setPullDistance(0);
     setIsPulling(false);
-  }, [pullDistance]);
+  }, [pullDistance, refreshing]);
 
   // Fetch all devices for filter dropdown
   async function fetchDevices() {
@@ -494,7 +504,27 @@ export default function OrderListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen bg-background"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator - shown at very top */}
+      <div className="md:hidden">
+        {pullDistance > 0 && (
+          <div
+            className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center bg-background border-b transition-all"
+            style={{ height: pullDistance, opacity: Math.min(1, pullDistance / 40) }}
+          >
+            <RefreshCw className={`h-5 w-5 text-primary ${pullDistance > 60 ? 'animate-spin' : ''}`} />
+            <span className="ml-2 text-sm text-muted-foreground">
+              {pullDistance > 60 ? 'Release to refresh' : 'Pull to refresh'}
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* Header */}
       <header className="sticky top-0 z-30 border-b bg-background px-4 py-3 md:px-6 md:py-0 md:h-16 md:flex md:items-center md:justify-between">
         <div className="flex items-center justify-between md:block">
@@ -837,26 +867,7 @@ export default function OrderListPage() {
         </Card>
 
         {/* Orders List - Mobile (Card view with pull-to-refresh and infinite scroll) */}
-        <div
-          className="md:hidden space-y-3"
-          ref={containerRef}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* Pull-to-refresh indicator */}
-          {pullDistance > 0 && (
-            <div
-              className="flex items-center justify-center transition-all"
-              style={{ height: pullDistance, opacity: pullDistance / 60 }}
-            >
-              <RefreshCw className={`h-5 w-5 text-primary ${pullDistance > 60 ? 'animate-spin' : ''}`} />
-              <span className="ml-2 text-sm text-muted-foreground">
-                {pullDistance > 60 ? 'Release to refresh' : 'Pull to refresh'}
-              </span>
-            </div>
-          )}
-
+        <div className="md:hidden space-y-3" ref={containerRef}>
           {/* Loading bar - Mobile */}
           {refreshing && (
             <div className="h-1 bg-muted rounded overflow-hidden">
