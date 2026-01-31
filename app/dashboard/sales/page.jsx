@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ClipboardList,
   Search,
@@ -114,6 +114,19 @@ export default function OrderListPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [allDevices, setAllDevices] = useState([]);
 
+  // Mobile infinite scroll state
+  const [mobileOrders, setMobileOrders] = useState([]);
+  const [mobilePage, setMobilePage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const loadMoreRef = useRef(null);
+
+  // Pull-to-refresh state
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const pullStartY = useRef(0);
+  const containerRef = useRef(null);
+
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -191,7 +204,7 @@ export default function OrderListPage() {
     return params.toString();
   }
 
-  async function fetchOrders(page = currentPage) {
+  async function fetchOrders(page = currentPage, isRefresh = false) {
     try {
       setRefreshing(true);
       const queryString = buildQueryParams(page);
@@ -200,6 +213,12 @@ export default function OrderListPage() {
 
       if (data.success) {
         setOrders(data.orders || []);
+        // For mobile: reset or set orders on refresh/filter change
+        if (isRefresh || page === 1) {
+          setMobileOrders(data.orders || []);
+          setMobilePage(1);
+          setHasMore((data.pagination?.totalPages || 1) > 1);
+        }
         setFilteredTotal(data.filteredTotal || 0);
         setFilteredCount(data.filteredCount || 0);
         setAllTimeTotal(data.allTimeTotal || 0);
@@ -218,6 +237,76 @@ export default function OrderListPage() {
       setRefreshing(false);
     }
   }
+
+  // Fetch more orders for mobile infinite scroll
+  async function fetchMoreOrders() {
+    if (loadingMore || !hasMore) return;
+
+    try {
+      setLoadingMore(true);
+      const nextPage = mobilePage + 1;
+      const queryString = buildQueryParams(nextPage);
+      const res = await fetch(`/api/admin/orders?${queryString}`);
+      const data = await res.json();
+
+      if (data.success && data.orders?.length > 0) {
+        setMobileOrders(prev => [...prev, ...data.orders]);
+        setMobilePage(nextPage);
+        setHasMore(nextPage < (data.pagination?.totalPages || 1));
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Error fetching more orders:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !refreshing) {
+          fetchMoreOrders();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, refreshing, mobilePage]);
+
+  // Pull-to-refresh handlers
+  const handleTouchStart = useCallback((e) => {
+    if (containerRef.current?.scrollTop === 0) {
+      pullStartY.current = e.touches[0].clientY;
+      setIsPulling(true);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!isPulling) return;
+    const currentY = e.touches[0].clientY;
+    const distance = Math.max(0, Math.min(100, currentY - pullStartY.current));
+    setPullDistance(distance);
+  }, [isPulling]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullDistance > 60) {
+      // Trigger refresh
+      setMobilePage(1);
+      setMobileOrders([]);
+      setHasMore(true);
+      fetchOrders(1, true);
+    }
+    setPullDistance(0);
+    setIsPulling(false);
+  }, [pullDistance]);
 
   // Fetch all devices for filter dropdown
   async function fetchDevices() {
@@ -240,16 +329,22 @@ export default function OrderListPage() {
   // Reset to page 1 when filters change (except page itself)
   useEffect(() => {
     setCurrentPage(1);
+    setMobilePage(1);
+    setMobileOrders([]);
+    setHasMore(true);
   }, [deviceFilter, dateRange, customStartDate, customEndDate, payWayFilter, debouncedSearch]);
 
   // Fetch orders when filters or page change
   useEffect(() => {
-    fetchOrders(currentPage);
+    fetchOrders(currentPage, currentPage === 1);
   }, [deviceFilter, dateRange, customStartDate, customEndDate, payWayFilter, debouncedSearch, currentPage]);
 
   function handleRefresh() {
     setRefreshing(true);
-    fetchOrders();
+    setMobilePage(1);
+    setMobileOrders([]);
+    setHasMore(true);
+    fetchOrders(1, true);
   }
 
   function clearFilters() {
@@ -741,8 +836,27 @@ export default function OrderListPage() {
           )}
         </Card>
 
-        {/* Orders List - Mobile (Card view) */}
-        <div className="md:hidden space-y-3">
+        {/* Orders List - Mobile (Card view with pull-to-refresh and infinite scroll) */}
+        <div
+          className="md:hidden space-y-3"
+          ref={containerRef}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Pull-to-refresh indicator */}
+          {pullDistance > 0 && (
+            <div
+              className="flex items-center justify-center transition-all"
+              style={{ height: pullDistance, opacity: pullDistance / 60 }}
+            >
+              <RefreshCw className={`h-5 w-5 text-primary ${pullDistance > 60 ? 'animate-spin' : ''}`} />
+              <span className="ml-2 text-sm text-muted-foreground">
+                {pullDistance > 60 ? 'Release to refresh' : 'Pull to refresh'}
+              </span>
+            </div>
+          )}
+
           {/* Loading bar - Mobile */}
           {refreshing && (
             <div className="h-1 bg-muted rounded overflow-hidden">
@@ -750,82 +864,73 @@ export default function OrderListPage() {
                    style={{ animation: 'slide 1s ease-in-out infinite' }} />
             </div>
           )}
-          {sortedOrders.length === 0 ? (
+
+          {mobileOrders.length === 0 && !refreshing ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 No orders found
               </CardContent>
             </Card>
           ) : (
-            sortedOrders.map((order) => (
-              <Card key={order.id} className={!order.isSuccess ? "border-red-200 bg-red-50/50" : ""}>
-                <CardContent className="p-3">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{order.deviceName || order.deviceId}</p>
-                        {order.isSuccess ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
-                            Success
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
-                            Failed
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">{order.deviceId}</p>
-                    </div>
-                    <p className="text-lg font-bold">{formatCurrency(order.amount)}</p>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      {order.payWay ? (
-                        <Badge variant="outline" className="gap-1 text-xs">
-                          {getPaymentMethod(order.payWay)?.icon === "free" ? (
-                            <Gift className="h-3 w-3" />
+            <>
+              {mobileOrders.map((order, index) => (
+                <Card key={`${order.id}-${index}`} className={!order.isSuccess ? "border-red-200 bg-red-50/50" : ""}>
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{order.deviceName || order.deviceId}</p>
+                          {order.isSuccess ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                              Success
+                            </Badge>
                           ) : (
-                            <CreditCard className="h-3 w-3" />
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
+                              Failed
+                            </Badge>
                           )}
-                          {getPaymentMethod(order.payWay)?.label}
-                        </Badge>
-                      ) : null}
-                      <span className="text-muted-foreground">
-                        {order.deliverCount ?? order.quantity ?? 1}/{order.totalCount ?? order.quantity ?? 1}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{order.deviceId}</p>
+                      </div>
+                      <p className="text-lg font-bold">{formatCurrency(order.amount)}</p>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        {order.payWay ? (
+                          <Badge variant="outline" className="gap-1 text-xs">
+                            {getPaymentMethod(order.payWay)?.icon === "free" ? (
+                              <Gift className="h-3 w-3" />
+                            ) : (
+                              <CreditCard className="h-3 w-3" />
+                            )}
+                            {getPaymentMethod(order.payWay)?.label}
+                          </Badge>
+                        ) : null}
+                        <span className="text-muted-foreground">
+                          {order.deliverCount ?? order.quantity ?? 1}/{order.totalCount ?? order.quantity ?? 1}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateShort(order.createdAt)}
                       </span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDateShort(order.createdAt)}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+                  </CardContent>
+                </Card>
+              ))}
 
-          {/* Pagination - Mobile */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1 || refreshing}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {refreshing ? "..." : `${currentPage} / ${totalPages}`}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages || refreshing}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+              {/* Load more trigger */}
+              <div ref={loadMoreRef} className="py-4 flex justify-center">
+                {loadingMore && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">Loading more...</span>
+                  </div>
+                )}
+                {!hasMore && mobileOrders.length > 0 && (
+                  <span className="text-sm text-muted-foreground">No more orders</span>
+                )}
+              </div>
+            </>
           )}
         </div>
       </main>
