@@ -281,6 +281,18 @@ export default function OrderListPage() {
     return () => observer.disconnect();
   }, [hasMore, loadingMore, refreshing, mobilePage]);
 
+  // Add non-passive touch listener for pull-to-refresh (needed for preventDefault)
+  useEffect(() => {
+    const handleTouchMoveNonPassive = (e) => {
+      if (isPulling && window.scrollY <= 0 && pullDistance > 0) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove', handleTouchMoveNonPassive, { passive: false });
+    return () => document.removeEventListener('touchmove', handleTouchMoveNonPassive);
+  }, [isPulling, pullDistance]);
+
   // Pull-to-refresh handlers - use window scroll
   const handleTouchStart = useCallback((e) => {
     // Check if we're at the top of the page
@@ -300,9 +312,6 @@ export default function OrderListPage() {
     }
     const currentY = e.touches[0].clientY;
     const distance = Math.max(0, Math.min(100, currentY - pullStartY.current));
-    if (distance > 0) {
-      e.preventDefault(); // Prevent default scroll when pulling
-    }
     setPullDistance(distance);
   }, [isPulling]);
 
