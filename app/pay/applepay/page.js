@@ -36,13 +36,13 @@ export default function ApplePayPage() {
 
         setStatus('redirecting');
 
-        // Redirect to Airwallex checkout with Apple Pay only
+        // Redirect to Airwallex checkout with Apple Pay preferred, card as fallback
         payments.redirectToCheckout({
           intent_id: intentId,
           client_secret: clientSecret,
           currency: currency,
           country_code: 'SG',
-          methods: ['applepay'], // Only Apple Pay
+          methods: ['applepay', 'card'], // Apple Pay preferred, card as fallback
           applePayRequestOptions: {
             countryCode: 'SG',
             buttonType: 'plain',

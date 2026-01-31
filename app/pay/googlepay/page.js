@@ -36,13 +36,13 @@ export default function GooglePayPage() {
 
         setStatus('redirecting');
 
-        // Redirect to Airwallex checkout with Google Pay only
+        // Redirect to Airwallex checkout with Google Pay preferred, card as fallback
         payments.redirectToCheckout({
           intent_id: intentId,
           client_secret: clientSecret,
           currency: currency,
           country_code: 'SG',
-          methods: ['googlepay'], // Only Google Pay
+          methods: ['googlepay', 'card'], // Google Pay preferred, card as fallback
           successUrl: `${window.location.origin}/pay/success?intent_id=${intentId}`,
           failUrl: `${window.location.origin}/pay/failed?intent_id=${intentId}`,
         });
