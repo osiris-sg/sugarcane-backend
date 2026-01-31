@@ -107,45 +107,58 @@ export async function GET(request) {
     // Get device IDs to filter orders
     const deviceIds = devices.map(d => d.deviceId);
 
-    // Build order where clause
-    const orderWhere = {
-      isSuccess: true,
+    // Build base where clause for date and device filters
+    const baseWhere = {
       payWay: { notIn: ["1000", "Free"] }, // Exclude free orders
       createdAt: {},
     };
 
     if (dateFrom) {
-      orderWhere.createdAt.gte = dateFrom;
+      baseWhere.createdAt.gte = dateFrom;
     }
     if (dateTo) {
-      orderWhere.createdAt.lt = dateTo;
+      baseWhere.createdAt.lt = dateTo;
     }
 
     // If filtering by group, device, or user is franchisee, only include allowed device IDs
     if (groupId || deviceId || userGroupId) {
-      orderWhere.deviceId = { in: deviceIds };
+      baseWhere.deviceId = { in: deviceIds };
     }
 
-    // Aggregate orders by deviceId only (not deviceName, as orders may have inconsistent names)
-    const ordersByDevice = await orderTable.groupBy({
+    // Query 1: Sales and order count (success orders only)
+    const salesByDevice = await orderTable.groupBy({
       by: ['deviceId'],
-      where: orderWhere,
+      where: { ...baseWhere, isSuccess: true },
       _sum: {
         amount: true,
-        deliverCount: true,
       },
       _count: true,
     });
 
+    // Query 2: Cups count (ALL orders that delivered, including failed)
+    const cupsByDevice = await orderTable.groupBy({
+      by: ['deviceId'],
+      where: baseWhere,
+      _sum: {
+        deliverCount: true,
+      },
+    });
+
+    // Create cups lookup
+    const cupsMap = {};
+    cupsByDevice.forEach(item => {
+      cupsMap[item.deviceId] = item._sum.deliverCount || 0;
+    });
+
     // Combine with device info - use device name from Device table, not orders
-    const summary = ordersByDevice.map(item => ({
+    const summary = salesByDevice.map(item => ({
       deviceId: item.deviceId,
       deviceName: deviceMap[item.deviceId]?.location || deviceMap[item.deviceId]?.deviceName || item.deviceId,
       location: deviceMap[item.deviceId]?.location || null,
       groupId: deviceMap[item.deviceId]?.groupId || null,
       groupName: deviceMap[item.deviceId]?.groupName || null,
       totalSales: item._sum.amount || 0,
-      totalCups: item._sum.deliverCount || 0,
+      totalCups: cupsMap[item.deviceId] || 0,
       orderCount: item._count,
     }));
 
