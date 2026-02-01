@@ -346,17 +346,30 @@ export default function OrderListPage() {
   }, []);
 
   // Reset to page 1 when filters change (except page itself)
+  // Note: customStartDate/customEndDate excluded - only apply on button click
   useEffect(() => {
     setCurrentPage(1);
     setMobilePage(1);
     setMobileOrders([]);
     setHasMore(true);
-  }, [deviceFilter, dateRange, customStartDate, customEndDate, payWayFilter, debouncedSearch]);
+  }, [deviceFilter, dateRange, payWayFilter, debouncedSearch]);
 
   // Fetch orders when filters or page change
+  // Note: customStartDate/customEndDate excluded - only apply on button click
   useEffect(() => {
+    // For custom date range, don't auto-fetch - wait for Apply button
+    if (dateRange === "custom") return;
     fetchOrders(currentPage, currentPage === 1);
-  }, [deviceFilter, dateRange, customStartDate, customEndDate, payWayFilter, debouncedSearch, currentPage]);
+  }, [deviceFilter, dateRange, payWayFilter, debouncedSearch, currentPage]);
+
+  // Handler for custom date Apply button
+  function handleCustomDateApply() {
+    setCurrentPage(1);
+    setMobilePage(1);
+    setMobileOrders([]);
+    setHasMore(true);
+    fetchOrders(1, true);
+  }
 
   function handleRefresh() {
     setRefreshing(true);
@@ -733,6 +746,13 @@ export default function OrderListPage() {
                         onChange={(e) => setCustomEndDate(e.target.value)}
                         placeholder="End date"
                       />
+                      <Button
+                        size="sm"
+                        onClick={handleCustomDateApply}
+                        disabled={refreshing || (!customStartDate && !customEndDate)}
+                      >
+                        Apply
+                      </Button>
                     </div>
                   )}
 
