@@ -64,8 +64,9 @@ export default function OrderSummaryPage() {
           params.set("startDate", start.toISOString());
         }
         if (endDate) {
-          // Exclusive end date - use 00:00:00 of the selected date (like old platform)
+          // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
           const end = new Date(endDate + "T00:00:00+08:00");
+          end.setDate(end.getDate() + 1);
           params.set("endDate", end.toISOString());
         }
       }

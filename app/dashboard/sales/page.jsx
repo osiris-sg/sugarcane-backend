@@ -185,8 +185,11 @@ export default function OrderListPage() {
           params.set("startDate", new Date(customStartDate + "T00:00:00+08:00").toISOString());
         }
         if (customEndDate) {
-          // Parse as SGT midnight (00:00:00+08:00) - exclusive end date like old platform
-          params.set("endDate", new Date(customEndDate + "T00:00:00+08:00").toISOString());
+          // Parse as SGT midnight + 1 day to make end date inclusive
+          // e.g., selecting Jan 31 means include all of Jan 31 (up to 23:59:59)
+          const endDate = new Date(customEndDate + "T00:00:00+08:00");
+          endDate.setDate(endDate.getDate() + 1);
+          params.set("endDate", endDate.toISOString());
         }
         break;
     }
@@ -462,8 +465,10 @@ export default function OrderListPage() {
             params.set("startDate", new Date(customStartDate + "T00:00:00+08:00").toISOString());
           }
           if (customEndDate) {
-            // Exclusive end date like old platform
-            params.set("endDate", new Date(customEndDate + "T00:00:00+08:00").toISOString());
+            // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
+            const endDate = new Date(customEndDate + "T00:00:00+08:00");
+            endDate.setDate(endDate.getDate() + 1);
+            params.set("endDate", endDate.toISOString());
           }
           break;
       }
