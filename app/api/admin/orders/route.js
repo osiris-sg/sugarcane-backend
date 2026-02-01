@@ -159,8 +159,13 @@ export async function GET(request) {
     }));
 
     // Calculate summary stats for the current month (excluding free orders)
+    // Use SGT timezone (UTC+8) for month calculation
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const sgtNow = new Date(now.getTime() + (8 * 60 * 60 * 1000)); // Convert to SGT
+    const sgtYear = sgtNow.getUTCFullYear();
+    const sgtMonth = sgtNow.getUTCMonth();
+    // Start of month in SGT, then convert back to UTC for DB query
+    const startOfMonthSGT = new Date(Date.UTC(sgtYear, sgtMonth, 1) - (8 * 60 * 60 * 1000));
 
     // Build base where clause for stats (respects device filtering for franchisees)
     const baseStatsWhere = {};
@@ -200,7 +205,7 @@ export async function GET(request) {
       where: {
         ...baseStatsWhere,
         isSuccess: true,
-        createdAt: { gte: startOfMonth },
+        createdAt: { gte: startOfMonthSGT },
         payWay: { notIn: ["1000", "Free"] },
       },
       _sum: { amount: true },
