@@ -114,6 +114,9 @@ export default function OrderListPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [allDevices, setAllDevices] = useState([]);
+  const [allGroups, setAllGroups] = useState([]);
+  const [groupFilter, setGroupFilter] = useState("all");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Mobile infinite scroll state
   const [mobileOrders, setMobileOrders] = useState([]);
@@ -158,6 +161,11 @@ export default function OrderListPage() {
     // Add device filter
     if (deviceFilter !== "all") {
       params.set("deviceId", deviceFilter);
+    }
+
+    // Add group filter (admin only)
+    if (groupFilter !== "all") {
+      params.set("groupId", groupFilter);
     }
 
     // Add date range filter
@@ -232,6 +240,10 @@ export default function OrderListPage() {
         if (data.pagination) {
           setTotalPages(data.pagination.totalPages || 1);
           setTotalCount(data.pagination.totalCount || 0);
+        }
+        // Set isAdmin from API response
+        if (data.isAdmin !== undefined) {
+          setIsAdmin(data.isAdmin);
         }
       }
     } catch (error) {
@@ -344,9 +356,23 @@ export default function OrderListPage() {
     }
   }
 
-  // Fetch devices once on mount
+  // Fetch all groups for filter dropdown (admin/finance only)
+  async function fetchGroups() {
+    try {
+      const res = await fetch("/api/admin/groups");
+      const data = await res.json();
+      if (data.success && data.groups) {
+        setAllGroups(data.groups.map(g => ({ id: g.id, name: g.name })));
+      }
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    }
+  }
+
+  // Fetch devices and groups once on mount
   useEffect(() => {
     fetchDevices();
+    fetchGroups();
   }, []);
 
   // Reset to page 1 when filters change (except page itself)
@@ -356,7 +382,7 @@ export default function OrderListPage() {
     setMobilePage(1);
     setMobileOrders([]);
     setHasMore(true);
-  }, [deviceFilter, dateRange, payWayFilter, debouncedSearch]);
+  }, [deviceFilter, dateRange, payWayFilter, debouncedSearch, groupFilter]);
 
   // Fetch orders when filters or page change
   // Note: customStartDate/customEndDate excluded - only apply on button click
@@ -364,7 +390,7 @@ export default function OrderListPage() {
     // For custom date range, don't auto-fetch - wait for Apply button
     if (dateRange === "custom") return;
     fetchOrders(currentPage, currentPage === 1);
-  }, [deviceFilter, dateRange, payWayFilter, debouncedSearch, currentPage]);
+  }, [deviceFilter, dateRange, payWayFilter, debouncedSearch, currentPage, groupFilter]);
 
   // Handler for custom date Apply button
   function handleCustomDateApply() {
@@ -387,6 +413,7 @@ export default function OrderListPage() {
     setSearchText("");
     setDeviceFilter("all");
     setPayWayFilter("all");
+    setGroupFilter("all");
     setDateRange("all");
     setCustomStartDate("");
     setCustomEndDate("");
@@ -424,7 +451,7 @@ export default function OrderListPage() {
   };
 
   const filterLabel = getFilterLabel();
-  const hasFilters = deviceFilter !== "all" || payWayFilter !== "all" || dateRange !== "all" || searchText;
+  const hasFilters = deviceFilter !== "all" || payWayFilter !== "all" || groupFilter !== "all" || dateRange !== "all" || searchText;
 
   // Export to CSV - fetch all orders matching current filters
   const [exporting, setExporting] = useState(false);
@@ -440,6 +467,11 @@ export default function OrderListPage() {
       // Add device filter
       if (deviceFilter !== "all") {
         params.set("deviceId", deviceFilter);
+      }
+
+      // Add group filter
+      if (groupFilter !== "all") {
+        params.set("groupId", groupFilter);
       }
 
       // Add date range filter
@@ -494,27 +526,37 @@ export default function OrderListPage() {
 
       const allOrders = data.orders;
 
-      const headers = ["Order ID", "Terminal ID", "Device Name", "Date", "Status", "PayWay", "Amount", "Refund", "TotalCount", "DeliverCount"];
-      const rows = allOrders.map((o) => [
-        o.orderId,
-        o.deviceId,
-        o.deviceName,
-        new Date(o.createdAt).toLocaleString("en-SG", {
-          timeZone: "Asia/Singapore",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        }).replace(",", ""),
-        o.isSuccess ? "Success" : "Failed",
-        getPaymentMethod(o.payWay)?.label || "-",
-        (o.amount / 100).toFixed(2),
-        o.refundAmount ? (o.refundAmount / 100).toFixed(2) : "",
-        o.totalCount ?? o.quantity ?? 1,
-        o.deliverCount ?? o.quantity ?? 1,
+      const headers = isAdmin
+        ? ["Order ID", "Terminal ID", "Device Name", "Group", "Date", "Status", "PayWay", "Amount", "Refund", "TotalCount", "DeliverCount"]
+        : ["Order ID", "Terminal ID", "Device Name", "Date", "Status", "PayWay", "Amount", "Refund", "TotalCount", "DeliverCount"];
+      const rows = allOrders.map((o) => {
+        const baseRow = [
+          o.orderId,
+          o.deviceId,
+          o.deviceName,
+        ];
+        if (isAdmin) {
+          baseRow.push(o.groupName || "-");
+        }
+        baseRow.push(
+          new Date(o.createdAt).toLocaleString("en-SG", {
+            timeZone: "Asia/Singapore",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          }).replace(",", ""),
+          o.isSuccess ? "Success" : "Failed",
+          getPaymentMethod(o.payWay)?.label || "-",
+          (o.amount / 100).toFixed(2),
+          o.refundAmount ? (o.refundAmount / 100).toFixed(2) : "",
+          o.totalCount ?? o.quantity ?? 1,
+          o.deliverCount ?? o.quantity ?? 1,
+        );
+        return baseRow;
       ]);
 
       // Create Excel workbook
@@ -754,6 +796,22 @@ export default function OrderListPage() {
                         ))}
                       </SelectContent>
                     </Select>
+
+                    {isAdmin && (
+                      <Select value={groupFilter} onValueChange={setGroupFilter}>
+                        <SelectTrigger className="w-full md:w-48">
+                          <SelectValue placeholder="Group" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Groups</SelectItem>
+                          {allGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   <Select value={dateRange} onValueChange={(v) => {
@@ -843,6 +901,7 @@ export default function OrderListPage() {
                     <SortableTableHead column="orderId" label="Order ID" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="deviceId" label="Terminal" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="deviceName" label="Device Name" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                    {isAdmin && <SortableTableHead column="groupName" label="Group" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />}
                     <SortableTableHead column="createdAt" label="Time" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="isSuccess" label="Status" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
                     <SortableTableHead column="payWay" label="PayWay" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
@@ -855,7 +914,7 @@ export default function OrderListPage() {
                 <TableBody>
                   {sortedOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={isAdmin ? 11 : 10} className="py-8 text-center text-muted-foreground">
                         No orders found
                       </TableCell>
                     </TableRow>
@@ -865,6 +924,7 @@ export default function OrderListPage() {
                         <TableCell className="font-mono text-xs">{order.orderId}</TableCell>
                         <TableCell className="font-mono text-sm">{order.deviceId}</TableCell>
                         <TableCell className="text-sm">{order.deviceName || "-"}</TableCell>
+                        {isAdmin && <TableCell className="text-sm">{order.groupName || "-"}</TableCell>}
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDateTime(order.createdAt)}
                         </TableCell>

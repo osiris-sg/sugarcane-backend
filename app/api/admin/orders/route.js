@@ -15,6 +15,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const payWay = searchParams.get('payWay'); // Filter by payment method (cash, card, etc.)
     const deviceId = searchParams.get('deviceId');
+    const groupId = searchParams.get('groupId'); // Filter by group (admin only)
     const limit = parseInt(searchParams.get('limit') || '50');
     const page = parseInt(searchParams.get('page') || '1');
     const offset = (page - 1) * limit;
@@ -34,8 +35,12 @@ export async function GET(request) {
       });
 
       if (dbUser) {
-        // Franchisees and Partnerships users can only see their own group's data
-        if ((dbUser.role === 'FRANCHISEE' || dbUser.role === 'PARTNERSHIPS') && dbUser.groupId) {
+        // Admin, Owner, Finance can see all data and filter by group
+        const adminRoles = ['ADMIN', 'OWNER', 'FINANCE'];
+        if (adminRoles.includes(dbUser.role)) {
+          isAdmin = true;
+        } else if ((dbUser.role === 'FRANCHISEE' || dbUser.role === 'PARTNERSHIPS') && dbUser.groupId) {
+          // Franchisees and Partnerships users can only see their own group's data
           userGroupId = dbUser.groupId;
           isAdmin = false;
         }
@@ -93,6 +98,33 @@ export async function GET(request) {
       } else {
         // Filter to only allowed devices
         where.deviceId = { in: allowedDeviceIds };
+      }
+    }
+
+    // Admin can filter by group
+    if (isAdmin && groupId) {
+      const groupDevices = await db.device.findMany({
+        where: {
+          groups: { some: { groupId: groupId } }
+        },
+        select: { deviceId: true },
+      });
+      const groupDeviceIds = groupDevices.map(d => d.deviceId);
+
+      if (deviceId) {
+        // If specific device also requested, make sure it's in the group
+        if (!groupDeviceIds.includes(deviceId)) {
+          return NextResponse.json({
+            success: true,
+            orders: [],
+            monthlyTotal: 0,
+            monthlyCount: 0,
+            isAdmin,
+          });
+        }
+      } else {
+        // Filter to only devices in the selected group
+        where.deviceId = { in: groupDeviceIds };
       }
     }
 
@@ -227,6 +259,7 @@ export async function GET(request) {
       allTimeCount: allTimeStats._count || 0,
       monthlyTotal: monthlyStats._sum.amount || 0,
       monthlyCount: monthlyStats._count || 0,
+      isAdmin,
     });
   } catch (error) {
     console.error('Error fetching orders:', error);
