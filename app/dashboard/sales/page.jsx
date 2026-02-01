@@ -45,6 +45,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import * as XLSX from "xlsx";
 
 // Helper to format date/time in Singapore timezone
 function formatDateTime(dateString) {
@@ -516,45 +517,45 @@ export default function OrderListPage() {
         o.deliverCount ?? o.quantity ?? 1,
       ]);
 
-      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
+      // Create Excel workbook
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Orders");
 
       // Generate filename based on date range
       let filename;
       const today = new Date().toISOString().split("T")[0];
       switch (dateRange) {
         case "today":
-          filename = `orders-${today}.csv`;
+          filename = `orders-${today}.xlsx`;
           break;
         case "week":
           const weekAgo = new Date();
           weekAgo.setDate(weekAgo.getDate() - 7);
-          filename = `orders-${weekAgo.toISOString().split("T")[0]}-to-${today}.csv`;
+          filename = `orders-${weekAgo.toISOString().split("T")[0]}-to-${today}.xlsx`;
           break;
         case "month":
           const monthAgo = new Date();
           monthAgo.setDate(monthAgo.getDate() - 30);
-          filename = `orders-${monthAgo.toISOString().split("T")[0]}-to-${today}.csv`;
+          filename = `orders-${monthAgo.toISOString().split("T")[0]}-to-${today}.xlsx`;
           break;
         case "custom":
           if (customStartDate && customEndDate) {
-            filename = `orders-${customStartDate}-to-${customEndDate}.csv`;
+            filename = `orders-${customStartDate}-to-${customEndDate}.xlsx`;
           } else if (customStartDate) {
-            filename = `orders-from-${customStartDate}.csv`;
+            filename = `orders-from-${customStartDate}.xlsx`;
           } else if (customEndDate) {
-            filename = `orders-until-${customEndDate}.csv`;
+            filename = `orders-until-${customEndDate}.xlsx`;
           } else {
-            filename = `orders-${today}.csv`;
+            filename = `orders-${today}.xlsx`;
           }
           break;
         default:
-          filename = `orders-all-time.csv`;
+          filename = `orders-all-time.xlsx`;
       }
-      a.download = filename;
-      a.click();
+
+      // Download Excel file
+      XLSX.writeFile(wb, filename);
     } catch (error) {
       console.error("Error exporting orders:", error);
       alert("Failed to export orders");
