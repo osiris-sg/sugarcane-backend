@@ -40,25 +40,32 @@ export async function GET(request) {
     }
 
     // Calculate date range based on period
+    // Use SGT timezone (UTC+8) for all calculations
     const now = new Date();
+    const SGT_OFFSET = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+    const sgtNow = new Date(now.getTime() + SGT_OFFSET);
+    const sgtYear = sgtNow.getUTCFullYear();
+    const sgtMonth = sgtNow.getUTCMonth();
+    const sgtDate = sgtNow.getUTCDate();
+    const sgtDay = sgtNow.getUTCDay(); // Day of week (0 = Sunday)
+
+    // Helper to convert SGT date to UTC Date object for DB queries
+    const sgtToUTC = (year, month, day) => new Date(Date.UTC(year, month, day) - SGT_OFFSET);
+
     let dateFrom, dateTo;
 
     switch (period) {
       case 'day':
-        dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        dateTo = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        dateFrom = sgtToUTC(sgtYear, sgtMonth, sgtDate);
+        dateTo = sgtToUTC(sgtYear, sgtMonth, sgtDate + 1);
         break;
       case 'week':
-        const dayOfWeek = now.getDay();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - dayOfWeek);
-        startOfWeek.setHours(0, 0, 0, 0);
-        dateFrom = startOfWeek;
-        dateTo = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        dateFrom = sgtToUTC(sgtYear, sgtMonth, sgtDate - sgtDay);
+        dateTo = sgtToUTC(sgtYear, sgtMonth, sgtDate + 1);
         break;
       case 'month':
-        dateFrom = new Date(now.getFullYear(), now.getMonth(), 1);
-        dateTo = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        dateFrom = sgtToUTC(sgtYear, sgtMonth, 1);
+        dateTo = sgtToUTC(sgtYear, sgtMonth + 1, 1);
         break;
       case 'custom':
         // Dates are expected as ISO strings with timezone already applied
@@ -71,8 +78,8 @@ export async function GET(request) {
         }
         break;
       default:
-        dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        dateTo = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        dateFrom = sgtToUTC(sgtYear, sgtMonth, sgtDate);
+        dateTo = sgtToUTC(sgtYear, sgtMonth, sgtDate + 1);
     }
 
     // Get devices with their groups (for filtering and display) - using many-to-many
