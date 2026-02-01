@@ -35,8 +35,8 @@ export async function GET(request) {
       });
 
       if (dbUser) {
-        // Admin, Owner, Finance can see all data and filter by group
-        const adminRoles = ['ADMIN', 'OWNER', 'FINANCE'];
+        // Admin-level roles can see all data and filter by group
+        const adminRoles = ['ADMIN', 'ADMINOPS', 'FINANCE', 'MANAGER'];
         if (adminRoles.includes(dbUser.role)) {
           isAdmin = true;
         } else if ((dbUser.role === 'FRANCHISEE' || dbUser.role === 'PARTNERSHIPS') && dbUser.groupId) {
