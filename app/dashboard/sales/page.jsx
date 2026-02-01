@@ -507,7 +507,7 @@ export default function OrderListPage() {
           minute: "2-digit",
           second: "2-digit",
           hour12: false,
-        }),
+        }).replace(",", ""),
         o.isSuccess ? "Success" : "Failed",
         getPaymentMethod(o.payWay)?.label || "-",
         (o.amount / 100).toFixed(2),
