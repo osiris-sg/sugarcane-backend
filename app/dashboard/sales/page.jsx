@@ -521,7 +521,39 @@ export default function OrderListPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `orders-${new Date().toISOString().split("T")[0]}.csv`;
+
+      // Generate filename based on date range
+      let filename;
+      const today = new Date().toISOString().split("T")[0];
+      switch (dateRange) {
+        case "today":
+          filename = `orders-${today}.csv`;
+          break;
+        case "week":
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          filename = `orders-${weekAgo.toISOString().split("T")[0]}-to-${today}.csv`;
+          break;
+        case "month":
+          const monthAgo = new Date();
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          filename = `orders-${monthAgo.toISOString().split("T")[0]}-to-${today}.csv`;
+          break;
+        case "custom":
+          if (customStartDate && customEndDate) {
+            filename = `orders-${customStartDate}-to-${customEndDate}.csv`;
+          } else if (customStartDate) {
+            filename = `orders-from-${customStartDate}.csv`;
+          } else if (customEndDate) {
+            filename = `orders-until-${customEndDate}.csv`;
+          } else {
+            filename = `orders-${today}.csv`;
+          }
+          break;
+        default:
+          filename = `orders-all-time.csv`;
+      }
+      a.download = filename;
       a.click();
     } catch (error) {
       console.error("Error exporting orders:", error);
