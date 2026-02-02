@@ -205,44 +205,60 @@ export async function GET(request) {
       baseStatsWhere.deviceId = { in: allowedDeviceIds };
     }
 
-    // Filtered stats - stats for current filter criteria (successful, non-free orders)
-    // Build filtered where clause excluding free orders and only successful
+    // Helper function to calculate proportional revenue
+    // Revenue = PayAmount × (DeliverCount / TotalCount)
+    // This accounts for partial deliveries in failed orders
+    const calculateRevenue = (orders) => {
+      return orders.reduce((sum, order) => {
+        const deliverCount = order.deliverCount ?? order.quantity ?? 1;
+        const totalCount = order.totalCount ?? order.quantity ?? 1;
+        if (totalCount === 0) return sum;
+        const proportionalAmount = Math.round(order.amount * (deliverCount / totalCount));
+        return sum + proportionalAmount;
+      }, 0);
+    };
+
+    // Filtered stats - orders with deliverCount > 0, non-free
+    // Build filtered where clause excluding free orders
     const filteredStatsWhere = {
       ...where,
-      isSuccess: true,
+      deliverCount: { gt: 0 },
       payWay: { notIn: ["1000", "Free"] },
     };
-    // If where already has isSuccess: true, that's fine (it will be overwritten with same value)
-    // If admin is viewing failed orders, we still want filtered stats for successful ones in that filter
+    // Remove isSuccess filter since we want to include failed orders that delivered
+    delete filteredStatsWhere.isSuccess;
 
-    const filteredStats = await orderTable.aggregate({
+    const filteredOrders = await orderTable.findMany({
       where: filteredStatsWhere,
-      _sum: { amount: true },
-      _count: true,
+      select: { amount: true, deliverCount: true, totalCount: true, quantity: true },
     });
+    const filteredTotal = calculateRevenue(filteredOrders);
+    const filteredCount = filteredOrders.length;
 
-    // All-time stats (successful, non-free orders)
-    const allTimeStats = await orderTable.aggregate({
+    // All-time stats (orders with deliverCount > 0, non-free)
+    const allTimeOrders = await orderTable.findMany({
       where: {
         ...baseStatsWhere,
-        isSuccess: true,
+        deliverCount: { gt: 0 },
         payWay: { notIn: ["1000", "Free"] },
       },
-      _sum: { amount: true },
-      _count: true,
+      select: { amount: true, deliverCount: true, totalCount: true, quantity: true },
     });
+    const allTimeTotal = calculateRevenue(allTimeOrders);
+    const allTimeCount = allTimeOrders.length;
 
-    // Monthly stats (successful, non-free orders)
-    const monthlyStats = await orderTable.aggregate({
+    // Monthly stats (orders with deliverCount > 0, non-free)
+    const monthlyOrders = await orderTable.findMany({
       where: {
         ...baseStatsWhere,
-        isSuccess: true,
+        deliverCount: { gt: 0 },
         createdAt: { gte: startOfMonthSGT },
         payWay: { notIn: ["1000", "Free"] },
       },
-      _sum: { amount: true },
-      _count: true,
+      select: { amount: true, deliverCount: true, totalCount: true, quantity: true },
     });
+    const monthlyTotal = calculateRevenue(monthlyOrders);
+    const monthlyCount = monthlyOrders.length;
 
     return NextResponse.json({
       success: true,
@@ -253,12 +269,12 @@ export async function GET(request) {
         totalCount,
         totalPages: Math.ceil(totalCount / limit),
       },
-      filteredTotal: filteredStats._sum.amount || 0,
-      filteredCount: filteredStats._count || 0,
-      allTimeTotal: allTimeStats._sum.amount || 0,
-      allTimeCount: allTimeStats._count || 0,
-      monthlyTotal: monthlyStats._sum.amount || 0,
-      monthlyCount: monthlyStats._count || 0,
+      filteredTotal: filteredTotal,
+      filteredCount: filteredCount,
+      allTimeTotal: allTimeTotal,
+      allTimeCount: allTimeCount,
+      monthlyTotal: monthlyTotal,
+      monthlyCount: monthlyCount,
       isAdmin,
     });
   } catch (error) {

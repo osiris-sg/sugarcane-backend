@@ -132,41 +132,53 @@ export async function GET(request) {
       baseWhere.deviceId = { in: deviceIds };
     }
 
-    // Query 1: Sales and order count (success orders only)
-    const salesByDevice = await orderTable.groupBy({
-      by: ['deviceId'],
-      where: { ...baseWhere, isSuccess: true },
-      _sum: {
+    // Query: Get all orders with deliverCount > 0 (includes partial deliveries from failed orders)
+    const ordersWithDelivery = await orderTable.findMany({
+      where: {
+        ...baseWhere,
+        deliverCount: { gt: 0 },
+      },
+      select: {
+        deviceId: true,
         amount: true,
-      },
-      _count: true,
-    });
-
-    // Query 2: Cups count (ALL orders that delivered, including failed)
-    const cupsByDevice = await orderTable.groupBy({
-      by: ['deviceId'],
-      where: baseWhere,
-      _sum: {
         deliverCount: true,
+        totalCount: true,
+        quantity: true,
       },
     });
 
-    // Create cups lookup
-    const cupsMap = {};
-    cupsByDevice.forEach(item => {
-      cupsMap[item.deviceId] = item._sum.deliverCount || 0;
+    // Calculate proportional revenue and cups by device
+    // Revenue = PayAmount × (DeliverCount / TotalCount)
+    const deviceStats = {};
+    ordersWithDelivery.forEach(order => {
+      const deviceId = order.deviceId;
+      if (!deviceStats[deviceId]) {
+        deviceStats[deviceId] = { totalSales: 0, totalCups: 0, orderCount: 0 };
+      }
+
+      const deliverCount = order.deliverCount ?? order.quantity ?? 1;
+      const totalCount = order.totalCount ?? order.quantity ?? 1;
+
+      // Calculate proportional revenue
+      const proportionalAmount = totalCount > 0
+        ? Math.round(order.amount * (deliverCount / totalCount))
+        : 0;
+
+      deviceStats[deviceId].totalSales += proportionalAmount;
+      deviceStats[deviceId].totalCups += deliverCount;
+      deviceStats[deviceId].orderCount += 1;
     });
 
     // Combine with device info - use device name from Device table, not orders
-    const summary = salesByDevice.map(item => ({
-      deviceId: item.deviceId,
-      deviceName: deviceMap[item.deviceId]?.location || deviceMap[item.deviceId]?.deviceName || item.deviceId,
-      location: deviceMap[item.deviceId]?.location || null,
-      groupId: deviceMap[item.deviceId]?.groupId || null,
-      groupName: deviceMap[item.deviceId]?.groupName || null,
-      totalSales: item._sum.amount || 0,
-      totalCups: cupsMap[item.deviceId] || 0,
-      orderCount: item._count,
+    const summary = Object.entries(deviceStats).map(([deviceId, stats]) => ({
+      deviceId,
+      deviceName: deviceMap[deviceId]?.location || deviceMap[deviceId]?.deviceName || deviceId,
+      location: deviceMap[deviceId]?.location || null,
+      groupId: deviceMap[deviceId]?.groupId || null,
+      groupName: deviceMap[deviceId]?.groupName || null,
+      totalSales: stats.totalSales,
+      totalCups: stats.totalCups,
+      orderCount: stats.orderCount,
     }));
 
     // Sort by total sales descending
