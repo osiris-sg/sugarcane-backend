@@ -9,9 +9,6 @@ const TID = "10000001";         // Terminal ID
 const KEY_ID = "09bfd5be-9b94-495d-ac89-74f8aee39071";
 const API_URL = "https://pos.fomopay.net/rpc";
 
-// In-memory storage for refund requests (for tracking)
-let refundRequests = [];
-
 /**
  * Load RSA private key from environment variable
  */
@@ -63,6 +60,13 @@ function generateStan() {
 }
 
 /**
+ * Generate a 6-digit batch number
+ */
+function generateBatchNumber() {
+  return String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+}
+
+/**
  * Sign request using SHA256WithRSA
  */
 function signRequest(payload, timestamp, nonce, privateKeyPem) {
@@ -97,8 +101,8 @@ async function sendRequest(payloadDict) {
     "X-Authentication-Sign": signature
   };
 
-  console.log(`[FOMOPAY-REFUND] Sending request to ${API_URL}`);
-  console.log(`[FOMOPAY-REFUND] Payload: ${JSON.stringify(payloadDict, null, 2)}`);
+  console.log(`[FOMOPAY-BATCH] Sending request to ${API_URL}`);
+  console.log(`[FOMOPAY-BATCH] Payload: ${JSON.stringify(payloadDict, null, 2)}`);
 
   const response = await fetch(API_URL, {
     method: 'POST',
@@ -107,8 +111,8 @@ async function sendRequest(payloadDict) {
   });
 
   const responseText = await response.text();
-  console.log(`[FOMOPAY-REFUND] Response status: ${response.status}`);
-  console.log(`[FOMOPAY-REFUND] Response body: ${responseText}`);
+  console.log(`[FOMOPAY-BATCH] Response status: ${response.status}`);
+  console.log(`[FOMOPAY-BATCH] Response body: ${responseText}`);
 
   try {
     return JSON.parse(responseText);
@@ -118,10 +122,10 @@ async function sendRequest(payloadDict) {
 }
 
 /**
- * Create Refund Request payload
- * MTI: 0400 - Refund Request
+ * Create Batch Submit (Settlement) Request payload
+ * MTI: 0500 - Settlement Request
  */
-function createRefundRequest(transactionId, amountCents) {
+function createBatchSubmitRequest(batchNumber, transactionCount, totalAmount) {
   const now = new Date();
 
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -134,117 +138,87 @@ function createRefundRequest(transactionId, amountCents) {
   const localTime = `${hours}${minutes}${seconds}`;
   const localDate = `${month}${day}`;
   const stan = generateStan();
+  const batch = batchNumber || generateBatchNumber();
 
-  // Build refund message fields
+  // Build batch submit message fields
   const fields = {
-    "0": "0400",                              // MTI: Refund Request
-    "3": "200000",                            // Processing Code (refund)
+    "0": "0500",                              // MTI: Settlement/Batch Submit Request
+    "3": "920000",                            // Processing Code (settlement)
     "7": transmissionDt,                      // Transmission date & time
-    "11": stan,                               // New STAN for this refund
+    "11": stan,                               // STAN
     "12": localTime,                          // Local time
     "13": localDate,                          // Local date
-    "37": transactionId,                      // Retrieval Reference Number (from original sale)
     "41": TID.padEnd(8, ' '),                 // Terminal ID
     "42": MID.padEnd(15, ' '),                // Merchant ID
-    "49": "SGD",                              // Currency
-    "89": String(amountCents).padStart(12, '0')  // Refund amount (12 digits)
+    "60": batch                               // Batch number
   };
+
+  // Add optional settlement totals if provided
+  if (transactionCount !== undefined) {
+    fields["74"] = String(transactionCount).padStart(10, '0');  // Number of credits
+  }
+  if (totalAmount !== undefined) {
+    fields["86"] = String(totalAmount).padStart(16, '0');  // Amount of credits
+  }
 
   // Calculate and add bitmap
   const fieldNumbers = Object.keys(fields).map(k => parseInt(k));
   const bitmap = calculateBitmap(fieldNumbers);
   fields["1"] = bitmap;
 
-  return { fields, stan };
+  return { fields, stan, batchNumber: batch };
 }
 
 /**
- * POST /api/fomopay/refund
- * Submit a refund request to FOMO Pay API
+ * POST /api/fomopay/batch
+ * Submit batch settlement request to FOMO Pay
  *
- * Request: { transactionId: string (field 37), amount: number (cents) }
- * Response: { success: boolean, responseCode: string }
+ * Request: { batchNumber?: string, transactionCount?: number, totalAmount?: number }
+ * Response: { success: boolean, responseCode: string, batchNumber: string }
  */
 export async function POST(request) {
   try {
     const body = await request.json();
     const {
-      transactionId,  // Field 37 from original sale (Retrieval Reference Number)
-      reference,      // Alias for transactionId
-      stan,           // Original STAN (for logging, not used in refund)
-      amount,         // Refund amount in cents
-      reason          // Optional: refund reason
+      batchNumber,       // Optional: specific batch number (auto-generated if not provided)
+      transactionCount,  // Optional: number of transactions in batch
+      totalAmount        // Optional: total amount in cents
     } = body;
 
-    const txnId = transactionId || reference;
+    console.log(`[FOMOPAY-BATCH] Batch Submit Request - Batch: ${batchNumber || 'auto'}, Count: ${transactionCount}, Amount: ${totalAmount}`);
 
-    console.log(`[FOMOPAY-REFUND] Refund Request - TransactionId: ${txnId}, Amount: ${amount}, Reason: ${reason}`);
-
-    if (!txnId) {
-      return NextResponse.json({
-        success: false,
-        error: "Missing transactionId (Retrieval Reference Number from original sale)"
-      }, { status: 400 });
-    }
-
-    if (!amount || amount <= 0) {
-      return NextResponse.json({
-        success: false,
-        error: "Missing or invalid amount (must be positive cents)"
-      }, { status: 400 });
-    }
-
-    // Create refund request
-    const { fields, stan: newStan } = createRefundRequest(txnId, amount);
+    // Create batch submit request
+    const { fields, stan, batchNumber: batch } = createBatchSubmitRequest(
+      batchNumber,
+      transactionCount,
+      totalAmount
+    );
 
     // Send to FOMO Pay
     const response = await sendRequest(fields);
 
-    // Track the request
-    const requestId = `refund_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const refundRecord = {
-      requestId,
-      transactionId: txnId,
-      originalStan: stan || null,
-      newStan,
-      amount,
-      reason: reason || 'Auto refund',
-      status: 'submitted',
-      response: response,
-      createdAt: new Date().toISOString()
-    };
-    refundRequests.push(refundRecord);
-
-    // Keep only last 100 requests
-    if (refundRequests.length > 100) {
-      refundRequests = refundRequests.slice(-100);
-    }
-
     if (!response) {
-      refundRecord.status = 'connection_failed';
       return NextResponse.json({
         success: false,
-        error: "Failed to connect to FOMO Pay",
-        requestId
+        error: "Failed to connect to FOMO Pay"
       }, { status: 500 });
     }
 
     const responseCode = response["39"] || "";
 
     if (responseCode === "00") {
-      refundRecord.status = 'success';
-      console.log(`[FOMOPAY-REFUND] Success! Refund processed.`);
+      console.log(`[FOMOPAY-BATCH] Success! Batch ${batch} submitted.`);
 
       return NextResponse.json({
         success: true,
-        message: "Refund processed successfully",
+        message: "Batch submitted successfully",
         responseCode: responseCode,
-        requestId,
-        stan: newStan
+        batchNumber: batch,
+        stan: stan,
+        response: response
       });
 
     } else {
-      refundRecord.status = 'failed';
       let errorMessage = `Response code: ${responseCode}`;
 
       const errorHex = response["113"];
@@ -257,18 +231,18 @@ export async function POST(request) {
         }
       }
 
-      console.error(`[FOMOPAY-REFUND] Error: ${errorMessage}`);
+      console.error(`[FOMOPAY-BATCH] Error: ${errorMessage}`);
 
       return NextResponse.json({
         success: false,
         error: errorMessage,
         responseCode: responseCode,
-        requestId
+        batchNumber: batch
       }, { status: 400 });
     }
 
   } catch (error) {
-    console.error(`[FOMOPAY-REFUND] Exception: ${error.message}`);
+    console.error(`[FOMOPAY-BATCH] Exception: ${error.message}`);
     return NextResponse.json({
       success: false,
       error: error.message
@@ -277,48 +251,24 @@ export async function POST(request) {
 }
 
 /**
- * GET /api/fomopay/refund
- * Get refund request history
- *
- * Query: ?adminKey=sugarcane123
- * Response: { success: boolean, requests: Array }
+ * GET /api/fomopay/batch - Health check
  */
-export async function GET(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const adminKey = searchParams.get('adminKey');
-
-    // Simple auth check
-    if (adminKey !== 'sugarcane123') {
-      return NextResponse.json({
-        status: "ok",
-        endpoint: "FOMO Pay Refund",
-        methods: ["POST"],
-        usage: {
-          request: {
-            transactionId: "string (Field 37 from original sale)",
-            amount: "number (refund amount in cents)"
-          },
-          response: {
-            success: "boolean",
-            responseCode: "string"
-          }
-        }
-      });
+export async function GET() {
+  return NextResponse.json({
+    status: "ok",
+    endpoint: "FOMO Pay Batch Submit (Settlement)",
+    methods: ["POST"],
+    usage: {
+      request: {
+        batchNumber: "string (optional, auto-generated if not provided)",
+        transactionCount: "number (optional, number of transactions)",
+        totalAmount: "number (optional, total in cents)"
+      },
+      response: {
+        success: "boolean",
+        responseCode: "string",
+        batchNumber: "string"
+      }
     }
-
-    // Return refund request history
-    return NextResponse.json({
-      success: true,
-      totalCount: refundRequests.length,
-      requests: refundRequests.slice(-50)  // Last 50
-    });
-
-  } catch (error) {
-    console.error('[FOMOPAY-REFUND] Error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
-  }
+  });
 }
