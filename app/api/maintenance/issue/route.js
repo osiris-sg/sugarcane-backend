@@ -167,8 +167,8 @@ export async function GET(request) {
 
     const issues = await db.issue.findMany({
       where,
-      orderBy: [{ priority: 'desc' }, { triggeredAt: 'desc' }], // Sort by priority first, then by time
-      take: 100
+      orderBy: { triggeredAt: 'desc' }, // Sort by newest first
+      take: 500 // Increased limit to show more issues
     });
 
     return NextResponse.json({
