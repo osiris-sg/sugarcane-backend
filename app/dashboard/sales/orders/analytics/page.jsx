@@ -43,16 +43,21 @@ import {
 } from "recharts";
 
 // Helper to get date range based on filter
-function getDateRange(dateRange, customStart = "", customEnd = "") {
+function getDateRange(dateRange, customStart = "", customEnd = "", customStartTime = "00:00", customEndTime = "23:59") {
   const now = new Date();
 
   // Handle custom date range - interpret dates as SGT (UTC+8)
   if (dateRange === "custom" && customStart && customEnd) {
-    // Parse as SGT midnight (00:00:00+08:00)
-    const startDate = new Date(customStart + "T00:00:00+08:00");
-    // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
-    const endDate = new Date(customEnd + "T00:00:00+08:00");
-    endDate.setDate(endDate.getDate() + 1);
+    const startDate = new Date(`${customStart}T${customStartTime || "00:00"}:00+08:00`);
+    let endDate;
+    // If end time is provided and not default, use it directly
+    if (customEndTime && customEndTime !== "23:59") {
+      endDate = new Date(`${customEnd}T${customEndTime}:00+08:00`);
+    } else {
+      // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
+      endDate = new Date(`${customEnd}T00:00:00+08:00`);
+      endDate.setDate(endDate.getDate() + 1);
+    }
     const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
     return { startDate, endDate, days: Math.max(days, 1) };
   }
@@ -380,7 +385,9 @@ export default function SalesOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState("");
+  const [customStartTime, setCustomStartTime] = useState("00:00");
   const [customEndDate, setCustomEndDate] = useState("");
+  const [customEndTime, setCustomEndTime] = useState("23:59");
   const [salesData, setSalesData] = useState({
     grossVolume: { amount: 0, previousAmount: 0, change: 0, isPositive: true },
     netVolume: { amount: 0, previousAmount: 0, change: 0, isPositive: true },
@@ -511,7 +518,7 @@ export default function SalesOverviewPage() {
 
     setLoading(true);
     try {
-      const { startDate, endDate, days } = getDateRange(dateRange, customStartDate, customEndDate);
+      const { startDate, endDate, days } = getDateRange(dateRange, customStartDate, customEndDate, customStartTime, customEndTime);
 
       // Build query params
       const params = new URLSearchParams({
@@ -774,22 +781,18 @@ export default function SalesOverviewPage() {
                 </div>
                 {dateRange === "custom" && (
                   <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Start</label>
-                        <Input
-                          type="date"
-                          value={customStartDate}
-                          onChange={(e) => setCustomStartDate(e.target.value)}
-                        />
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Start</label>
+                      <div className="flex gap-2">
+                        <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="flex-1" />
+                        <Input type="time" value={customStartTime} onChange={(e) => setCustomStartTime(e.target.value)} className="w-24" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">End</label>
-                        <Input
-                          type="date"
-                          value={customEndDate}
-                          onChange={(e) => setCustomEndDate(e.target.value)}
-                        />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">End</label>
+                      <div className="flex gap-2">
+                        <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="flex-1" />
+                        <Input type="time" value={customEndTime} onChange={(e) => setCustomEndTime(e.target.value)} className="w-24" />
                       </div>
                     </div>
                     <Button
@@ -798,7 +801,7 @@ export default function SalesOverviewPage() {
                       className="w-full"
                       disabled={!customStartDate || !customEndDate}
                     >
-                      Apply Dates
+                      Apply
                     </Button>
                   </div>
                 )}
@@ -856,22 +859,34 @@ export default function SalesOverviewPage() {
 
             {dateRange === "custom" && (
               <>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <CalendarDays className="h-4 w-4 text-muted-foreground" />
                   <Input
                     type="date"
                     value={customStartDate}
                     onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="w-[140px]"
+                    className="w-[130px]"
+                  />
+                  <Input
+                    type="time"
+                    value={customStartTime}
+                    onChange={(e) => setCustomStartTime(e.target.value)}
+                    className="w-[100px]"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">to</span>
+                <span className="text-muted-foreground">to</span>
+                <div className="flex items-center gap-1">
                   <Input
                     type="date"
                     value={customEndDate}
                     onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="w-[140px]"
+                    className="w-[130px]"
+                  />
+                  <Input
+                    type="time"
+                    value={customEndTime}
+                    onChange={(e) => setCustomEndTime(e.target.value)}
+                    className="w-[100px]"
                   />
                 </div>
                 <Button

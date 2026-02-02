@@ -140,7 +140,9 @@ export default function OrderListPage() {
   const [payWayFilter, setPayWayFilter] = useState("all");
   const [dateRange, setDateRange] = useState("today"); // all, today, week, month, custom
   const [customStartDate, setCustomStartDate] = useState("");
+  const [customStartTime, setCustomStartTime] = useState("00:00");
   const [customEndDate, setCustomEndDate] = useState("");
+  const [customEndTime, setCustomEndTime] = useState("23:59");
 
   // Sorting
   const { sortKey, sortDirection, handleSort, sortData } = useTableSort("createdAt", "desc");
@@ -191,15 +193,18 @@ export default function OrderListPage() {
       case "custom":
         // For custom dates, interpret as SGT (Asia/Singapore, UTC+8)
         if (customStartDate) {
-          // Parse as SGT midnight (00:00:00+08:00)
-          params.set("startDate", new Date(customStartDate + "T00:00:00+08:00").toISOString());
+          params.set("startDate", new Date(`${customStartDate}T${customStartTime || "00:00"}:00+08:00`).toISOString());
         }
         if (customEndDate) {
-          // Parse as SGT midnight + 1 day to make end date inclusive
-          // e.g., selecting Jan 31 means include all of Jan 31 (up to 23:59:59)
-          const endDate = new Date(customEndDate + "T00:00:00+08:00");
-          endDate.setDate(endDate.getDate() + 1);
-          params.set("endDate", endDate.toISOString());
+          // If end time is provided and not default, use it directly
+          if (customEndTime && customEndTime !== "23:59") {
+            params.set("endDate", new Date(`${customEndDate}T${customEndTime}:00+08:00`).toISOString());
+          } else {
+            // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
+            const endDate = new Date(`${customEndDate}T00:00:00+08:00`);
+            endDate.setDate(endDate.getDate() + 1);
+            params.set("endDate", endDate.toISOString());
+          }
         }
         break;
     }
@@ -417,7 +422,9 @@ export default function OrderListPage() {
     setGroupFilter([]);
     setDateRange("all");
     setCustomStartDate("");
+    setCustomStartTime("00:00");
     setCustomEndDate("");
+    setCustomEndTime("23:59");
     setCurrentPage(1);
   }
 
@@ -496,13 +503,16 @@ export default function OrderListPage() {
         case "custom":
           // For custom dates, interpret as SGT (Asia/Singapore, UTC+8)
           if (customStartDate) {
-            params.set("startDate", new Date(customStartDate + "T00:00:00+08:00").toISOString());
+            params.set("startDate", new Date(`${customStartDate}T${customStartTime || "00:00"}:00+08:00`).toISOString());
           }
           if (customEndDate) {
-            // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
-            const endDate = new Date(customEndDate + "T00:00:00+08:00");
-            endDate.setDate(endDate.getDate() + 1);
-            params.set("endDate", endDate.toISOString());
+            if (customEndTime && customEndTime !== "23:59") {
+              params.set("endDate", new Date(`${customEndDate}T${customEndTime}:00+08:00`).toISOString());
+            } else {
+              const endDate = new Date(`${customEndDate}T00:00:00+08:00`);
+              endDate.setDate(endDate.getDate() + 1);
+              params.set("endDate", endDate.toISOString());
+            }
           }
           break;
       }
@@ -824,22 +834,36 @@ export default function OrderListPage() {
                   </Select>
 
                   {dateRange === "custom" && (
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                      <Input
-                        type="date"
-                        className="flex-1 md:w-36"
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        placeholder="Start date"
-                      />
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="date"
+                          className="w-32"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                        />
+                        <Input
+                          type="time"
+                          className="w-24"
+                          value={customStartTime}
+                          onChange={(e) => setCustomStartTime(e.target.value)}
+                        />
+                      </div>
                       <span className="text-muted-foreground text-sm">to</span>
-                      <Input
-                        type="date"
-                        className="flex-1 md:w-36"
-                        value={customEndDate}
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        placeholder="End date"
-                      />
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="date"
+                          className="w-32"
+                          value={customEndDate}
+                          onChange={(e) => setCustomEndDate(e.target.value)}
+                        />
+                        <Input
+                          type="time"
+                          className="w-24"
+                          value={customEndTime}
+                          onChange={(e) => setCustomEndTime(e.target.value)}
+                        />
+                      </div>
                       <Button
                         size="sm"
                         onClick={handleCustomDateApply}

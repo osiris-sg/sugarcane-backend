@@ -46,7 +46,9 @@ export default function OrderSummaryPage() {
   const [groupIds, setGroupIds] = useState([]); // Multi-select array
   const [deviceIds, setDeviceIds] = useState([]); // Multi-select array
   const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("00:00");
   const [endDate, setEndDate] = useState("");
+  const [endTime, setEndTime] = useState("23:59");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState(isAdmin ? "group" : "device"); // "device" or "group"
   const [expandedGroups, setExpandedGroups] = useState({});
@@ -59,16 +61,22 @@ export default function OrderSummaryPage() {
       if (groupIds.length > 0) params.set("groupIds", groupIds.join(","));
       if (deviceIds.length > 0) params.set("deviceIds", deviceIds.join(","));
       if (period === "custom") {
-        // Convert dates to SGT (UTC+8) ISO strings with exclusive end date
+        // Convert dates to SGT (UTC+8) ISO strings
         if (startDate) {
-          const start = new Date(startDate + "T00:00:00+08:00");
+          const start = new Date(`${startDate}T${startTime || "00:00"}:00+08:00`);
           params.set("startDate", start.toISOString());
         }
         if (endDate) {
-          // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
-          const end = new Date(endDate + "T00:00:00+08:00");
-          end.setDate(end.getDate() + 1);
-          params.set("endDate", end.toISOString());
+          // If end time is provided, use it directly; otherwise add 1 day to make date inclusive
+          if (endTime && endTime !== "23:59") {
+            const end = new Date(`${endDate}T${endTime}:00+08:00`);
+            params.set("endDate", end.toISOString());
+          } else {
+            // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
+            const end = new Date(`${endDate}T00:00:00+08:00`);
+            end.setDate(end.getDate() + 1);
+            params.set("endDate", end.toISOString());
+          }
         }
       }
 
@@ -252,18 +260,22 @@ export default function OrderSummaryPage() {
               </div>
               {period === "custom" && (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Start</label>
-                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Start</label>
+                    <div className="flex gap-2">
+                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="flex-1" />
+                      <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-24" />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">End</label>
-                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">End</label>
+                    <div className="flex gap-2">
+                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="flex-1" />
+                      <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-24" />
                     </div>
                   </div>
                   <Button onClick={handleCustomDateApply} size="sm" className="w-full">
-                    Apply Dates
+                    Apply
                   </Button>
                 </div>
               )}
@@ -327,22 +339,38 @@ export default function OrderSummaryPage() {
               {period === "custom" && (
                 <>
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">Start Date</label>
-                    <Input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-[160px]"
-                    />
+                    <label className="text-sm text-muted-foreground">Start</label>
+                    <div className="flex gap-1">
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-[130px]"
+                      />
+                      <Input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="w-[100px]"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">End Date</label>
-                    <Input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-[160px]"
-                    />
+                    <label className="text-sm text-muted-foreground">End</label>
+                    <div className="flex gap-1">
+                      <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-[130px]"
+                      />
+                      <Input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        className="w-[100px]"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm text-muted-foreground invisible">Apply</label>
