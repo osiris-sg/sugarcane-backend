@@ -557,7 +557,7 @@ export default function OrderListPage() {
           o.deliverCount ?? o.quantity ?? 1,
         );
         return baseRow;
-      ]);
+      });
 
       // Create Excel workbook
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
