@@ -15,6 +15,7 @@ import {
   ChevronDown,
   CalendarDays,
 } from "lucide-react";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -375,7 +376,7 @@ export default function SalesOverviewPage() {
   const [interval, setInterval] = useState("daily");
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [devices, setDevices] = useState([]);
-  const [selectedDevice, setSelectedDevice] = useState("all");
+  const [selectedDevices, setSelectedDevices] = useState([]); // Multi-select array
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState("");
@@ -402,7 +403,7 @@ export default function SalesOverviewPage() {
 
   useEffect(() => {
     fetchSalesData();
-  }, [dateRange, selectedDevice, interval]);
+  }, [dateRange, selectedDevices, interval]);
 
   async function fetchTodayData() {
     try {
@@ -417,8 +418,10 @@ export default function SalesOverviewPage() {
         yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
         // Filter orders with deliverCount > 0, non-free (includes failed orders that delivered)
+        // Exclude both "1000" and "Free" payWay to match summary API
         const paidOrders = allOrders.filter(o =>
           o.payWay !== "1000" &&
+          o.payWay !== "Free" &&
           (o.deliverCount ?? o.quantity ?? 0) > 0
         );
 
@@ -516,8 +519,8 @@ export default function SalesOverviewPage() {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
       });
-      if (selectedDevice !== "all") {
-        params.set("deviceId", selectedDevice);
+      if (selectedDevices.length > 0) {
+        params.set("deviceIds", selectedDevices.join(","));
       }
 
       // Fetch current period orders
@@ -528,8 +531,10 @@ export default function SalesOverviewPage() {
         const orders = data.orders || [];
 
         // Include orders with deliverCount > 0, non-free (includes failed orders that delivered)
+        // Exclude both "1000" and "Free" payWay to match summary API
         const deliveredOrders = orders.filter(o =>
           o.payWay !== "1000" &&
+          o.payWay !== "Free" &&
           (o.deliverCount ?? o.quantity ?? 0) > 0
         );
 
@@ -554,15 +559,16 @@ export default function SalesOverviewPage() {
           startDate: prevStartDate.toISOString(),
           endDate: startDate.toISOString(),
         });
-        if (selectedDevice !== "all") {
-          prevParams.set("deviceId", selectedDevice);
+        if (selectedDevices.length > 0) {
+          prevParams.set("deviceIds", selectedDevices.join(","));
         }
 
         const prevRes = await fetch(`/api/admin/orders?${prevParams.toString()}&limit=10000`);
         const prevData = await prevRes.json();
-        // Include orders with deliverCount > 0, non-free
+        // Include orders with deliverCount > 0, non-free (exclude "1000" and "Free")
         const prevOrders = (prevData.orders || []).filter(o =>
           o.payWay !== "1000" &&
+          o.payWay !== "Free" &&
           (o.deliverCount ?? o.quantity ?? 0) > 0
         );
         const prevGrossAmount = prevOrders.reduce((sum, o) => sum + calculateProportionalRevenue(o), 0);
@@ -746,19 +752,13 @@ export default function SalesOverviewPage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
-                  <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Device" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Devices</SelectItem>
-                      {devices.map((device) => (
-                        <SelectItem key={device.deviceId} value={device.deviceId}>
-                          {device.location || device.deviceName || device.deviceId}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelect
+                    options={devices.map((d) => ({ value: d.deviceId, label: d.location || d.deviceName || d.deviceId }))}
+                    selected={selectedDevices}
+                    onChange={setSelectedDevices}
+                    placeholder="All Devices"
+                    className="w-full"
+                  />
                   <Select value={dateRange} onValueChange={setDateRange}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -829,19 +829,13 @@ export default function SalesOverviewPage() {
           <div className="hidden md:flex items-center gap-4 p-3 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-2">
               <Monitor className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select device" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Devices</SelectItem>
-                  {devices.map((device) => (
-                    <SelectItem key={device.deviceId} value={device.deviceId}>
-                      {device.location || device.deviceName || device.deviceId}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                options={devices.map((d) => ({ value: d.deviceId, label: d.location || d.deviceName || d.deviceId }))}
+                selected={selectedDevices}
+                onChange={setSelectedDevices}
+                placeholder="All Devices"
+                className="w-[200px]"
+              />
             </div>
 
             <div className="flex items-center gap-2">
@@ -1022,21 +1016,28 @@ export default function SalesOverviewPage() {
           <Card className="md:col-span-2 lg:col-span-1">
             <CardHeader className="pb-2 px-4 md:px-6">
               <CardTitle className="text-sm md:text-base font-medium">
-                Selected Device
+                Selected Devices
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 md:px-6">
               <div className="space-y-3">
-                {selectedDevice === "all" ? (
+                {selectedDevices.length === 0 ? (
                   <p className="text-xs md:text-sm text-muted-foreground">
-                    Showing all devices. Select a specific device to see details.
+                    Showing all devices. Select specific devices to filter.
                   </p>
                 ) : (
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="font-medium text-sm md:text-base">
-                      {devices.find(d => d.deviceId === selectedDevice)?.deviceName || selectedDevice}
-                    </p>
-                    <p className="text-xs md:text-sm text-muted-foreground">
+                  <div className="space-y-2">
+                    {selectedDevices.map(deviceId => {
+                      const device = devices.find(d => d.deviceId === deviceId);
+                      return (
+                        <div key={deviceId} className="rounded-lg bg-muted/50 p-2">
+                          <p className="font-medium text-sm">
+                            {device?.location || device?.deviceName || deviceId}
+                          </p>
+                        </div>
+                      );
+                    })}
+                    <p className="text-xs text-muted-foreground mt-2">
                       {salesData.payments.succeeded} orders · ${salesData.grossVolume.amount.toFixed(2)}
                     </p>
                   </div>

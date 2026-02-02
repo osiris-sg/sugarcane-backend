@@ -4,7 +4,8 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { BarChart3, Calendar, Filter, Download, ChevronDown, ChevronRight, Users, Monitor } from "lucide-react";
+import { BarChart3, Calendar, Filter, Download, ChevronDown, ChevronRight, Users, Monitor, X } from "lucide-react";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,8 +43,8 @@ export default function OrderSummaryPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [period, setPeriod] = useState("day");
-  const [groupId, setGroupId] = useState("all");
-  const [deviceId, setDeviceId] = useState("all");
+  const [groupIds, setGroupIds] = useState([]); // Multi-select array
+  const [deviceIds, setDeviceIds] = useState([]); // Multi-select array
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -55,8 +56,8 @@ export default function OrderSummaryPage() {
     try {
       const params = new URLSearchParams();
       params.set("period", period);
-      if (groupId && groupId !== "all") params.set("groupId", groupId);
-      if (deviceId && deviceId !== "all") params.set("deviceId", deviceId);
+      if (groupIds.length > 0) params.set("groupIds", groupIds.join(","));
+      if (deviceIds.length > 0) params.set("deviceIds", deviceIds.join(","));
       if (period === "custom") {
         // Convert dates to SGT (UTC+8) ISO strings with exclusive end date
         if (startDate) {
@@ -85,7 +86,7 @@ export default function OrderSummaryPage() {
 
   useEffect(() => {
     fetchData();
-  }, [period, groupId, deviceId]);
+  }, [period, groupIds, deviceIds]);
 
   const handleCustomDateApply = () => {
     if (period === "custom") {
@@ -120,9 +121,9 @@ export default function OrderSummaryPage() {
     a.click();
   };
 
-  // Filter devices by selected group
+  // Filter devices by selected groups
   const filteredDevices = data?.filters?.devices?.filter(d =>
-    groupId === "all" || d.groupId === groupId
+    groupIds.length === 0 || groupIds.includes(d.groupId)
   ) || [];
 
   // Count total devices per group (from all devices, not just those with orders)
@@ -229,37 +230,25 @@ export default function OrderSummaryPage() {
                 {!hideGroupInfo && (
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Group</label>
-                    <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="All Groups" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Groups</SelectItem>
-                        {data?.filters?.groups?.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <MultiSelect
+                      options={data?.filters?.groups?.map((g) => ({ value: g.id, label: g.name })) || []}
+                      selected={groupIds}
+                      onChange={(val) => { setGroupIds(val); setDeviceIds([]); }}
+                      placeholder="All Groups"
+                      className="w-full"
+                    />
                   </div>
                 )}
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Device</label>
-                <Select value={deviceId} onValueChange={setDeviceId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All Devices" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Devices</SelectItem>
-                    {filteredDevices.map((device) => (
-                      <SelectItem key={device.deviceId} value={device.deviceId}>
-                        {device.location || device.deviceName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={filteredDevices.map((d) => ({ value: d.deviceId, label: d.location || d.deviceName }))}
+                  selected={deviceIds}
+                  onChange={setDeviceIds}
+                  placeholder="All Devices"
+                  className="w-full"
+                />
               </div>
               {period === "custom" && (
                 <div className="space-y-2">
@@ -341,38 +330,26 @@ export default function OrderSummaryPage() {
               {!hideGroupInfo && (
                 <div className="space-y-1">
                   <label className="text-sm text-muted-foreground">Group</label>
-                  <Select value={groupId} onValueChange={(val) => { setGroupId(val); setDeviceId("all"); }}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="All Groups" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Groups</SelectItem>
-                      {data?.filters?.groups?.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelect
+                    options={data?.filters?.groups?.map((g) => ({ value: g.id, label: g.name })) || []}
+                    selected={groupIds}
+                    onChange={(val) => { setGroupIds(val); setDeviceIds([]); }}
+                    placeholder="All Groups"
+                    className="w-[180px]"
+                  />
                 </div>
               )}
 
               {/* Device Filter */}
               <div className="space-y-1">
                 <label className="text-sm text-muted-foreground">Device</label>
-                <Select value={deviceId} onValueChange={setDeviceId}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="All Devices" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Devices</SelectItem>
-                    {filteredDevices.map((device) => (
-                      <SelectItem key={device.deviceId} value={device.deviceId}>
-                        {device.location || device.deviceName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={filteredDevices.map((d) => ({ value: d.deviceId, label: d.location || d.deviceName }))}
+                  selected={deviceIds}
+                  onChange={setDeviceIds}
+                  placeholder="All Devices"
+                  className="w-[200px]"
+                />
               </div>
             </div>
           </CardContent>

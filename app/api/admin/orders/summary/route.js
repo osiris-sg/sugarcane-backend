@@ -18,8 +18,10 @@ export async function GET(request) {
     const period = searchParams.get('period') || 'day'; // day, week, month, custom
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    let groupId = searchParams.get('groupId');
-    const deviceId = searchParams.get('deviceId');
+    let groupId = searchParams.get('groupId'); // Single group (deprecated, use groupIds)
+    const groupIds = searchParams.get('groupIds'); // Multiple groups (comma-separated)
+    const deviceId = searchParams.get('deviceId'); // Single device (deprecated, use deviceIds)
+    const deviceIds = searchParams.get('deviceIds'); // Multiple devices (comma-separated)
 
     // Get current user's role and group for access control
     const { userId } = await auth();
@@ -82,13 +84,25 @@ export async function GET(request) {
         dateTo = sgtToUTC(sgtYear, sgtMonth, sgtDate + 1);
     }
 
+    // Parse multi-select filters (comma-separated)
+    const selectedGroupIds = groupIds ? groupIds.split(',').filter(Boolean) : (groupId ? [groupId] : []);
+    const selectedDeviceIds = deviceIds ? deviceIds.split(',').filter(Boolean) : (deviceId ? [deviceId] : []);
+
     // Get devices with their groups (for filtering and display) - using many-to-many
     const deviceWhere = {};
-    if (groupId) {
-      deviceWhere.groups = { some: { groupId: groupId } };
+
+    // Filter by groups (respects user restrictions for franchisees)
+    if (userGroupId) {
+      // Franchisee: only their group
+      deviceWhere.groups = { some: { groupId: userGroupId } };
+    } else if (selectedGroupIds.length > 0) {
+      // Admin with group filter
+      deviceWhere.groups = { some: { groupId: { in: selectedGroupIds } } };
     }
-    if (deviceId) {
-      deviceWhere.deviceId = deviceId;
+
+    // Filter by specific devices
+    if (selectedDeviceIds.length > 0) {
+      deviceWhere.deviceId = { in: selectedDeviceIds };
     }
 
     const devices = await db.device.findMany({
@@ -112,7 +126,7 @@ export async function GET(request) {
     });
 
     // Get device IDs to filter orders
-    const deviceIds = devices.map(d => d.deviceId);
+    const filteredDeviceIdList = devices.map(d => d.deviceId);
 
     // Build base where clause for date and device filters
     const baseWhere = {
@@ -128,8 +142,8 @@ export async function GET(request) {
     }
 
     // If filtering by group, device, or user is franchisee, only include allowed device IDs
-    if (groupId || deviceId || userGroupId) {
-      baseWhere.deviceId = { in: deviceIds };
+    if (selectedGroupIds.length > 0 || selectedDeviceIds.length > 0 || userGroupId) {
+      baseWhere.deviceId = { in: filteredDeviceIdList };
     }
 
     // Query: Get all orders with deliverCount > 0 (includes partial deliveries from failed orders)

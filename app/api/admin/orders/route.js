@@ -14,8 +14,10 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const payWay = searchParams.get('payWay'); // Filter by payment method (cash, card, etc.)
-    const deviceId = searchParams.get('deviceId');
-    const groupId = searchParams.get('groupId'); // Filter by group (admin only)
+    const deviceId = searchParams.get('deviceId'); // Single device (deprecated, use deviceIds)
+    const deviceIds = searchParams.get('deviceIds'); // Multiple devices (comma-separated)
+    const groupId = searchParams.get('groupId'); // Single group (deprecated, use groupIds)
+    const groupIds = searchParams.get('groupIds'); // Multiple groups (comma-separated)
     const limit = parseInt(searchParams.get('limit') || '50');
     const page = parseInt(searchParams.get('page') || '1');
     const offset = (page - 1) * limit;
@@ -79,41 +81,45 @@ export async function GET(request) {
     if (payWay) {
       where.payWay = payWay;
     }
-    if (deviceId) {
-      where.deviceId = deviceId;
-    }
 
-    // If restricted user (franchisee/partnerships), filter by their allowed devices
+    // Parse multi-select device filter (comma-separated)
+    const selectedDeviceIds = deviceIds ? deviceIds.split(',').filter(Boolean) : (deviceId ? [deviceId] : []);
+
+    // Parse multi-select group filter (comma-separated)
+    const selectedGroupIds = groupIds ? groupIds.split(',').filter(Boolean) : (groupId ? [groupId] : []);
+
+    // Determine which devices to filter by based on user role and selected filters
+    let effectiveDeviceIds = null;
+
+    // If restricted user (franchisee/partnerships), start with their allowed devices
     if (allowedDeviceIds !== null) {
-      if (deviceId) {
-        // If specific device requested, make sure it's in their allowed list
-        if (!allowedDeviceIds.includes(deviceId)) {
-          return NextResponse.json({
-            success: true,
-            orders: [],
-            monthlyTotal: 0,
-            monthlyCount: 0,
-          });
-        }
-      } else {
-        // Filter to only allowed devices
-        where.deviceId = { in: allowedDeviceIds };
-      }
+      effectiveDeviceIds = allowedDeviceIds;
     }
 
-    // Admin can filter by group
-    if (isAdmin && groupId) {
+    // Admin can filter by group(s)
+    if (isAdmin && selectedGroupIds.length > 0) {
       const groupDevices = await db.device.findMany({
         where: {
-          groups: { some: { groupId: groupId } }
+          groups: { some: { groupId: { in: selectedGroupIds } } }
         },
         select: { deviceId: true },
       });
-      const groupDeviceIds = groupDevices.map(d => d.deviceId);
+      const groupDeviceIdList = groupDevices.map(d => d.deviceId);
 
-      if (deviceId) {
-        // If specific device also requested, make sure it's in the group
-        if (!groupDeviceIds.includes(deviceId)) {
+      if (effectiveDeviceIds !== null) {
+        // Intersect with allowed devices
+        effectiveDeviceIds = effectiveDeviceIds.filter(id => groupDeviceIdList.includes(id));
+      } else {
+        effectiveDeviceIds = groupDeviceIdList;
+      }
+    }
+
+    // Apply device filter if specified
+    if (selectedDeviceIds.length > 0) {
+      if (effectiveDeviceIds !== null) {
+        // Intersect with effective devices (from group/allowed filters)
+        const validDevices = selectedDeviceIds.filter(id => effectiveDeviceIds.includes(id));
+        if (validDevices.length === 0) {
           return NextResponse.json({
             success: true,
             orders: [],
@@ -122,10 +128,13 @@ export async function GET(request) {
             isAdmin,
           });
         }
+        where.deviceId = { in: validDevices };
       } else {
-        // Filter to only devices in the selected group
-        where.deviceId = { in: groupDeviceIds };
+        where.deviceId = { in: selectedDeviceIds };
       }
+    } else if (effectiveDeviceIds !== null) {
+      // No specific devices selected, but we have group/allowed device restrictions
+      where.deviceId = { in: effectiveDeviceIds };
     }
 
     // Add date range filter
@@ -160,11 +169,11 @@ export async function GET(request) {
     });
 
     // Get unique device IDs to fetch their groups
-    const deviceIds = [...new Set(orders.map(o => o.deviceId))];
+    const orderDeviceIds = [...new Set(orders.map(o => o.deviceId))];
 
     // Fetch devices with their groups (many-to-many)
     const devices = await db.device.findMany({
-      where: { deviceId: { in: deviceIds } },
+      where: { deviceId: { in: orderDeviceIds } },
       include: {
         groups: { include: { group: true } }
       },

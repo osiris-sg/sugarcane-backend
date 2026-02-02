@@ -45,6 +45,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { MultiSelect } from "@/components/ui/multi-select";
 import * as XLSX from "xlsx";
 
 // Helper to format date/time in Singapore timezone
@@ -115,7 +116,7 @@ export default function OrderListPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [allDevices, setAllDevices] = useState([]);
   const [allGroups, setAllGroups] = useState([]);
-  const [groupFilter, setGroupFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState([]); // Array for multi-select
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Mobile infinite scroll state
@@ -135,7 +136,7 @@ export default function OrderListPage() {
   // Filters
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [deviceFilter, setDeviceFilter] = useState("all");
+  const [deviceFilter, setDeviceFilter] = useState([]); // Array for multi-select
   const [payWayFilter, setPayWayFilter] = useState("all");
   const [dateRange, setDateRange] = useState("today"); // all, today, week, month, custom
   const [customStartDate, setCustomStartDate] = useState("");
@@ -158,14 +159,14 @@ export default function OrderListPage() {
     params.set("limit", String(ITEMS_PER_PAGE));
     params.set("page", String(page));
 
-    // Add device filter
-    if (deviceFilter !== "all") {
-      params.set("deviceId", deviceFilter);
+    // Add device filter (supports multiple)
+    if (deviceFilter.length > 0) {
+      params.set("deviceIds", deviceFilter.join(","));
     }
 
-    // Add group filter (admin only)
-    if (groupFilter !== "all") {
-      params.set("groupId", groupFilter);
+    // Add group filter (admin only, supports multiple)
+    if (groupFilter.length > 0) {
+      params.set("groupIds", groupFilter.join(","));
     }
 
     // Add date range filter
@@ -411,9 +412,9 @@ export default function OrderListPage() {
 
   function clearFilters() {
     setSearchText("");
-    setDeviceFilter("all");
+    setDeviceFilter([]);
     setPayWayFilter("all");
-    setGroupFilter("all");
+    setGroupFilter([]);
     setDateRange("all");
     setCustomStartDate("");
     setCustomEndDate("");
@@ -451,7 +452,7 @@ export default function OrderListPage() {
   };
 
   const filterLabel = getFilterLabel();
-  const hasFilters = deviceFilter !== "all" || payWayFilter !== "all" || groupFilter !== "all" || dateRange !== "all" || searchText;
+  const hasFilters = deviceFilter.length > 0 || payWayFilter !== "all" || groupFilter.length > 0 || dateRange !== "all" || searchText;
 
   // Export to CSV - fetch all orders matching current filters
   const [exporting, setExporting] = useState(false);
@@ -464,14 +465,14 @@ export default function OrderListPage() {
       params.set("limit", "100000"); // Large limit to get all
       params.set("page", "1");
 
-      // Add device filter
-      if (deviceFilter !== "all") {
-        params.set("deviceId", deviceFilter);
+      // Add device filter (supports multiple)
+      if (deviceFilter.length > 0) {
+        params.set("deviceIds", deviceFilter.join(","));
       }
 
-      // Add group filter
-      if (groupFilter !== "all") {
-        params.set("groupId", groupFilter);
+      // Add group filter (supports multiple)
+      if (groupFilter.length > 0) {
+        params.set("groupIds", groupFilter.join(","));
       }
 
       // Add date range filter
@@ -769,19 +770,13 @@ export default function OrderListPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 md:flex md:gap-4">
-                    <Select value={deviceFilter} onValueChange={setDeviceFilter}>
-                      <SelectTrigger className="w-full md:w-48">
-                        <SelectValue placeholder="Device" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Devices</SelectItem>
-                        {allDevices.map((device) => (
-                          <SelectItem key={device.id} value={device.id}>
-                            {device.name || device.id}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <MultiSelect
+                      options={allDevices.map((d) => ({ value: d.id, label: d.name || d.id }))}
+                      selected={deviceFilter}
+                      onChange={setDeviceFilter}
+                      placeholder="All Devices"
+                      className="w-full md:w-48"
+                    />
 
                     <Select value={payWayFilter} onValueChange={setPayWayFilter}>
                       <SelectTrigger className="w-full md:w-40">
@@ -798,19 +793,13 @@ export default function OrderListPage() {
                     </Select>
 
                     {isAdmin && (
-                      <Select value={groupFilter} onValueChange={setGroupFilter}>
-                        <SelectTrigger className="w-full md:w-48">
-                          <SelectValue placeholder="Group" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Groups</SelectItem>
-                          {allGroups.map((group) => (
-                            <SelectItem key={group.id} value={group.id}>
-                              {group.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <MultiSelect
+                        options={allGroups.map((g) => ({ value: g.id, label: g.name }))}
+                        selected={groupFilter}
+                        onChange={setGroupFilter}
+                        placeholder="All Groups"
+                        className="w-full md:w-48"
+                      />
                     )}
                   </div>
 
