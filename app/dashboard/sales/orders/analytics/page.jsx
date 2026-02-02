@@ -47,9 +47,11 @@ function getDateRange(dateRange, customStart = "", customEnd = "") {
 
   // Handle custom date range - interpret dates as SGT (UTC+8)
   if (dateRange === "custom" && customStart && customEnd) {
-    // Parse as SGT midnight (00:00:00+08:00) - exclusive end date like old platform
+    // Parse as SGT midnight (00:00:00+08:00)
     const startDate = new Date(customStart + "T00:00:00+08:00");
+    // Add 1 day to make end date inclusive (e.g., Jan 31 includes all of Jan 31)
     const endDate = new Date(customEnd + "T00:00:00+08:00");
+    endDate.setDate(endDate.getDate() + 1);
     const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
     return { startDate, endDate, days: Math.max(days, 1) };
   }
@@ -66,6 +68,15 @@ function getDateRange(dateRange, customStart = "", customEnd = "") {
   startDate.setDate(now.getDate() - days);
   startDate.setHours(0, 0, 0, 0);
   return { startDate, endDate: now, days };
+}
+
+// Helper to calculate proportional revenue
+// Revenue = PayAmount × (DeliverCount / TotalCount)
+function calculateProportionalRevenue(order) {
+  const deliverCount = order.deliverCount ?? order.quantity ?? 1;
+  const totalCount = order.totalCount ?? order.quantity ?? 1;
+  if (totalCount === 0 || deliverCount === 0) return 0;
+  return Math.round(order.amount * (deliverCount / totalCount));
 }
 
 // Custom tooltip for revenue chart with period comparison
@@ -405,34 +416,38 @@ export default function SalesOverviewPage() {
         const yesterdayStart = new Date(todayStart);
         yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
-        // Filter successful, non-free orders
-        const paidOrders = allOrders.filter(o => o.isSuccess && o.payWay !== "1000");
+        // Filter orders with deliverCount > 0, non-free (includes failed orders that delivered)
+        const paidOrders = allOrders.filter(o =>
+          o.payWay !== "1000" &&
+          (o.deliverCount ?? o.quantity ?? 0) > 0
+        );
 
         // Today's orders
         const todayOrders = paidOrders.filter(o => new Date(o.createdAt) >= todayStart);
-        const todaySum = todayOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        // Use proportional revenue: amount × (deliverCount / totalCount)
+        const todaySum = todayOrders.reduce((sum, o) => sum + calculateProportionalRevenue(o), 0);
 
         // Yesterday's orders
         const yesterdayOrders = paidOrders.filter(o => {
           const d = new Date(o.createdAt);
           return d >= yesterdayStart && d < todayStart;
         });
-        const yesterdaySum = yesterdayOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        const yesterdaySum = yesterdayOrders.reduce((sum, o) => sum + calculateProportionalRevenue(o), 0);
 
-        // Build hourly totals for today
+        // Build hourly totals for today (using proportional revenue)
         const hourlyTotals = {};
         todayOrders.forEach(order => {
           const hour = new Date(order.createdAt).getHours();
           if (!hourlyTotals[hour]) hourlyTotals[hour] = 0;
-          hourlyTotals[hour] += order.amount || 0;
+          hourlyTotals[hour] += calculateProportionalRevenue(order);
         });
 
-        // Build hourly totals for yesterday
+        // Build hourly totals for yesterday (using proportional revenue)
         const yesterdayHourlyTotals = {};
         yesterdayOrders.forEach(order => {
           const hour = new Date(order.createdAt).getHours();
           if (!yesterdayHourlyTotals[hour]) yesterdayHourlyTotals[hour] = 0;
-          yesterdayHourlyTotals[hour] += order.amount || 0;
+          yesterdayHourlyTotals[hour] += calculateProportionalRevenue(order);
         });
 
         // Create cumulative chart data with both today and yesterday
@@ -512,20 +527,23 @@ export default function SalesOverviewPage() {
       if (data.success) {
         const orders = data.orders || [];
 
-        // Only count successful, non-free orders
-        const successfulOrders = orders.filter(o => o.isSuccess && o.payWay !== "1000");
+        // Include orders with deliverCount > 0, non-free (includes failed orders that delivered)
+        const deliveredOrders = orders.filter(o =>
+          o.payWay !== "1000" &&
+          (o.deliverCount ?? o.quantity ?? 0) > 0
+        );
 
-        // Calculate gross volume (total successful sales)
-        const grossAmount = successfulOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        // Calculate gross volume using proportional revenue
+        const grossAmount = deliveredOrders.reduce((sum, o) => sum + calculateProportionalRevenue(o), 0);
 
-        // Group orders by date for chart
+        // Group orders by date for chart (using proportional revenue)
         const dailyTotals = {};
-        successfulOrders.forEach(order => {
+        deliveredOrders.forEach(order => {
           const date = new Date(order.createdAt).toISOString().split('T')[0];
           if (!dailyTotals[date]) {
             dailyTotals[date] = 0;
           }
-          dailyTotals[date] += order.amount || 0;
+          dailyTotals[date] += calculateProportionalRevenue(order);
         });
 
         // Fetch previous period for comparison
@@ -542,17 +560,21 @@ export default function SalesOverviewPage() {
 
         const prevRes = await fetch(`/api/admin/orders?${prevParams.toString()}&limit=10000`);
         const prevData = await prevRes.json();
-        const prevOrders = (prevData.orders || []).filter(o => o.isSuccess && o.payWay !== "1000");
-        const prevGrossAmount = prevOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        // Include orders with deliverCount > 0, non-free
+        const prevOrders = (prevData.orders || []).filter(o =>
+          o.payWay !== "1000" &&
+          (o.deliverCount ?? o.quantity ?? 0) > 0
+        );
+        const prevGrossAmount = prevOrders.reduce((sum, o) => sum + calculateProportionalRevenue(o), 0);
 
-        // Group previous period orders by date
+        // Group previous period orders by date (using proportional revenue)
         const prevDailyTotals = {};
         prevOrders.forEach(order => {
           const date = new Date(order.createdAt).toISOString().split('T')[0];
           if (!prevDailyTotals[date]) {
             prevDailyTotals[date] = 0;
           }
-          prevDailyTotals[date] += order.amount || 0;
+          prevDailyTotals[date] += calculateProportionalRevenue(order);
         });
 
         // Create aligned chart data for both periods
@@ -645,10 +667,11 @@ export default function SalesOverviewPage() {
             isPositive: changePercent >= 0,
           },
           payments: {
-            succeeded: successfulOrders.length,
+            succeeded: deliveredOrders.filter(o => o.isSuccess).length,
             refunded: 0,
             failed: orders.filter(o => !o.isSuccess).length,
             total: orders.length,
+            delivered: deliveredOrders.length, // Orders that delivered (including partial)
           },
           chartData,
         });
