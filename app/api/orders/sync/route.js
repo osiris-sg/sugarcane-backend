@@ -35,6 +35,24 @@ export async function POST(request) {
           },
         });
 
+        // Parse order timestamp (original order time from device)
+        let orderTime = null;
+        if (order.timestamp) {
+          // timestamp can be a Date string, Unix timestamp (ms), or ISO string
+          const ts = order.timestamp;
+          if (typeof ts === 'number') {
+            orderTime = new Date(ts);
+          } else if (typeof ts === 'string') {
+            orderTime = new Date(ts);
+          } else if (ts instanceof Date) {
+            orderTime = ts;
+          }
+          // Validate the date
+          if (orderTime && isNaN(orderTime.getTime())) {
+            orderTime = null;
+          }
+        }
+
         if (existingOrder) {
           // Update existing order
           await db.order.update({
@@ -48,6 +66,7 @@ export async function POST(request) {
               payAmount: order.payAmount,
               refundAmount: order.refundAmount,
               totalCount: order.totalCount,
+              orderTime: orderTime,
             },
           });
           results.synced.push({ orderId: order.orderId, action: 'updated' });
@@ -66,6 +85,7 @@ export async function POST(request) {
               payAmount: order.payAmount,
               refundAmount: order.refundAmount,
               totalCount: order.totalCount,
+              orderTime: orderTime,
             },
           });
           results.synced.push({ orderId: order.orderId, action: 'created' });

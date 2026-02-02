@@ -136,13 +136,16 @@ model Order {
   payWay       Int?
   isSuccess    Boolean  @default(true)
   createdAt    DateTime @default(now())
+  orderTime    DateTime?  // Original order timestamp from device
   deliverCount Int?
   payAmount    Int?
   refundAmount Int?
   totalCount   Int?
 
   @@index([deviceId, createdAt])
+  @@index([deviceId, orderTime])
   @@index([createdAt])
+  @@index([orderTime])
   @@index([isSuccess])
 }
 
