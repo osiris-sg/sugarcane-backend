@@ -297,35 +297,6 @@ export default function OrderSummaryPage() {
                 </Select>
               </div>
 
-              {/* Custom Date Range */}
-              {period === "custom" && (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">Start Date</label>
-                    <Input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-[160px]"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">End Date</label>
-                    <Input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-[160px]"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button onClick={handleCustomDateApply} size="sm">
-                      Apply
-                    </Button>
-                  </div>
-                </>
-              )}
-
               {/* Group Filter */}
               {!hideGroupInfo && (
                 <div className="space-y-1">
@@ -351,6 +322,36 @@ export default function OrderSummaryPage() {
                   className="w-[200px]"
                 />
               </div>
+
+              {/* Custom Date Range */}
+              {period === "custom" && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">Start Date</label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-[160px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">End Date</label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-[160px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground invisible">Apply</label>
+                    <Button onClick={handleCustomDateApply} size="sm" className="h-10">
+                      Apply
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
