@@ -2,12 +2,29 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { db } from '@/lib/db';
 
 // FOMO Pay Credentials
 const MID = "110000000002801";  // Merchant ID
-const TID = "10000001";         // Terminal ID
+const DEFAULT_TID = "10000001"; // Default Terminal ID (fallback)
 const KEY_ID = "09bfd5be-9b94-495d-ac89-74f8aee39071";
 const API_URL = "https://pos.fomopay.net/rpc";
+
+async function resolveTid(deviceId) {
+  if (!deviceId) return DEFAULT_TID;
+  try {
+    const device = await db.device.findUnique({
+      where: { deviceId: String(deviceId) },
+      select: { fomoTid: true },
+    });
+    const tid = device?.fomoTid || DEFAULT_TID;
+    console.log(`[FOMOPAY-VOID] Device ${deviceId} → TID: ${tid}`);
+    return tid;
+  } catch (e) {
+    console.error(`[FOMOPAY-VOID] Error looking up device ${deviceId}:`, e.message);
+    return DEFAULT_TID;
+  }
+}
 
 /**
  * Load RSA private key from environment variable
@@ -111,7 +128,7 @@ async function sendRequest(payloadDict) {
  * Create Void Request payload
  * MTI: 0440 - Void/Cancel an unpaid transaction
  */
-function createVoidRequest(stan) {
+function createVoidRequest(stan, TID = DEFAULT_TID) {
   const now = new Date();
 
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -150,9 +167,11 @@ function createVoidRequest(stan) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { stan } = body;
+    const { stan, deviceId } = body;
 
-    console.log(`[FOMOPAY-VOID] Void Request - STAN: ${stan}`);
+    // Resolve TID from device lookup
+    const TID = await resolveTid(deviceId);
+    console.log(`[FOMOPAY-VOID] Void Request - STAN: ${stan}, Device: ${deviceId || 'none'}, TID: ${TID}`);
 
     if (!stan) {
       return NextResponse.json({
@@ -162,7 +181,7 @@ export async function POST(request) {
     }
 
     // Create void request
-    const fields = createVoidRequest(stan);
+    const fields = createVoidRequest(stan, TID);
 
     // Send to FOMO Pay
     const response = await sendRequest(fields);

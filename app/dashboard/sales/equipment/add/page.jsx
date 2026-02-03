@@ -36,6 +36,7 @@ export default function AddDevicePage() {
     isActive: true,
     groupId: "",
     tid: "",
+    fomoTid: "",
   });
 
   useEffect(() => {
@@ -76,6 +77,7 @@ export default function AddDevicePage() {
           isActive: device.isActive,
           groupId: device.groupId || null,
           tid: device.tid.trim() || null,
+          fomoTid: device.fomoTid.trim() || null,
           additionalGroupIds: addToPartnership && partnershipGroup ? [partnershipGroup.id] : [],
         }),
       });
@@ -158,6 +160,22 @@ export default function AddDevicePage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Payment terminal identifier
+                </p>
+              </div>
+
+              {/* FomoPay TID */}
+              <div className="space-y-2">
+                <Label htmlFor="fomoTid">FomoPay TID</Label>
+                <Input
+                  id="fomoTid"
+                  value={device.fomoTid}
+                  onChange={(e) =>
+                    setDevice({ ...device, fomoTid: e.target.value })
+                  }
+                  placeholder="10000001"
+                />
+                <p className="text-xs text-muted-foreground">
+                  FomoPay Terminal ID for QR payments (defaults to 10000001 if empty)
                 </p>
               </div>
 

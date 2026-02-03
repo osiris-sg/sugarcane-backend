@@ -38,6 +38,7 @@ export default function EditDevicePage() {
     isActive: true,
     groupId: "",
     tid: "",
+    fomoTid: "",
     allGroups: [],
   });
 
@@ -61,6 +62,7 @@ export default function EditDevicePage() {
             isActive: found.isActive,
             groupId: found.groupId || "",
             tid: found.tid || "",
+            fomoTid: found.fomoTid || "",
             allGroups: found.allGroups || [],
           });
           // Check if already in partnership group
@@ -109,6 +111,7 @@ export default function EditDevicePage() {
           isActive: device.isActive,
           groupId: device.groupId || null,
           tid: device.tid || null,
+          fomoTid: device.fomoTid || null,
           additionalGroupIds: addToPartnership && partnershipGroup ? [partnershipGroup.id] : [],
         }),
       });
@@ -197,6 +200,22 @@ export default function EditDevicePage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Payment terminal identifier
+                </p>
+              </div>
+
+              {/* FomoPay TID */}
+              <div className="space-y-2">
+                <Label htmlFor="fomoTid">FomoPay TID</Label>
+                <Input
+                  id="fomoTid"
+                  value={device.fomoTid}
+                  onChange={(e) =>
+                    setDevice({ ...device, fomoTid: e.target.value })
+                  }
+                  placeholder="10000001"
+                />
+                <p className="text-xs text-muted-foreground">
+                  FomoPay Terminal ID for QR payments (defaults to 10000001 if empty)
                 </p>
               </div>
 

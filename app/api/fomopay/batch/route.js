@@ -2,12 +2,29 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { db } from '@/lib/db';
 
 // FOMO Pay Credentials
 const MID = "110000000002801";  // Merchant ID
-const TID = "10000001";         // Terminal ID
+const DEFAULT_TID = "10000001"; // Default Terminal ID (fallback)
 const KEY_ID = "09bfd5be-9b94-495d-ac89-74f8aee39071";
 const API_URL = "https://pos.fomopay.net/rpc";
+
+async function resolveTid(deviceId) {
+  if (!deviceId) return DEFAULT_TID;
+  try {
+    const device = await db.device.findUnique({
+      where: { deviceId: String(deviceId) },
+      select: { fomoTid: true },
+    });
+    const tid = device?.fomoTid || DEFAULT_TID;
+    console.log(`[FOMOPAY-BATCH] Device ${deviceId} → TID: ${tid}`);
+    return tid;
+  } catch (e) {
+    console.error(`[FOMOPAY-BATCH] Error looking up device ${deviceId}:`, e.message);
+    return DEFAULT_TID;
+  }
+}
 
 /**
  * Load RSA private key from environment variable
@@ -111,7 +128,7 @@ async function sendRequest(payloadDict) {
  * Create Batch Submit (Settlement) Request payload
  * MTI: 0500 - Settlement Request
  */
-function createBatchSubmitRequest() {
+function createBatchSubmitRequest(TID = DEFAULT_TID) {
   const now = new Date();
 
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -149,8 +166,6 @@ function createBatchSubmitRequest() {
  */
 export async function POST(request) {
   try {
-    // Batch submit requires no input parameters per API spec
-    // It settles all pending transactions in the current batch
     let body = {};
     try {
       body = await request.json();
@@ -158,10 +173,14 @@ export async function POST(request) {
       // Empty body is fine for batch submit
     }
 
-    console.log(`[FOMOPAY-BATCH] Batch Submit Request`);
+    const { deviceId } = body;
+
+    // Resolve TID from device lookup
+    const TID = await resolveTid(deviceId);
+    console.log(`[FOMOPAY-BATCH] Batch Submit Request - Device: ${deviceId || 'none'}, TID: ${TID}`);
 
     // Create batch submit request (only requires MID, TID, datetime)
-    const { fields } = createBatchSubmitRequest();
+    const { fields } = createBatchSubmitRequest(TID);
 
     // Send to FOMO Pay
     const response = await sendRequest(fields);

@@ -121,7 +121,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, location, price, isActive, groupId, removeFromGroupId, tid, additionalGroupIds } = body;
+    const { deviceId, deviceName, location, price, isActive, groupId, removeFromGroupId, tid, fomoTid, additionalGroupIds } = body;
 
     if (!deviceId) {
       return NextResponse.json(
@@ -177,6 +177,7 @@ export async function POST(request) {
         ...(price !== undefined && { price: parseInt(price) }),
         ...(isActive !== undefined && { isActive }),
         ...(tid !== undefined && { tid }),
+        ...(fomoTid !== undefined && { fomoTid }),
       },
       create: {
         deviceId: deviceId,
@@ -185,6 +186,7 @@ export async function POST(request) {
         price: price ? parseInt(price) : 250, // Default $2.50
         isActive: isActive !== undefined ? isActive : false, // Default inactive until device reports temperature
         tid: tid || null,
+        fomoTid: fomoTid || null,
       },
       include: {
         groups: { include: { group: true } },

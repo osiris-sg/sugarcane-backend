@@ -2,12 +2,29 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { db } from '@/lib/db';
 
 // FOMO Pay Credentials
 const MID = "110000000002801";  // Merchant ID
-const TID = "10000001";         // Terminal ID
+const DEFAULT_TID = "10000001"; // Default Terminal ID (fallback)
 const KEY_ID = "09bfd5be-9b94-495d-ac89-74f8aee39071";
 const API_URL = "https://pos.fomopay.net/rpc";
+
+async function resolveTid(deviceId) {
+  if (!deviceId) return DEFAULT_TID;
+  try {
+    const device = await db.device.findUnique({
+      where: { deviceId: String(deviceId) },
+      select: { fomoTid: true },
+    });
+    const tid = device?.fomoTid || DEFAULT_TID;
+    console.log(`[FOMOPAY-STATUS] Device ${deviceId} → TID: ${tid}`);
+    return tid;
+  } catch (e) {
+    console.error(`[FOMOPAY-STATUS] Error looking up device ${deviceId}:`, e.message);
+    return DEFAULT_TID;
+  }
+}
 
 /**
  * Load RSA private key from environment variable
@@ -69,7 +86,7 @@ function signRequest(payload, timestamp, nonce, privateKeyPem) {
 /**
  * Create Query Request payload
  */
-function createQueryRequest(stan) {
+function createQueryRequest(stan, TID = DEFAULT_TID) {
   const now = new Date();
 
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -146,7 +163,7 @@ async function sendRequest(payloadDict) {
  */
 export async function POST(request) {
   try {
-    const { stan } = await request.json();
+    const { stan, deviceId } = await request.json();
 
     if (!stan) {
       return NextResponse.json({
@@ -155,8 +172,11 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    // Resolve TID from device lookup
+    const TID = await resolveTid(deviceId);
+
     // Create query request
-    const fields = createQueryRequest(stan);
+    const fields = createQueryRequest(stan, TID);
 
     // Send to FOMO Pay
     const response = await sendRequest(fields);

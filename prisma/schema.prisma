@@ -101,6 +101,7 @@ model Device {
   appVersion        String?          // App version name (e.g., "3.2")
   appVersionCode    Int?             // App version code (e.g., 186777)
   versionUpdatedAt  DateTime?        // When version was last reported
+  fomoTid           String?          // FomoPay Terminal ID (falls back to "10000001" if not set)
 
   @@index([deviceId])
   @@index([driverId])

@@ -2,12 +2,29 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { db } from '@/lib/db';
 
 // FOMO Pay Credentials
 const MID = "110000000002801";  // Merchant ID
-const TID = "10000001";         // Terminal ID
+const DEFAULT_TID = "10000001"; // Default Terminal ID (fallback)
 const KEY_ID = "09bfd5be-9b94-495d-ac89-74f8aee39071";
 const API_URL = "https://pos.fomopay.net/rpc";
+
+async function resolveTid(deviceId) {
+  if (!deviceId) return DEFAULT_TID;
+  try {
+    const device = await db.device.findUnique({
+      where: { deviceId: String(deviceId) },
+      select: { fomoTid: true, deviceName: true },
+    });
+    const tid = device?.fomoTid || DEFAULT_TID;
+    console.log(`[FOMOPAY] Device ${deviceId} (${device?.deviceName || 'unknown'}) → TID: ${tid}`);
+    return tid;
+  } catch (e) {
+    console.error(`[FOMOPAY] Error looking up device ${deviceId}:`, e.message);
+    return DEFAULT_TID;
+  }
+}
 
 // Condition codes for payment methods
 const CONDITION_CODES = {
@@ -80,7 +97,7 @@ function signRequest(payload, timestamp, nonce, privateKeyPem) {
 /**
  * Create Sale Request payload for PayNow
  */
-function createSaleRequest(amountCents, paymentMethod = "PAYNOW", description = "Sugarcane Juice") {
+function createSaleRequest(amountCents, paymentMethod = "PAYNOW", description = "Sugarcane Juice", TID = DEFAULT_TID) {
   const now = new Date();
 
   // Generate STAN (System Trace Audit Number) - 6 digits
@@ -184,10 +201,12 @@ export async function POST(request) {
   try {
     const body = await request.json();
     // Accept both 'paymentMethod' and 'scheme' (app sends 'scheme')
-    const { amount, paymentMethod, scheme, description = "Sugarcane Juice" } = body;
+    const { amount, paymentMethod, scheme, description = "Sugarcane Juice", deviceId } = body;
     const method = paymentMethod || scheme || "PAYNOW";
 
-    console.log(`[FOMOPAY] QR Request - Amount: ${amount} cents, Method: ${method}`);
+    // Resolve TID from device lookup
+    const TID = await resolveTid(deviceId);
+    console.log(`[FOMOPAY] QR Request - Amount: ${amount} cents, Method: ${method}, Device: ${deviceId || 'none'}, TID: ${TID}`);
 
     if (!amount || amount <= 0) {
       return NextResponse.json({
@@ -197,7 +216,7 @@ export async function POST(request) {
     }
 
     // Create sale request
-    const { fields, stan } = createSaleRequest(amount, method, description);
+    const { fields, stan } = createSaleRequest(amount, method, description, TID);
 
     // Send to FOMO Pay
     const response = await sendRequest(fields);
