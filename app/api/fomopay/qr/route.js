@@ -238,6 +238,23 @@ export async function POST(request) {
 
       console.log(`[FOMOPAY] Success! QR Code: ${qrCode.substring(0, 50)}...`);
 
+      // Track this transaction
+      try {
+        await db.fomoPayTransaction.create({
+          data: {
+            deviceId: String(deviceId || 'unknown'),
+            stan,
+            reference,
+            amount: amount,
+            scheme: method,
+            status: 'completed',
+            tid: TID,
+          },
+        });
+      } catch (e) {
+        console.error(`[FOMOPAY] Error saving transaction:`, e.message);
+      }
+
       return NextResponse.json({
         success: true,
         qrCode: qrCode,
@@ -251,6 +268,23 @@ export async function POST(request) {
       const reference = response["37"] || stan;
 
       console.log(`[FOMOPAY] In progress - QR Code: ${qrCode.substring(0, 50)}...`);
+
+      // Track this pending transaction
+      try {
+        await db.fomoPayTransaction.create({
+          data: {
+            deviceId: String(deviceId || 'unknown'),
+            stan,
+            reference: reference || null,
+            amount: amount,
+            scheme: method,
+            status: 'pending',
+            tid: TID,
+          },
+        });
+      } catch (e) {
+        console.error(`[FOMOPAY] Error saving transaction:`, e.message);
+      }
 
       return NextResponse.json({
         success: true,

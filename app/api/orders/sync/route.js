@@ -53,6 +53,35 @@ export async function POST(request) {
           }
         }
 
+        // For FomoPay orders (payWay=17), try to match a completed transaction
+        let fomoTransactionId = null;
+        let fomoStan = null;
+        const orderPayWay = order.payWay;
+        const orderSuccess = order.isSuccess ?? true;
+
+        if (orderSuccess && orderPayWay === 17 && !existingOrder) {
+          try {
+            const fomoTx = await db.fomoPayTransaction.findFirst({
+              where: {
+                deviceId: String(deviceId),
+                status: 'completed',
+                linkedOrder: false,
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+            if (fomoTx) {
+              fomoTransactionId = fomoTx.reference;
+              fomoStan = fomoTx.stan;
+              await db.fomoPayTransaction.update({
+                where: { id: fomoTx.id },
+                data: { linkedOrder: true },
+              });
+            }
+          } catch (e) {
+            console.error(`[OrderSync] Error matching FomoPay tx:`, e.message);
+          }
+        }
+
         if (existingOrder) {
           // Update existing order
           await db.order.update({
@@ -61,7 +90,7 @@ export async function POST(request) {
               amount: order.payAmount || order.totalAmount || 0,
               quantity: order.totalCount || 1,
               payWay: order.payWay || 'Unknown',
-              isSuccess: order.isSuccess ?? true,
+              isSuccess: orderSuccess,
               deliverCount: order.deliverCount,
               payAmount: order.payAmount,
               refundAmount: order.refundAmount,
@@ -80,12 +109,14 @@ export async function POST(request) {
               amount: order.payAmount || order.totalAmount || 0,
               quantity: order.totalCount || 1,
               payWay: order.payWay || 'Unknown',
-              isSuccess: order.isSuccess ?? true,
+              isSuccess: orderSuccess,
               deliverCount: order.deliverCount,
               payAmount: order.payAmount,
               refundAmount: order.refundAmount,
               totalCount: order.totalCount,
               orderTime: orderTime,
+              fomoTransactionId,
+              fomoStan,
             },
           });
           results.synced.push({ orderId: order.orderId, action: 'created' });

@@ -128,20 +128,22 @@ model Stock {
 }
 
 model Order {
-  id           String   @id @default(cuid())
-  orderId      String
-  deviceId     String
-  deviceName   String
-  amount       Int
-  quantity     Int      @default(1)
-  payWay       Int?
-  isSuccess    Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  orderTime    DateTime?  // Original order timestamp from device
-  deliverCount Int?
-  payAmount    Int?
-  refundAmount Int?
-  totalCount   Int?
+  id                String   @id @default(cuid())
+  orderId           String
+  deviceId          String
+  deviceName        String
+  amount            Int
+  quantity          Int      @default(1)
+  payWay            Int?
+  isSuccess         Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  orderTime         DateTime?  // Original order timestamp from device
+  deliverCount      Int?
+  payAmount         Int?
+  refundAmount      Int?
+  totalCount        Int?
+  fomoTransactionId String?  // FomoPay reference number (Field 37)
+  fomoStan          String?  // FomoPay STAN
 
   @@index([deviceId, createdAt])
   @@index([deviceId, orderTime])
@@ -404,6 +406,24 @@ enum OtaStatus {
   SCHEDULED
   TRIGGERED
   CANCELLED
+}
+
+model FomoPayTransaction {
+  id          String   @id @default(cuid())
+  deviceId    String
+  stan        String
+  reference   String?  // FomoPay reference (Field 37), set when payment succeeds
+  amount      Int      // Amount in cents
+  scheme      String?  // PAYNOW, ALIPAY, WECHATPAY, GRABPAY
+  status      String   @default("pending") // pending, completed, failed, voided
+  tid         String?  // Terminal ID used
+  linkedOrder Boolean  @default(false) // Whether this has been linked to an Order
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([deviceId, createdAt])
+  @@index([stan])
+  @@index([deviceId, status])
 }
 
 model SalesPrediction {

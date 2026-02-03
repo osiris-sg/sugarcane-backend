@@ -198,6 +198,16 @@ export async function POST(request) {
     if (responseCode === "00") {
       console.log(`[FOMOPAY-VOID] Success! Transaction voided.`);
 
+      // Mark FomoPayTransaction as voided
+      try {
+        await db.fomoPayTransaction.updateMany({
+          where: { stan },
+          data: { status: 'voided' },
+        });
+      } catch (e) {
+        console.error(`[FOMOPAY-VOID] Error updating transaction:`, e.message);
+      }
+
       return NextResponse.json({
         success: true,
         message: "Transaction voided successfully",

@@ -63,6 +63,39 @@ export async function POST(request) {
 
     console.log(`[UploadOrder] Success: ${orderSuccess}, Format: ${isNewFormat ? 'new' : 'old'}, Amount: ${correctedAmount}, Qty: ${finalQuantity}`);
 
+    // For FomoPay orders (payWay=17), look up the most recent completed transaction for this device
+    let fomoTransactionId = null;
+    let fomoStan = null;
+    if (orderSuccess && payWay === 17) {
+      try {
+        const fomoTx = await db.fomoPayTransaction.findFirst({
+          where: {
+            deviceId: String(deviceId),
+            status: 'completed',
+            linkedOrder: false,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (fomoTx) {
+          fomoTransactionId = fomoTx.reference;
+          fomoStan = fomoTx.stan;
+
+          // Mark as linked so it won't be matched again
+          await db.fomoPayTransaction.update({
+            where: { id: fomoTx.id },
+            data: { linkedOrder: true },
+          });
+
+          console.log(`[UploadOrder] Linked FomoPay transaction: ref=${fomoTransactionId}, stan=${fomoStan}`);
+        } else {
+          console.log(`[UploadOrder] No unlinked FomoPay transaction found for device ${deviceId}`);
+        }
+      } catch (e) {
+        console.error(`[UploadOrder] Error looking up FomoPay transaction:`, e.message);
+      }
+    }
+
     // Save order to database with all fields
     const saved = await db.order.create({
       data: {
@@ -77,6 +110,8 @@ export async function POST(request) {
         deliverCount: deliverCount ?? null,
         payWay: payWay || null,
         isSuccess: orderSuccess,
+        fomoTransactionId,
+        fomoStan,
       },
     });
 

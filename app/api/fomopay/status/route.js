@@ -191,11 +191,24 @@ export async function POST(request) {
     const responseCode = response["39"] || "";
 
     if (responseCode === "00") {
+      const reference = response["37"] || stan;
+
+      // Update FomoPayTransaction record with reference and mark completed
+      try {
+        await db.fomoPayTransaction.updateMany({
+          where: { stan, status: 'pending' },
+          data: { reference, status: 'completed' },
+        });
+        console.log(`[FOMOPAY-STATUS] Marked transaction ${stan} as completed, ref: ${reference}`);
+      } catch (e) {
+        console.error(`[FOMOPAY-STATUS] Error updating transaction:`, e.message);
+      }
+
       return NextResponse.json({
         success: true,
         status: "completed",
         paid: true,
-        reference: response["37"] || stan
+        reference
       });
 
     } else if (responseCode === "09") {
@@ -206,6 +219,16 @@ export async function POST(request) {
       });
 
     } else {
+      // Mark transaction as failed
+      try {
+        await db.fomoPayTransaction.updateMany({
+          where: { stan, status: 'pending' },
+          data: { status: 'failed' },
+        });
+      } catch (e) {
+        console.error(`[FOMOPAY-STATUS] Error updating transaction:`, e.message);
+      }
+
       return NextResponse.json({
         success: true,
         status: "failed",
