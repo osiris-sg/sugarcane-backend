@@ -53,20 +53,6 @@ function calculateBitmap(fieldNumbers) {
 }
 
 /**
- * Generate a 6-digit STAN
- */
-function generateStan() {
-  return String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
-}
-
-/**
- * Generate a 6-digit batch number
- */
-function generateBatchNumber() {
-  return String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
-}
-
-/**
  * Sign request using SHA256WithRSA
  */
 function signRequest(payload, timestamp, nonce, privateKeyPem) {
@@ -125,7 +111,7 @@ async function sendRequest(payloadDict) {
  * Create Batch Submit (Settlement) Request payload
  * MTI: 0500 - Settlement Request
  */
-function createBatchSubmitRequest(batchNumber, transactionCount, totalAmount) {
+function createBatchSubmitRequest() {
   const now = new Date();
 
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -135,38 +121,23 @@ function createBatchSubmitRequest(batchNumber, transactionCount, totalAmount) {
   const seconds = String(now.getSeconds()).padStart(2, '0');
 
   const transmissionDt = `${month}${day}${hours}${minutes}${seconds}`;
-  const localTime = `${hours}${minutes}${seconds}`;
-  const localDate = `${month}${day}`;
-  const stan = generateStan();
-  const batch = batchNumber || generateBatchNumber();
 
-  // Build batch submit message fields
+  // Build batch submit message fields (per API spec v1.3.2)
+  // Only fields 0, 1, 3, 7, 41, 42 are required
   const fields = {
     "0": "0500",                              // MTI: Settlement/Batch Submit Request
-    "3": "920000",                            // Processing Code (settlement)
+    "3": "000000",                            // Processing Code (batch submit)
     "7": transmissionDt,                      // Transmission date & time
-    "11": stan,                               // STAN
-    "12": localTime,                          // Local time
-    "13": localDate,                          // Local date
     "41": TID.padEnd(8, ' '),                 // Terminal ID
-    "42": MID.padEnd(15, ' '),                // Merchant ID
-    "60": batch                               // Batch number
+    "42": MID.padEnd(15, ' ')                 // Merchant ID
   };
-
-  // Add optional settlement totals if provided
-  if (transactionCount !== undefined) {
-    fields["74"] = String(transactionCount).padStart(10, '0');  // Number of credits
-  }
-  if (totalAmount !== undefined) {
-    fields["86"] = String(totalAmount).padStart(16, '0');  // Amount of credits
-  }
 
   // Calculate and add bitmap
   const fieldNumbers = Object.keys(fields).map(k => parseInt(k));
   const bitmap = calculateBitmap(fieldNumbers);
   fields["1"] = bitmap;
 
-  return { fields, stan, batchNumber: batch };
+  return { fields };
 }
 
 /**
@@ -178,21 +149,19 @@ function createBatchSubmitRequest(batchNumber, transactionCount, totalAmount) {
  */
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const {
-      batchNumber,       // Optional: specific batch number (auto-generated if not provided)
-      transactionCount,  // Optional: number of transactions in batch
-      totalAmount        // Optional: total amount in cents
-    } = body;
+    // Batch submit requires no input parameters per API spec
+    // It settles all pending transactions in the current batch
+    let body = {};
+    try {
+      body = await request.json();
+    } catch (e) {
+      // Empty body is fine for batch submit
+    }
 
-    console.log(`[FOMOPAY-BATCH] Batch Submit Request - Batch: ${batchNumber || 'auto'}, Count: ${transactionCount}, Amount: ${totalAmount}`);
+    console.log(`[FOMOPAY-BATCH] Batch Submit Request`);
 
-    // Create batch submit request
-    const { fields, stan, batchNumber: batch } = createBatchSubmitRequest(
-      batchNumber,
-      transactionCount,
-      totalAmount
-    );
+    // Create batch submit request (only requires MID, TID, datetime)
+    const { fields } = createBatchSubmitRequest();
 
     // Send to FOMO Pay
     const response = await sendRequest(fields);
@@ -207,14 +176,23 @@ export async function POST(request) {
     const responseCode = response["39"] || "";
 
     if (responseCode === "00") {
-      console.log(`[FOMOPAY-BATCH] Success! Batch ${batch} submitted.`);
+      console.log(`[FOMOPAY-BATCH] Success! Batch submitted.`);
+
+      // Parse batch summary from field 114 if present
+      let batchSummary = null;
+      if (response["114"]) {
+        try {
+          batchSummary = JSON.parse(response["114"]);
+        } catch (e) {
+          batchSummary = response["114"];
+        }
+      }
 
       return NextResponse.json({
         success: true,
         message: "Batch submitted successfully",
         responseCode: responseCode,
-        batchNumber: batch,
-        stan: stan,
+        batchSummary: batchSummary,
         response: response
       });
 
@@ -236,8 +214,7 @@ export async function POST(request) {
       return NextResponse.json({
         success: false,
         error: errorMessage,
-        responseCode: responseCode,
-        batchNumber: batch
+        responseCode: responseCode
       }, { status: 400 });
     }
 

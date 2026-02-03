@@ -125,7 +125,7 @@ function createVoidRequest(stan) {
   // Build void message fields
   const fields = {
     "0": "0440",                    // MTI: Void Request
-    "3": "020000",                  // Processing Code (void)
+    "3": "000000",                  // Processing Code (void)
     "7": transmissionDt,            // Transmission date & time
     "11": stan,                     // Original STAN to void
     "41": TID.padEnd(8, ' '),       // Terminal ID
