@@ -571,66 +571,16 @@ export default function OrderListPage() {
         return baseRow;
       };
 
-      // Group orders by group then by location/device
-      const grouped = {};
-      allOrders.forEach((o) => {
-        const gName = o.groupName || "Unassigned";
-        const loc = o.deviceName || o.deviceId;
-        if (!grouped[gName]) grouped[gName] = {};
-        if (!grouped[gName][loc]) grouped[gName][loc] = [];
-        grouped[gName][loc].push(o);
+      // Sort orders by group, then by location/device name
+      const sortedOrders = [...allOrders].sort((a, b) => {
+        const gA = (a.groupName || "Unassigned").localeCompare(b.groupName || "Unassigned");
+        if (gA !== 0) return gA;
+        const lA = (a.deviceName || "").localeCompare(b.deviceName || "");
+        if (lA !== 0) return lA;
+        return new Date(a.createdAt) - new Date(b.createdAt);
       });
 
-      const rows = [];
-      const sortedGroups = Object.keys(grouped).sort();
-
-      sortedGroups.forEach((groupName) => {
-        // Group header row
-        const groupHeaderRow = new Array(headers.length).fill("");
-        groupHeaderRow[0] = groupName;
-        rows.push(groupHeaderRow);
-
-        const locations = grouped[groupName];
-        const sortedLocations = Object.keys(locations).sort();
-
-        let groupAmount = 0;
-        let groupCups = 0;
-
-        sortedLocations.forEach((loc) => {
-          const orders = locations[loc];
-          // Location header row
-          const locHeaderRow = new Array(headers.length).fill("");
-          locHeaderRow[isAdmin ? 2 : 1] = loc;
-          rows.push(locHeaderRow);
-
-          let locAmount = 0;
-          let locCups = 0;
-          orders.forEach((o) => {
-            rows.push(formatOrder(o));
-            locAmount += o.amount || 0;
-            locCups += o.deliverCount ?? o.quantity ?? 0;
-          });
-
-          // Location subtotal
-          const locTotalRow = new Array(headers.length).fill("");
-          locTotalRow[isAdmin ? 2 : 1] = `${loc} Total`;
-          locTotalRow[isAdmin ? 7 : 6] = (locAmount / 100).toFixed(2);
-          locTotalRow[isAdmin ? 10 : 9] = locCups;
-          rows.push(locTotalRow);
-          rows.push(new Array(headers.length).fill(""));
-
-          groupAmount += locAmount;
-          groupCups += locCups;
-        });
-
-        // Group subtotal
-        const groupTotalRow = new Array(headers.length).fill("");
-        groupTotalRow[0] = `${groupName} Total`;
-        groupTotalRow[isAdmin ? 7 : 6] = (groupAmount / 100).toFixed(2);
-        groupTotalRow[isAdmin ? 10 : 9] = groupCups;
-        rows.push(groupTotalRow);
-        rows.push(new Array(headers.length).fill(""));
-      });
+      const rows = sortedOrders.map(formatOrder);
 
       // Create Excel workbook
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);

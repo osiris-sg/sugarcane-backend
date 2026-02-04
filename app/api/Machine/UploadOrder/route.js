@@ -63,10 +63,12 @@ export async function POST(request) {
 
     console.log(`[UploadOrder] Success: ${orderSuccess}, Format: ${isNewFormat ? 'new' : 'old'}, Amount: ${correctedAmount}, Qty: ${finalQuantity}`);
 
-    // For FomoPay orders (payWay=17), look up the most recent completed transaction for this device
+    // For FomoPay orders, look up the most recent completed transaction for this device
+    // payWay values: 17 = PayNow/GrabPay (MobilePay), 35 = PayNow (dedicated), 3 = Alipay, 4 = WeChat
+    const FOMOPAY_WAYS = [3, 4, 17, 35];
     let fomoTransactionId = null;
     let fomoStan = null;
-    if (orderSuccess && payWay === 17) {
+    if (orderSuccess && FOMOPAY_WAYS.includes(payWay)) {
       try {
         const fomoTx = await db.fomoPayTransaction.findFirst({
           where: {

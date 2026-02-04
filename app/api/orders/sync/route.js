@@ -53,13 +53,15 @@ export async function POST(request) {
           }
         }
 
-        // For FomoPay orders (payWay=17), try to match a completed transaction
+        // For FomoPay orders, try to match a completed transaction
+        // payWay values: 17 = PayNow/GrabPay (MobilePay), 35 = PayNow (dedicated), 3 = Alipay, 4 = WeChat
+        const FOMOPAY_WAYS = [3, 4, 17, 35];
         let fomoTransactionId = null;
         let fomoStan = null;
         const orderPayWay = order.payWay;
         const orderSuccess = order.isSuccess ?? true;
 
-        if (orderSuccess && orderPayWay === 17 && !existingOrder) {
+        if (orderSuccess && FOMOPAY_WAYS.includes(orderPayWay) && !existingOrder) {
           try {
             const fomoTx = await db.fomoPayTransaction.findFirst({
               where: {
