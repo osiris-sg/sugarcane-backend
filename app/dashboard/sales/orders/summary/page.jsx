@@ -109,18 +109,79 @@ export default function OrderSummaryPage() {
   const exportCSV = () => {
     if (!data?.summary) return;
 
-    const headers = ["Device ID", "Device Name", "Location", "Group", "Total Sales", "Total Cups", "Orders"];
-    const rows = data.summary.map(item => [
-      item.deviceId,
-      item.deviceName,
-      item.location || "",
-      item.groupName || "",
-      (item.totalSales / 100).toFixed(2),
-      item.totalCups,
-      item.orderCount,
+    // Group devices by group, then sort by location within each group
+    const grouped = {};
+    data.summary.forEach(item => {
+      const gName = item.groupName || "Unassigned";
+      if (!grouped[gName]) {
+        grouped[gName] = { totalSales: 0, totalCups: 0, orderCount: 0, devices: [] };
+      }
+      grouped[gName].totalSales += item.totalSales;
+      grouped[gName].totalCups += item.totalCups;
+      grouped[gName].orderCount += item.orderCount;
+      grouped[gName].devices.push(item);
+    });
+
+    // Sort devices within each group by location
+    Object.values(grouped).forEach(g => {
+      g.devices.sort((a, b) => (a.location || a.deviceName || "").localeCompare(b.location || b.deviceName || ""));
+    });
+
+    // Sort groups by name
+    const sortedGroups = Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
+
+    const headers = ["Group", "Device ID", "Device Name", "Location", "Total Sales", "Total Cups", "Orders"];
+    const rows = [];
+
+    let grandSales = 0, grandCups = 0, grandOrders = 0;
+
+    sortedGroups.forEach(([groupName, group]) => {
+      // Device rows for this group
+      group.devices.forEach(item => {
+        rows.push([
+          groupName,
+          item.deviceId,
+          item.deviceName,
+          item.location || "",
+          (item.totalSales / 100).toFixed(2),
+          item.totalCups,
+          item.orderCount,
+        ]);
+      });
+      // Group subtotal row
+      rows.push([
+        `${groupName} Total`,
+        "",
+        "",
+        "",
+        (group.totalSales / 100).toFixed(2),
+        group.totalCups,
+        group.orderCount,
+      ]);
+      // Blank row between groups
+      rows.push([]);
+
+      grandSales += group.totalSales;
+      grandCups += group.totalCups;
+      grandOrders += group.orderCount;
+    });
+
+    // Grand total row
+    rows.push([
+      "Grand Total",
+      "",
+      "",
+      "",
+      (grandSales / 100).toFixed(2),
+      grandCups,
+      grandOrders,
     ]);
 
-    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const escapeCsv = (val) => {
+      const s = String(val ?? "");
+      return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [headers.map(escapeCsv).join(","), ...rows.map(r => r.map(escapeCsv).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
