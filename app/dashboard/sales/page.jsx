@@ -540,7 +540,8 @@ export default function OrderListPage() {
       const headers = isAdmin
         ? ["Order ID", "Terminal ID", "Device Name", "Group", "Date", "Status", "PayWay", "Amount", "Refund", "TotalCount", "DeliverCount"]
         : ["Order ID", "Terminal ID", "Device Name", "Date", "Status", "PayWay", "Amount", "Refund", "TotalCount", "DeliverCount"];
-      const rows = allOrders.map((o) => {
+
+      const formatOrder = (o) => {
         const baseRow = [
           o.orderId,
           o.deviceId,
@@ -568,6 +569,67 @@ export default function OrderListPage() {
           o.deliverCount ?? o.quantity ?? 1,
         );
         return baseRow;
+      };
+
+      // Group orders by group then by location/device
+      const grouped = {};
+      allOrders.forEach((o) => {
+        const gName = o.groupName || "Unassigned";
+        const loc = o.deviceName || o.deviceId;
+        if (!grouped[gName]) grouped[gName] = {};
+        if (!grouped[gName][loc]) grouped[gName][loc] = [];
+        grouped[gName][loc].push(o);
+      });
+
+      const rows = [];
+      const sortedGroups = Object.keys(grouped).sort();
+
+      sortedGroups.forEach((groupName) => {
+        // Group header row
+        const groupHeaderRow = new Array(headers.length).fill("");
+        groupHeaderRow[0] = groupName;
+        rows.push(groupHeaderRow);
+
+        const locations = grouped[groupName];
+        const sortedLocations = Object.keys(locations).sort();
+
+        let groupAmount = 0;
+        let groupCups = 0;
+
+        sortedLocations.forEach((loc) => {
+          const orders = locations[loc];
+          // Location header row
+          const locHeaderRow = new Array(headers.length).fill("");
+          locHeaderRow[isAdmin ? 2 : 1] = loc;
+          rows.push(locHeaderRow);
+
+          let locAmount = 0;
+          let locCups = 0;
+          orders.forEach((o) => {
+            rows.push(formatOrder(o));
+            locAmount += o.amount || 0;
+            locCups += o.deliverCount ?? o.quantity ?? 0;
+          });
+
+          // Location subtotal
+          const locTotalRow = new Array(headers.length).fill("");
+          locTotalRow[isAdmin ? 2 : 1] = `${loc} Total`;
+          locTotalRow[isAdmin ? 7 : 6] = (locAmount / 100).toFixed(2);
+          locTotalRow[isAdmin ? 10 : 9] = locCups;
+          rows.push(locTotalRow);
+          rows.push(new Array(headers.length).fill(""));
+
+          groupAmount += locAmount;
+          groupCups += locCups;
+        });
+
+        // Group subtotal
+        const groupTotalRow = new Array(headers.length).fill("");
+        groupTotalRow[0] = `${groupName} Total`;
+        groupTotalRow[isAdmin ? 7 : 6] = (groupAmount / 100).toFixed(2);
+        groupTotalRow[isAdmin ? 10 : 9] = groupCups;
+        rows.push(groupTotalRow);
+        rows.push(new Array(headers.length).fill(""));
       });
 
       // Create Excel workbook
