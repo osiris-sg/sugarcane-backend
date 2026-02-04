@@ -865,13 +865,13 @@ export default function SalesOverviewPage() {
                     type="date"
                     value={customStartDate}
                     onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="w-[130px]"
+                    className="w-[150px]"
                   />
                   <Input
                     type="time"
                     value={customStartTime}
                     onChange={(e) => setCustomStartTime(e.target.value)}
-                    className="w-[100px]"
+                    className="w-[120px]"
                   />
                 </div>
                 <span className="text-muted-foreground">to</span>
@@ -880,13 +880,13 @@ export default function SalesOverviewPage() {
                     type="date"
                     value={customEndDate}
                     onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="w-[130px]"
+                    className="w-[150px]"
                   />
                   <Input
                     type="time"
                     value={customEndTime}
                     onChange={(e) => setCustomEndTime(e.target.value)}
-                    className="w-[100px]"
+                    className="w-[120px]"
                   />
                 </div>
                 <Button

@@ -292,7 +292,7 @@ export default function OrderSummaryPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap items-end gap-4">
               {/* Period Filter */}
               <div className="space-y-1">
                 <label className="text-sm text-muted-foreground">Period</label>
@@ -345,13 +345,13 @@ export default function OrderSummaryPage() {
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-[130px]"
+                        className="w-[150px]"
                       />
                       <Input
                         type="time"
                         value={startTime}
                         onChange={(e) => setStartTime(e.target.value)}
-                        className="w-[100px]"
+                        className="w-[120px]"
                       />
                     </div>
                   </div>
@@ -362,22 +362,19 @@ export default function OrderSummaryPage() {
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
-                        className="w-[130px]"
+                        className="w-[150px]"
                       />
                       <Input
                         type="time"
                         value={endTime}
                         onChange={(e) => setEndTime(e.target.value)}
-                        className="w-[100px]"
+                        className="w-[120px]"
                       />
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground invisible">Apply</label>
-                    <Button onClick={handleCustomDateApply} size="sm" className="h-10">
-                      Apply
-                    </Button>
-                  </div>
+                  <Button onClick={handleCustomDateApply} size="sm" className="h-10">
+                    Apply
+                  </Button>
                 </>
               )}
             </div>

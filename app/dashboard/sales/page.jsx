@@ -838,13 +838,13 @@ export default function OrderListPage() {
                       <div className="flex items-center gap-1">
                         <Input
                           type="date"
-                          className="w-32"
+                          className="w-[150px]"
                           value={customStartDate}
                           onChange={(e) => setCustomStartDate(e.target.value)}
                         />
                         <Input
                           type="time"
-                          className="w-24"
+                          className="w-[120px]"
                           value={customStartTime}
                           onChange={(e) => setCustomStartTime(e.target.value)}
                         />
@@ -853,13 +853,13 @@ export default function OrderListPage() {
                       <div className="flex items-center gap-1">
                         <Input
                           type="date"
-                          className="w-32"
+                          className="w-[150px]"
                           value={customEndDate}
                           onChange={(e) => setCustomEndDate(e.target.value)}
                         />
                         <Input
                           type="time"
-                          className="w-24"
+                          className="w-[120px]"
                           value={customEndTime}
                           onChange={(e) => setCustomEndTime(e.target.value)}
                         />
