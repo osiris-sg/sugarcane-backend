@@ -144,8 +144,21 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 500;
     const sortBy = searchParams.get('sortBy') || 'triggeredAt';
     const sortDir = searchParams.get('sortDir') || 'desc';
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     const where = {};
+
+    // Date range filter for triggeredAt
+    if (startDate || endDate) {
+      where.triggeredAt = {};
+      if (startDate) {
+        where.triggeredAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.triggeredAt.lt = new Date(endDate);
+      }
+    }
 
     if (deviceId) {
       where.deviceId = deviceId;

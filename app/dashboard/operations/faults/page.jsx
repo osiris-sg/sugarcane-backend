@@ -16,6 +16,7 @@ import {
   CheckCircle,
   XCircle,
   MoreHorizontal,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,21 +140,73 @@ export default function FaultsPage() {
   const [searchText, setSearchText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Date filter
+  const [dateRange, setDateRange] = useState("all");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customStartTime, setCustomStartTime] = useState("00:00");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [customEndTime, setCustomEndTime] = useState("23:59");
+
+  // Build API URL with all params
+  function buildApiUrl(offset = 0) {
+    const params = new URLSearchParams();
+    params.set("offset", offset.toString());
+    params.set("limit", BATCH_SIZE.toString());
+    params.set("sortBy", sortKey);
+    params.set("sortDir", sortDirection);
+
+    // Add date range filter
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (dateRange) {
+      case "today":
+        params.set("startDate", todayStart.toISOString());
+        break;
+      case "week":
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(weekStart.getDate() - 7);
+        params.set("startDate", weekStart.toISOString());
+        break;
+      case "month":
+        const monthStart = new Date(todayStart);
+        monthStart.setDate(monthStart.getDate() - 30);
+        params.set("startDate", monthStart.toISOString());
+        break;
+      case "custom":
+        if (customStartDate) {
+          params.set("startDate", new Date(`${customStartDate}T${customStartTime || "00:00"}:00+08:00`).toISOString());
+        }
+        if (customEndDate) {
+          if (customEndTime && customEndTime !== "23:59") {
+            params.set("endDate", new Date(`${customEndDate}T${customEndTime}:00+08:00`).toISOString());
+          } else {
+            const endDate = new Date(`${customEndDate}T00:00:00+08:00`);
+            endDate.setDate(endDate.getDate() + 1);
+            params.set("endDate", endDate.toISOString());
+          }
+        }
+        break;
+    }
+
+    return `/api/maintenance/issue?${params.toString()}`;
+  }
+
   useEffect(() => {
     fetchData();
   }, []);
 
-  // Re-fetch when sort changes
+  // Re-fetch when sort or date range changes
   useEffect(() => {
-    if (!loading) {
+    if (!loading && dateRange !== "custom") {
       fetchIssuesWithSort();
     }
-  }, [sortKey, sortDirection]);
+  }, [sortKey, sortDirection, dateRange]);
 
   async function fetchData() {
     try {
       const [issuesRes, devicesRes] = await Promise.all([
-        fetch(`/api/maintenance/issue?offset=0&limit=${BATCH_SIZE}&sortBy=${sortKey}&sortDir=${sortDirection}`),
+        fetch(buildApiUrl(0)),
         fetch("/api/admin/devices"),
       ]);
 
@@ -176,11 +229,11 @@ export default function FaultsPage() {
     }
   }
 
-  // Fetch issues with current sort (used when sort changes)
+  // Fetch issues with current filters (used when sort/date changes)
   async function fetchIssuesWithSort() {
     try {
       setRefreshing(true);
-      const res = await fetch(`/api/maintenance/issue?offset=0&limit=${BATCH_SIZE}&sortBy=${sortKey}&sortDir=${sortDirection}`);
+      const res = await fetch(buildApiUrl(0));
       const data = await res.json();
 
       if (data.issues) {
@@ -194,6 +247,11 @@ export default function FaultsPage() {
     } finally {
       setRefreshing(false);
     }
+  }
+
+  // Handle custom date apply button
+  function handleCustomDateApply() {
+    fetchIssuesWithSort();
   }
 
   // Handle sort click
@@ -213,7 +271,7 @@ export default function FaultsPage() {
     try {
       setLoadingMore(true);
       const offset = issues.length;
-      const res = await fetch(`/api/maintenance/issue?offset=${offset}&limit=${BATCH_SIZE}&sortBy=${sortKey}&sortDir=${sortDirection}`);
+      const res = await fetch(buildApiUrl(offset));
       const data = await res.json();
 
       if (data.issues && data.issues.length > 0) {
@@ -245,6 +303,11 @@ export default function FaultsPage() {
     setStatusFilter("all");
     setDeviceFilter("all");
     setSearchText("");
+    setDateRange("all");
+    setCustomStartDate("");
+    setCustomEndDate("");
+    setCustomStartTime("00:00");
+    setCustomEndTime("23:59");
   }
 
   async function handleResolve(issueId, resolution) {
@@ -460,7 +523,68 @@ export default function FaultsPage() {
                 </SelectContent>
               </Select>
 
-              {(priorityFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || searchText) && (
+              <Select value={dateRange} onValueChange={(v) => {
+                setDateRange(v);
+                if (v !== "custom") {
+                  setCustomStartDate("");
+                  setCustomEndDate("");
+                }
+              }}>
+                <SelectTrigger className="w-40">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Date Range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {dateRange === "custom" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="date"
+                      className="w-[150px]"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                    />
+                    <Input
+                      type="time"
+                      className="w-[120px]"
+                      value={customStartTime}
+                      onChange={(e) => setCustomStartTime(e.target.value)}
+                    />
+                  </div>
+                  <span className="text-muted-foreground text-sm">to</span>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="date"
+                      className="w-[150px]"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                    />
+                    <Input
+                      type="time"
+                      className="w-[120px]"
+                      value={customEndTime}
+                      onChange={(e) => setCustomEndTime(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleCustomDateApply}
+                    disabled={refreshing || (!customStartDate && !customEndDate)}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              )}
+
+              {(priorityFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || dateRange !== "all" || searchText) && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
                   <X className="mr-1 h-4 w-4" />
                   Clear
@@ -484,7 +608,7 @@ export default function FaultsPage() {
                 <span className="flex items-center gap-2">
                   <Filter className="h-4 w-4" />
                   Filters
-                  {(priorityFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                  {(priorityFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || dateRange !== "all" || searchText) && (
                     <Badge variant="secondary" className="text-xs">Active</Badge>
                   )}
                 </span>
@@ -535,8 +659,69 @@ export default function FaultsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={dateRange} onValueChange={(v) => {
+                setDateRange(v);
+                if (v !== "custom") {
+                  setCustomStartDate("");
+                  setCustomEndDate("");
+                }
+              }}>
+                <SelectTrigger>
+                  <Calendar className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Date Range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+              {dateRange === "custom" && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-10">From</span>
+                    <Input
+                      type="date"
+                      className="flex-1"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                    />
+                    <Input
+                      type="time"
+                      className="w-24"
+                      value={customStartTime}
+                      onChange={(e) => setCustomStartTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-10">To</span>
+                    <Input
+                      type="date"
+                      className="flex-1"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                    />
+                    <Input
+                      type="time"
+                      className="w-24"
+                      value={customEndTime}
+                      onChange={(e) => setCustomEndTime(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={handleCustomDateApply}
+                    disabled={refreshing || (!customStartDate && !customEndDate)}
+                  >
+                    Apply Date Range
+                  </Button>
+                </div>
+              )}
               <div className="flex items-center justify-between">
-                {(priorityFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                {(priorityFilter !== "all" || statusFilter !== "all" || deviceFilter !== "all" || dateRange !== "all" || searchText) && (
                   <Button variant="ghost" size="sm" onClick={clearFilters}>
                     <X className="mr-1 h-4 w-4" />
                     Clear
