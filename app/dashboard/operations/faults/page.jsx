@@ -468,8 +468,9 @@ export default function FaultsPage() {
               )}
 
               <span className="ml-auto text-sm text-muted-foreground">
-                {filteredIssues.length} of {totalIssues} faults
-                {loadingMore && " (loading more...)"}
+                Showing {filteredIssues.length} of {totalIssues} total faults
+                {hasMore && ` (${totalIssues - issues.length} more)`}
+                {loadingMore && " - loading..."}
               </span>
             </div>
           </CardContent>
@@ -542,8 +543,9 @@ export default function FaultsPage() {
                   </Button>
                 )}
                 <span className="text-xs text-muted-foreground ml-auto">
-                  {filteredIssues.length} of {totalIssues} faults
-                  {loadingMore && " (loading...)"}
+                  {filteredIssues.length} of {totalIssues} total
+                  {hasMore && ` (+${totalIssues - issues.length})`}
+                  {loadingMore && " loading..."}
                 </span>
               </div>
             </CollapsibleContent>
