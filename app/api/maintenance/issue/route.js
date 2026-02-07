@@ -142,6 +142,8 @@ export async function GET(request) {
     const priority = searchParams.get('priority');
     const offset = parseInt(searchParams.get('offset')) || 0;
     const limit = parseInt(searchParams.get('limit')) || 500;
+    const sortBy = searchParams.get('sortBy') || 'triggeredAt';
+    const sortDir = searchParams.get('sortDir') || 'desc';
 
     const where = {};
 
@@ -167,12 +169,17 @@ export async function GET(request) {
       where.priority = parseInt(priority);
     }
 
+    // Build orderBy based on sort params
+    const validSortFields = ['triggeredAt', 'resolvedAt', 'priority', 'status', 'deviceName', 'faultCode', 'type'];
+    const orderByField = validSortFields.includes(sortBy) ? sortBy : 'triggeredAt';
+    const orderByDir = sortDir === 'asc' ? 'asc' : 'desc';
+
     // Get total count and paginated issues in parallel
     const [total, issues] = await Promise.all([
       db.issue.count({ where }),
       db.issue.findMany({
         where,
-        orderBy: { triggeredAt: 'desc' },
+        orderBy: { [orderByField]: orderByDir },
         skip: offset,
         take: limit,
       }),

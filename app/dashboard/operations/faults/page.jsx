@@ -36,7 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import {
   Collapsible,
   CollapsibleContent,
@@ -128,8 +128,9 @@ export default function FaultsPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Sorting
-  const { sortKey, sortDirection, handleSort, sortData } = useTableSort("triggeredAt", "desc");
+  // Sorting - server-side
+  const [sortKey, setSortKey] = useState("triggeredAt");
+  const [sortDirection, setSortDirection] = useState("desc");
 
   // Filters
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -142,10 +143,17 @@ export default function FaultsPage() {
     fetchData();
   }, []);
 
-  async function fetchData(reset = true) {
+  // Re-fetch when sort changes
+  useEffect(() => {
+    if (!loading) {
+      fetchIssuesWithSort();
+    }
+  }, [sortKey, sortDirection]);
+
+  async function fetchData() {
     try {
       const [issuesRes, devicesRes] = await Promise.all([
-        fetch(`/api/maintenance/issue?offset=0&limit=${BATCH_SIZE}`),
+        fetch(`/api/maintenance/issue?offset=0&limit=${BATCH_SIZE}&sortBy=${sortKey}&sortDir=${sortDirection}`),
         fetch("/api/admin/devices"),
       ]);
 
@@ -168,6 +176,36 @@ export default function FaultsPage() {
     }
   }
 
+  // Fetch issues with current sort (used when sort changes)
+  async function fetchIssuesWithSort() {
+    try {
+      setRefreshing(true);
+      const res = await fetch(`/api/maintenance/issue?offset=0&limit=${BATCH_SIZE}&sortBy=${sortKey}&sortDir=${sortDirection}`);
+      const data = await res.json();
+
+      if (data.issues) {
+        setIssues(data.issues);
+        setTotalIssues(data.total || data.issues.length);
+        setHasMore(data.hasMore ?? false);
+        setCurrentPage(1);
+      }
+    } catch (error) {
+      console.error("Error fetching issues:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  // Handle sort click
+  function handleSort(column) {
+    if (column === sortKey) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(column);
+      setSortDirection("desc");
+    }
+  }
+
   // Fetch more issues silently when needed
   async function fetchMoreIssues() {
     if (loadingMore || !hasMore) return;
@@ -175,7 +213,7 @@ export default function FaultsPage() {
     try {
       setLoadingMore(true);
       const offset = issues.length;
-      const res = await fetch(`/api/maintenance/issue?offset=${offset}&limit=${BATCH_SIZE}`);
+      const res = await fetch(`/api/maintenance/issue?offset=${offset}&limit=${BATCH_SIZE}&sortBy=${sortKey}&sortDir=${sortDirection}`);
       const data = await res.json();
 
       if (data.issues && data.issues.length > 0) {
@@ -269,11 +307,8 @@ export default function FaultsPage() {
   // Get unique devices from issues
   const uniqueDevices = [...new Map(issues.map((i) => [i.deviceId, { id: i.deviceId, name: i.deviceName }])).values()];
 
-  // Sort filtered issues
-  const sortedIssues = sortData(filteredIssues);
-
-  // Pagination
-  const { totalItems, totalPages, getPageItems } = usePagination(sortedIssues, ITEMS_PER_PAGE);
+  // Pagination (data is already sorted from server)
+  const { totalItems, totalPages, getPageItems } = usePagination(filteredIssues, ITEMS_PER_PAGE);
   const paginatedIssues = getPageItems(currentPage);
 
   // Reset page when filters change
