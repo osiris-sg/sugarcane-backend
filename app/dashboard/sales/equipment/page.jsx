@@ -110,7 +110,10 @@ export default function DeviceListPage() {
   // Sort filtered devices
   const sortedDevices = sortData(filteredDevices, {
     getNestedValue: (item, key) => {
-      if (key === "groupName") return item.group?.name;
+      if (key === "groupName") {
+        // Sort by concatenated group names
+        return item.allGroups?.map(g => g.name).join(", ") || "";
+      }
       return item[key];
     },
   });
@@ -243,7 +246,11 @@ export default function DeviceListPage() {
                             </div>
                           </TableCell>
                           {isAdmin && (
-                            <TableCell>{device.group?.name || "-"}</TableCell>
+                            <TableCell>
+                              {device.allGroups?.length > 0
+                                ? device.allGroups.map(g => g.name).join(", ")
+                                : "-"}
+                            </TableCell>
                           )}
                           <TableCell>
                             <span className={device.isActive ? "text-green-600" : "text-red-600"}>
@@ -338,7 +345,11 @@ export default function DeviceListPage() {
                           {isAdmin && (
                             <div className="flex items-center justify-between">
                               <span>Group:</span>
-                              <span>{device.group?.name || "-"}</span>
+                              <span>
+                                {device.allGroups?.length > 0
+                                  ? device.allGroups.map(g => g.name).join(", ")
+                                  : "-"}
+                              </span>
                             </div>
                           )}
                           <div className="flex items-center justify-between">
