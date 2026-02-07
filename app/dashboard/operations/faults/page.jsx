@@ -52,6 +52,7 @@ import {
 import { TablePagination, usePagination } from "@/components/ui/table-pagination";
 
 const ITEMS_PER_PAGE = 20;
+const BATCH_SIZE = 500;
 
 // Helper to format date/time in Singapore timezone
 function formatDateTime(dateString) {
@@ -122,6 +123,11 @@ export default function FaultsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
+  // Lazy loading state
+  const [totalIssues, setTotalIssues] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   // Sorting
   const { sortKey, sortDirection, handleSort, sortData } = useTableSort("triggeredAt", "desc");
 
@@ -136,10 +142,10 @@ export default function FaultsPage() {
     fetchData();
   }, []);
 
-  async function fetchData() {
+  async function fetchData(reset = true) {
     try {
       const [issuesRes, devicesRes] = await Promise.all([
-        fetch("/api/maintenance/issue"),
+        fetch(`/api/maintenance/issue?offset=0&limit=${BATCH_SIZE}`),
         fetch("/api/admin/devices"),
       ]);
 
@@ -148,6 +154,8 @@ export default function FaultsPage() {
 
       if (issuesData.issues) {
         setIssues(issuesData.issues);
+        setTotalIssues(issuesData.total || issuesData.issues.length);
+        setHasMore(issuesData.hasMore ?? false);
       }
       if (devicesData.devices) {
         setDevices(devicesData.devices);
@@ -157,6 +165,35 @@ export default function FaultsPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }
+
+  // Fetch more issues silently when needed
+  async function fetchMoreIssues() {
+    if (loadingMore || !hasMore) return;
+
+    try {
+      setLoadingMore(true);
+      const offset = issues.length;
+      const res = await fetch(`/api/maintenance/issue?offset=${offset}&limit=${BATCH_SIZE}`);
+      const data = await res.json();
+
+      if (data.issues && data.issues.length > 0) {
+        // Merge with existing issues, avoiding duplicates
+        setIssues(prev => {
+          const existingIds = new Set(prev.map(i => i.id));
+          const newIssues = data.issues.filter(i => !existingIds.has(i.id));
+          return [...prev, ...newIssues];
+        });
+        setTotalIssues(data.total || issues.length + data.issues.length);
+        setHasMore(data.hasMore ?? false);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Error fetching more issues:", error);
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -243,6 +280,20 @@ export default function FaultsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [priorityFilter, statusFilter, deviceFilter, searchText]);
+
+  // Fetch more issues when approaching the end of loaded data
+  useEffect(() => {
+    if (!hasMore || loadingMore) return;
+
+    // Calculate if we need more data based on current page
+    const maxPageWithCurrentData = Math.ceil(issues.length / ITEMS_PER_PAGE);
+    const pagesUntilEnd = maxPageWithCurrentData - currentPage;
+
+    // If we're within 2 pages of the end of loaded data, fetch more
+    if (pagesUntilEnd <= 2) {
+      fetchMoreIssues();
+    }
+  }, [currentPage, issues.length, hasMore, loadingMore]);
 
   if (loading) {
     return (
@@ -382,7 +433,8 @@ export default function FaultsPage() {
               )}
 
               <span className="ml-auto text-sm text-muted-foreground">
-                {filteredIssues.length} of {issues.length} faults
+                {filteredIssues.length} of {totalIssues} faults
+                {loadingMore && " (loading more...)"}
               </span>
             </div>
           </CardContent>
@@ -455,7 +507,8 @@ export default function FaultsPage() {
                   </Button>
                 )}
                 <span className="text-xs text-muted-foreground ml-auto">
-                  {filteredIssues.length} of {issues.length} faults
+                  {filteredIssues.length} of {totalIssues} faults
+                  {loadingMore && " (loading...)"}
                 </span>
               </div>
             </CollapsibleContent>

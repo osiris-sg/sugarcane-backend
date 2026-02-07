@@ -140,6 +140,8 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const type = searchParams.get('type');
     const priority = searchParams.get('priority');
+    const offset = parseInt(searchParams.get('offset')) || 0;
+    const limit = parseInt(searchParams.get('limit')) || 500;
 
     const where = {};
 
@@ -165,16 +167,25 @@ export async function GET(request) {
       where.priority = parseInt(priority);
     }
 
-    const issues = await db.issue.findMany({
-      where,
-      orderBy: { triggeredAt: 'desc' }, // Sort by newest first
-      take: 500 // Increased limit to show more issues
-    });
+    // Get total count and paginated issues in parallel
+    const [total, issues] = await Promise.all([
+      db.issue.count({ where }),
+      db.issue.findMany({
+        where,
+        orderBy: { triggeredAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
       issues,
-      count: issues.length
+      count: issues.length,
+      total,
+      offset,
+      limit,
+      hasMore: offset + issues.length < total,
     });
 
   } catch (error) {
