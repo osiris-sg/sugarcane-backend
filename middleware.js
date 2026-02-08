@@ -14,6 +14,9 @@ const isChangePasswordRoute = createRouteMatcher(['/change-password(.*)']);
 // Define sign-in route
 const isSignInRoute = createRouteMatcher(['/sign-in(.*)']);
 
+// Define sales base route (exact match for /dashboard/sales)
+const isSalesBaseRoute = createRouteMatcher(['/dashboard/sales']);
+
 // Define public routes (API endpoints should be accessible)
 const isPublicRoute = createRouteMatcher([
   '/',
@@ -52,6 +55,14 @@ export default clerkMiddleware(async (auth, req) => {
         // Handle both boolean true and string "true"
         if (requirePasswordChange === true || requirePasswordChange === "true") {
           return NextResponse.redirect(new URL('/change-password', req.url));
+        }
+
+        // Redirect admin/owner from /dashboard/sales to order summary page
+        if (isSalesBaseRoute(req)) {
+          const role = user.publicMetadata?.role?.toLowerCase();
+          if (role === 'owner' || role === 'admin') {
+            return NextResponse.redirect(new URL('/dashboard/sales/orders/summary', req.url));
+          }
         }
       }
     } catch (e) {
