@@ -67,7 +67,7 @@ const sidebarItemsPartnerships = [
     title: "Order Management",
     icon: ClipboardList,
     children: [
-      { title: "Order List", href: "/dashboard/sales", icon: FileText },
+      { title: "Order List", href: "/dashboard/sales/orders/list", icon: FileText },
       { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
     ],
   },
@@ -84,7 +84,7 @@ const sidebarItemsFinance = [
     title: "Order Management",
     icon: ClipboardList,
     children: [
-      { title: "Order List", href: "/dashboard/sales", icon: FileText },
+      { title: "Order List", href: "/dashboard/sales/orders/list", icon: FileText },
       { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
       { title: "Refund Records", href: "/dashboard/sales/orders/refunds", icon: RotateCcw },
     ],
@@ -95,7 +95,7 @@ const sidebarItemsFinance = [
 const sidebarItemsFranchisee = [
   {
     title: "Orders",
-    href: "/dashboard/sales",
+    href: "/dashboard/sales/orders/list",
     icon: FileText,
   },
   {
@@ -127,7 +127,7 @@ const sidebarItemsAdmin = [
     title: "Order Management",
     icon: ClipboardList,
     children: [
-      { title: "Order List", href: "/dashboard/sales", icon: FileText },
+      { title: "Order List", href: "/dashboard/sales/orders/list", icon: FileText },
       { title: "Sales Analytics", href: "/dashboard/sales/orders/analytics", icon: LayoutDashboard },
       { title: "Refund Records", href: "/dashboard/sales/orders/refunds", icon: RotateCcw },
     ],
