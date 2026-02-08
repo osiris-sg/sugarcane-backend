@@ -57,11 +57,15 @@ export default clerkMiddleware(async (auth, req) => {
           return NextResponse.redirect(new URL('/change-password', req.url));
         }
 
-        // Redirect admin/owner from /dashboard/sales to order summary page
+        // Redirect from /dashboard/sales base path to appropriate default page
         if (isSalesBaseRoute(req)) {
           const role = user.publicMetadata?.role?.toLowerCase();
           if (role === 'owner' || role === 'admin') {
+            // Admin/owner go to order summary
             return NextResponse.redirect(new URL('/dashboard/sales/orders/summary', req.url));
+          } else {
+            // Other roles go to order list
+            return NextResponse.redirect(new URL('/dashboard/sales/orders/list', req.url));
           }
         }
       }
