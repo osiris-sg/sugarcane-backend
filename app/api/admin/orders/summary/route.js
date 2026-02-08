@@ -26,12 +26,18 @@ export async function GET(request) {
     // Get current user's role and group for access control
     const { userId } = await auth();
     let userGroupId = null;
+    let isAdmin = false;
 
     if (userId) {
       const dbUser = await db.user.findUnique({
         where: { clerkId: userId },
         select: { role: true, groupId: true },
       });
+
+      // Check if user is admin/owner
+      if (dbUser?.role === 'ADMIN' || dbUser?.role === 'OWNER') {
+        isAdmin = true;
+      }
 
       // Franchisees and Partnerships users can only see their own group's data
       if ((dbUser?.role === 'FRANCHISEE' || dbUser?.role === 'PARTNERSHIPS') && dbUser.groupId) {
@@ -184,16 +190,37 @@ export async function GET(request) {
     });
 
     // Combine with device info - use device name from Device table, not orders
-    const summary = Object.entries(deviceStats).map(([deviceId, stats]) => ({
-      deviceId,
-      deviceName: deviceMap[deviceId]?.location || deviceMap[deviceId]?.deviceName || deviceId,
-      location: deviceMap[deviceId]?.location || null,
-      groupId: deviceMap[deviceId]?.groupId || null,
-      groupName: deviceMap[deviceId]?.groupName || null,
-      totalSales: stats.totalSales,
-      totalCups: stats.totalCups,
-      orderCount: stats.orderCount,
-    }));
+    // For admin/owner users, include ALL devices even with zero sales
+    let summary;
+    if (isAdmin) {
+      // Include all devices from the filtered device list
+      summary = devices.map(device => {
+        const stats = deviceStats[device.deviceId] || { totalSales: 0, totalCups: 0, orderCount: 0 };
+        const primaryGroup = device.groups[0]?.group || null;
+        return {
+          deviceId: device.deviceId,
+          deviceName: device.location || device.deviceName || device.deviceId,
+          location: device.location || null,
+          groupId: primaryGroup?.id || null,
+          groupName: primaryGroup?.name || null,
+          totalSales: stats.totalSales,
+          totalCups: stats.totalCups,
+          orderCount: stats.orderCount,
+        };
+      });
+    } else {
+      // Non-admin users only see devices with orders
+      summary = Object.entries(deviceStats).map(([deviceId, stats]) => ({
+        deviceId,
+        deviceName: deviceMap[deviceId]?.location || deviceMap[deviceId]?.deviceName || deviceId,
+        location: deviceMap[deviceId]?.location || null,
+        groupId: deviceMap[deviceId]?.groupId || null,
+        groupName: deviceMap[deviceId]?.groupName || null,
+        totalSales: stats.totalSales,
+        totalCups: stats.totalCups,
+        orderCount: stats.orderCount,
+      }));
+    }
 
     // Sort by total sales descending
     summary.sort((a, b) => b.totalSales - a.totalSales);
