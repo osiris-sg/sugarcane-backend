@@ -143,17 +143,24 @@ export async function PATCH(request, { params }) {
 
     // Send notification for resolution
     if (status === 'RESOLVED') {
+      // Get device location for notifications
+      const deviceRecord = await db.device.findUnique({
+        where: { deviceId: updatedIncident.deviceId },
+        select: { location: true },
+      });
+      const displayName = deviceRecord?.location || updatedIncident.deviceName;
+
       await sendIncidentNotification({
         type: 'resolved',
         incident: updatedIncident,
         title: '✅ Incident Resolved',
-        body: `${updatedIncident.deviceName}: ${resolution || 'Resolved'}`,
+        body: `${displayName}: ${resolution || 'Resolved'}`,
       });
 
-      // Send Telegram notification
+      // Send Telegram notification (use location for display)
       const telegramMessage = `✅ Incident Resolved
 
-🎯 Device: ${updatedIncident.deviceName}
+🎯 Location: ${displayName}
 🔧 Type: ${updatedIncident.type.replace(/_/g, ' ')}
 📝 Resolution: ${resolution || 'Resolved'}
 ${updatedIncident.slaOutcome === 'WITHIN_SLA' ? '⏱️ Resolved within SLA' : '⚠️ SLA was breached'}`;

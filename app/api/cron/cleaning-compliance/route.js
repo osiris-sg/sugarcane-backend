@@ -52,6 +52,8 @@ export async function GET(request) {
     const nonCompliantDevices = [];
 
     for (const device of devices) {
+      const displayName = device.location || device.deviceName;
+
       // Count cleaning logs for this device in the current month
       const cleaningCount = await db.cleaningLog.count({
         where: {
@@ -63,7 +65,7 @@ export async function GET(request) {
 
       if (cleaningCount >= REQUIRED_CLEANINGS_PER_MONTH) {
         compliant++;
-        console.log(`[CleaningCompliance] ${device.deviceName}: ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH} - COMPLIANT`);
+        console.log(`[CleaningCompliance] ${displayName}: ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH} - COMPLIANT`);
       } else {
         nonCompliant++;
 
@@ -106,13 +108,13 @@ export async function GET(request) {
             type: 'breach',
             incident,
             title: '🧹 CLEANING COMPLIANCE BREACH',
-            body: `${device.deviceName}: Only ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH} cleanings this month`,
+            body: `${displayName}: Only ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH} cleanings this month`,
           });
 
           // Send Telegram notification
           const telegramCleaning = `🧹 CLEANING COMPLIANCE BREACH
 
-🎯 Device: ${device.deviceName}
+🎯 Device: ${displayName}
 📍 Device ID: ${device.deviceId}
 🧽 Cleanings: ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH}
 📅 Month: ${currentMonth}/${currentYear}
@@ -127,9 +129,9 @@ export async function GET(request) {
             incidentId: incident.id,
           });
 
-          console.log(`[CleaningCompliance] ${device.deviceName}: ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH} - NON-COMPLIANT, incident created`);
+          console.log(`[CleaningCompliance] ${displayName}: ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH} - NON-COMPLIANT, incident created`);
         } else {
-          console.log(`[CleaningCompliance] ${device.deviceName}: ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH} - NON-COMPLIANT (existing incident)`);
+          console.log(`[CleaningCompliance] ${displayName}: ${cleaningCount}/${REQUIRED_CLEANINGS_PER_MONTH} - NON-COMPLIANT (existing incident)`);
         }
       }
     }

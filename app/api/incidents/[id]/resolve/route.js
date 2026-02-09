@@ -64,20 +64,27 @@ export async function POST(request, { params }) {
       data: updateData,
     });
 
+    // Get device location for notifications
+    const deviceRecord = await db.device.findUnique({
+      where: { deviceId: updatedIncident.deviceId },
+      select: { location: true },
+    });
+    const displayName = deviceRecord?.location || updatedIncident.deviceName;
+
     console.log(`[Incident] Resolved ${id} by ${userId || 'unknown'}: ${resolution}`);
 
-    // Send notifications
+    // Send notifications (use location for display)
     await sendIncidentNotification({
       type: 'resolved',
       incident: updatedIncident,
       title: '✅ Incident Resolved',
-      body: `${updatedIncident.deviceName}: ${resolution || 'Resolved'}`,
+      body: `${displayName}: ${resolution || 'Resolved'}`,
     });
 
-    // Send Telegram notification
+    // Send Telegram notification (use location for display)
     const telegramMessage = `✅ Incident Resolved
 
-🎯 Device: ${updatedIncident.deviceName}
+🎯 Location: ${displayName}
 🔧 Type: ${updatedIncident.type.replace(/_/g, ' ')}
 📝 Resolution: ${resolution || 'Resolved'}
 ${resolutionCategory ? `📋 Category: ${resolutionCategory}` : ''}

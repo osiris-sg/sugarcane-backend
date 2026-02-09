@@ -119,6 +119,8 @@ export async function POST(request) {
               orderTime: orderTime,
               fomoTransactionId,
               fomoStan,
+              fomoTid: order.fomoTid || null,           // FomoPay TID from device (audit trail)
+              airwallexTid: order.airwallexTid || null, // Airwallex TID from device (audit trail)
             },
           });
           results.synced.push({ orderId: order.orderId, action: 'created' });

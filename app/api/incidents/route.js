@@ -29,6 +29,13 @@ export async function POST(request) {
       );
     }
 
+    // Get device location for notifications
+    const deviceRecord = await db.device.findUnique({
+      where: { deviceId },
+      select: { location: true },
+    });
+    const deviceLocation = deviceRecord?.location || deviceName || deviceId;
+
     // Check for existing open incident of same type for this device
     const existingIncident = await db.incident.findFirst({
       where: {
@@ -75,18 +82,18 @@ export async function POST(request) {
 
     console.log(`[Incident] Created ${type} incident for ${deviceName}: ${incident.id}`);
 
-    // Send notifications
+    // Send notifications (use location for display)
     await sendIncidentNotification({
       type: 'new',
       incident,
       title: `🔔 New ${type.replace(/_/g, ' ')} Incident`,
-      body: `${deviceName}: ${faultName || type}`,
+      body: `${deviceLocation}: ${faultName || type}`,
     });
 
-    // Send Telegram notification
+    // Send Telegram notification (use location for display)
     const telegramMessage = `🔔 New Incident
 
-🎯 Device: ${deviceName}
+🎯 Location: ${deviceLocation}
 📍 Device ID: ${deviceId}
 🔧 Type: ${type.replace(/_/g, ' ')}
 ${faultCode ? `⚠️ Fault: ${faultCode} - ${faultName || ''}` : ''}

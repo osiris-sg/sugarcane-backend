@@ -192,7 +192,8 @@ export async function POST(request) {
           qrCodeData: customUrl, // Use custom page URL for QR code
           amount: paymentIntent.amount,
           currency: paymentIntent.currency,
-          status: paymentIntent.status
+          status: paymentIntent.status,
+          airwallexTid: paymentIntent.id // Payment intent ID for audit trail
         }
       });
     }
@@ -212,7 +213,8 @@ export async function POST(request) {
           amount: paymentLink.amount,
           currency: paymentLink.currency,
           status: paymentLink.status,
-          expiresAt: paymentLink.expires_at
+          expiresAt: paymentLink.expires_at,
+          airwallexTid: paymentLink.id // Payment link ID for audit trail
         }
       });
 
@@ -230,7 +232,8 @@ export async function POST(request) {
           clientSecret: paymentIntent.client_secret,
           amount: paymentIntent.amount,
           currency: paymentIntent.currency,
-          status: paymentIntent.status
+          status: paymentIntent.status,
+          airwallexTid: paymentIntent.id // Payment intent ID for audit trail
         }
       });
     }

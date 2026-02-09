@@ -103,6 +103,7 @@ model Device {
   appVersionCode    Int?           // App version code (e.g., 186777)
   versionUpdatedAt  DateTime?      // When version was last reported
   fomoTid           String?        // FomoPay Terminal ID (falls back to "10000001" if not set)
+  airwallexTid      String?        // Airwallex account identifier (for audit trail)
 
   @@index([deviceId])
   @@index([driverId])
@@ -160,6 +161,8 @@ model Order {
   totalCount        Int?
   fomoTransactionId String? // FomoPay reference number (Field 37)
   fomoStan          String? // FomoPay STAN
+  fomoTid           String? // FomoPay Terminal ID used for this order (audit trail)
+  airwallexTid      String? // Airwallex payment ID used for this order (audit trail)
 
   @@index([deviceId, createdAt])
   @@index([deviceId, orderTime])

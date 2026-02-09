@@ -80,6 +80,7 @@ export default function NoSalesPage() {
 
   const [stagingEntries, setStagingEntries] = useState([]);
   const [zeroSalesIncidents, setZeroSalesIncidents] = useState([]);
+  const [deviceLocations, setDeviceLocations] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
@@ -104,14 +105,16 @@ export default function NoSalesPage() {
 
   async function fetchData() {
     try {
-      // Fetch staging entries and zero sales incidents in parallel
-      const [stagingRes, incidentsRes] = await Promise.all([
+      // Fetch staging entries, zero sales incidents, and devices in parallel
+      const [stagingRes, incidentsRes, devicesRes] = await Promise.all([
         fetch("/api/zero-sales/staging"),
         fetch("/api/incidents?type=ZERO_SALES&status=OPEN,ACKNOWLEDGED,IN_PROGRESS"),
+        fetch("/api/admin/devices"),
       ]);
 
       const stagingData = await stagingRes.json();
       const incidentsData = await incidentsRes.json();
+      const devicesData = await devicesRes.json();
 
       if (stagingData.entries) {
         setStagingEntries(stagingData.entries);
@@ -119,6 +122,15 @@ export default function NoSalesPage() {
 
       if (incidentsData.incidents) {
         setZeroSalesIncidents(incidentsData.incidents);
+      }
+
+      // Build device location map
+      if (devicesData.devices) {
+        const locationMap = {};
+        devicesData.devices.forEach((device) => {
+          locationMap[device.deviceId] = device.location || device.deviceName || device.deviceId;
+        });
+        setDeviceLocations(locationMap);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -323,7 +335,7 @@ export default function NoSalesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Device</TableHead>
+                      <TableHead>Location</TableHead>
                       <TableHead>Time Block</TableHead>
                       <TableHead>Stage</TableHead>
                       <TableHead>Duration</TableHead>
@@ -334,7 +346,7 @@ export default function NoSalesPage() {
                       <TableRow key={entry.id}>
                         <TableCell>
                           <div>
-                            <div className="font-medium">{entry.deviceName}</div>
+                            <div className="font-medium">{deviceLocations[entry.deviceId] || entry.deviceName}</div>
                             <div className="text-xs text-muted-foreground">{entry.deviceId}</div>
                           </div>
                         </TableCell>
@@ -365,7 +377,7 @@ export default function NoSalesPage() {
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <div className="font-medium">{entry.deviceName}</div>
+                        <div className="font-medium">{deviceLocations[entry.deviceId] || entry.deviceName}</div>
                         <div className="text-xs text-muted-foreground">{entry.deviceId}</div>
                       </div>
                       <StageBadge stage={entry.stage} startedAt={entry.startedAt} />
@@ -393,7 +405,7 @@ export default function NoSalesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Device</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Time Block</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Duration</TableHead>
@@ -413,7 +425,7 @@ export default function NoSalesPage() {
                     <TableRow key={incident.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{incident.deviceName}</div>
+                          <div className="font-medium">{deviceLocations[incident.deviceId] || incident.deviceName}</div>
                           <div className="text-xs text-muted-foreground">{incident.deviceId}</div>
                         </div>
                       </TableCell>
@@ -476,7 +488,7 @@ export default function NoSalesPage() {
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <div className="font-medium">{incident.deviceName}</div>
+                      <div className="font-medium">{deviceLocations[incident.deviceId] || incident.deviceName}</div>
                       <div className="text-xs text-muted-foreground">{incident.deviceId}</div>
                     </div>
                     {incident.escalatedAt ? (

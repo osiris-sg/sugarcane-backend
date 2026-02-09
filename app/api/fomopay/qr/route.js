@@ -259,7 +259,8 @@ export async function POST(request) {
         success: true,
         qrCode: qrCode,
         reference: reference,
-        stan: stan
+        stan: stan,
+        fomoTid: TID
       });
 
     } else if (responseCode === "09") {
@@ -291,7 +292,8 @@ export async function POST(request) {
         qrCode: qrCode,
         reference: reference,
         stan: stan,
-        status: "pending"
+        status: "pending",
+        fomoTid: TID
       });
 
     } else {

@@ -44,8 +44,13 @@ export async function POST(request) {
       );
     }
 
-    // Look up the correct device name from database
+    // Look up the correct device name and location from database
     const deviceName = await getDeviceNameById(deviceId, reportedName);
+    const deviceRecord = await db.device.findUnique({
+      where: { deviceId },
+      select: { location: true },
+    });
+    const deviceLocation = deviceRecord?.location || deviceName;
 
     // Skip Z014 fault code - don't store in database
     if (faultCode === 'Z014') {
@@ -151,12 +156,12 @@ export async function POST(request) {
 
     console.log(`[Issue] Created ${type} issue for ${deviceName}: ${issue.id}, incident: ${incident.id}`);
 
-    // Send push notification for new device fault
+    // Send push notification for new device fault (use location for display)
     await sendIncidentNotification({
       type: 'new',
       incident,
       title: `⚠️ ${resolvedFaultName}`,
-      body: deviceName,
+      body: deviceLocation,
     });
 
     return NextResponse.json({

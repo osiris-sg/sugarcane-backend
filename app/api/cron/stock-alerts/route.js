@@ -50,11 +50,21 @@ export async function GET(request) {
   try {
     // Get all stocks
     const stocks = await db.stock.findMany();
+
+    // Get device locations for notifications
+    const deviceIds = stocks.map(s => s.deviceId);
+    const devices = await db.device.findMany({
+      where: { deviceId: { in: deviceIds } },
+      select: { deviceId: true, location: true },
+    });
+    const deviceLocationMap = new Map(devices.map(d => [d.deviceId, d.location]));
+
     let newAlerts = 0;
     let resolved = 0;
     let immediateBreaches = 0;
 
     for (const stock of stocks) {
+      const displayName = deviceLocationMap.get(stock.deviceId) || stock.deviceName;
       // Use per-device threshold, or fall back to default
       const threshold = stock.minStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD;
       const isLowStock = stock.quantity <= threshold;
@@ -110,13 +120,13 @@ export async function GET(request) {
             type: 'breach',
             incident,
             title: '⚫ OUT OF STOCK - IMMEDIATE BREACH',
-            body: `${stock.deviceName} is out of stock! Immediate action required.`,
+            body: `${displayName} is out of stock! Immediate action required.`,
           });
 
           // Send Telegram notification
           const telegramMessage = `⚫ OUT OF STOCK - IMMEDIATE BREACH
 
-🎯 Device: ${stock.deviceName}
+🎯 Device: ${displayName}
 📍 Device ID: ${stock.deviceId}
 📊 Stock: 0/${stock.maxStock} pcs
 
@@ -124,7 +134,7 @@ export async function GET(request) {
           await sendAlert(telegramMessage, 'stock_alert');
 
           immediateBreaches++;
-          console.log(`[StockAlert] OUT OF STOCK: ${stock.deviceName} - Created incident with immediate breach`);
+          console.log(`[StockAlert] OUT OF STOCK: ${displayName} - Created incident with immediate breach`);
         }
       }
 
@@ -172,19 +182,19 @@ export async function GET(request) {
             type: 'new',
             incident,
             title: `${emoji} ${level} Alert`,
-            body: `${stock.deviceName}: ${stock.quantity}/${stock.maxStock} pcs`,
+            body: `${displayName}: ${stock.quantity}/${stock.maxStock} pcs`,
           });
 
           // Send Telegram notification
           const telegramMessage = `${emoji} ${level} Alert
 
-🎯 Device: ${stock.deviceName}
+🎯 Device: ${displayName}
 📍 Device ID: ${stock.deviceId}
 📊 Stock: ${stock.quantity}/${stock.maxStock} pcs`;
           await sendAlert(telegramMessage, 'stock_alert');
 
           newAlerts++;
-          console.log(`[StockAlert] New low stock for ${stock.deviceName} (${stock.quantity} pcs)`);
+          console.log(`[StockAlert] New low stock for ${displayName} (${stock.quantity} pcs)`);
         }
       }
 
@@ -224,7 +234,7 @@ export async function GET(request) {
           }
         });
         resolved++;
-        console.log(`[StockAlert] Resolved low stock for ${stock.deviceName} (now ${stock.quantity} pcs)`);
+        console.log(`[StockAlert] Resolved low stock for ${displayName} (now ${stock.quantity} pcs)`);
       }
     }
 

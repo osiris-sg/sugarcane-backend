@@ -35,12 +35,21 @@ export async function GET(request) {
       },
     });
 
+    // Get device locations for notifications
+    const deviceIds = [...new Set(openIncidents.map(i => i.deviceId))];
+    const devices = await db.device.findMany({
+      where: { deviceId: { in: deviceIds } },
+      select: { deviceId: true, location: true },
+    });
+    const deviceLocationMap = new Map(devices.map(d => [d.deviceId, d.location]));
+
     let reminders2h = 0;
     let reminders2h30 = 0;
     let breaches = 0;
     let postBreachReminders = 0;
 
     for (const incident of openIncidents) {
+      const displayName = deviceLocationMap.get(incident.deviceId) || incident.deviceName;
       const startTime = new Date(incident.startTime);
       const elapsed = now.getTime() - startTime.getTime();
       const elapsedHours = elapsed / (60 * 60 * 1000);
@@ -76,11 +85,11 @@ export async function GET(request) {
             type: 'post_breach_reminder',
             incident,
             title: '🔴 SLA BREACHED - Ongoing',
-            body: `${incident.deviceName} is still unresolved. ${Math.round(elapsedHours)}h elapsed.`,
+            body: `${displayName} is still unresolved. ${Math.round(elapsedHours)}h elapsed.`,
           });
 
           postBreachReminders++;
-          console.log(`[SLA-Monitor] Post-breach reminder for ${incident.deviceName} (${Math.round(elapsedHours)}h elapsed)`);
+          console.log(`[SLA-Monitor] Post-breach reminder for ${displayName} (${Math.round(elapsedHours)}h elapsed)`);
         }
         continue;
       }
@@ -112,13 +121,13 @@ export async function GET(request) {
           type: 'breach',
           incident,
           title: '🔴 SLA BREACHED',
-          body: `${incident.deviceName} has exceeded the ${SLA_HOURS}h SLA. Immediate action required.`,
+          body: `${displayName} has exceeded the ${SLA_HOURS}h SLA. Immediate action required.`,
         });
 
         // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts
 
         breaches++;
-        console.log(`[SLA-Monitor] SLA BREACH for ${incident.deviceName} - penalty logged`);
+        console.log(`[SLA-Monitor] SLA BREACH for ${displayName} - penalty logged`);
         continue;
       }
 
@@ -140,13 +149,13 @@ export async function GET(request) {
           type: 'reminder',
           incident,
           title: '⚠️ SLA Warning - 2h elapsed',
-          body: `${incident.deviceName}: ${remainingMinutes} minutes remaining before SLA breach.`,
+          body: `${displayName}: ${remainingMinutes} minutes remaining before SLA breach.`,
         });
 
         // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts
 
         reminders2h++;
-        console.log(`[SLA-Monitor] 2h reminder for ${incident.deviceName} (${remainingMinutes}m remaining)`);
+        console.log(`[SLA-Monitor] 2h reminder for ${displayName} (${remainingMinutes}m remaining)`);
       }
 
       // Second reminder at 2.5 hours
@@ -165,13 +174,13 @@ export async function GET(request) {
           type: 'reminder',
           incident,
           title: '🟠 SLA Critical - 30min remaining',
-          body: `${incident.deviceName}: Only ${remainingMinutes} minutes before SLA breach!`,
+          body: `${displayName}: Only ${remainingMinutes} minutes before SLA breach!`,
         });
 
         // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts
 
         reminders2h30++;
-        console.log(`[SLA-Monitor] 2h30m reminder for ${incident.deviceName} (${remainingMinutes}m remaining)`);
+        console.log(`[SLA-Monitor] 2h30m reminder for ${displayName} (${remainingMinutes}m remaining)`);
       }
     }
 
