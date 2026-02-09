@@ -201,7 +201,7 @@ export async function GET(request) {
           },
         });
 
-        // Send initial push notification (PWA only, no Telegram)
+        // Send initial push notification (PWA only, no Telegram) - informational
         await sendIncidentNotification({
           type: 'new',
           incident: {
@@ -210,8 +210,8 @@ export async function GET(request) {
             deviceId: device.deviceId,
             deviceName: device.deviceName,
           },
-          title: '📉 No Sales Alert',
-          body: `${device.deviceName} has no sales in current block (${currentBlockLabel})`,
+          title: '📊 No Sales Notice',
+          body: `Just to let you know - ${device.deviceName} had no sales in ${currentBlockLabel}`,
         });
 
         newStagingEntries++;
@@ -242,8 +242,8 @@ export async function GET(request) {
               deviceId: device.deviceId,
               deviceName: device.deviceName,
             },
-            title: '📉 No Sales - 30min Reminder',
-            body: `${device.deviceName} still has no sales. Please check the device.`,
+            title: '📉 Still No Sales',
+            body: `${device.deviceName} still has no sales after 30 min`,
           });
 
           stage1Escalations++;
@@ -270,12 +270,12 @@ export async function GET(request) {
             where: { id: stagingEntry.id },
           });
 
-          // Send "head down" notification (PWA only, no Telegram)
+          // Send urgent notification (PWA only, no Telegram)
           await sendIncidentNotification({
             type: 'breach',
             incident,
-            title: '🚨 HEAD DOWN - Zero Sales Incident',
-            body: `${device.deviceName} has had no sales for 1 hour. Immediate action required!`,
+            title: '🚨 No Sales - Go Check ASAP',
+            body: `${device.deviceName} has had no sales for 1 hour. Please go check now!`,
           });
 
           stage2Escalations++;
