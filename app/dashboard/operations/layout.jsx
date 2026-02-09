@@ -37,7 +37,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-const sidebarItems = [
+// Sidebar items for admin/manager users
+const adminSidebarItems = [
   {
     title: "Overview",
     href: "/dashboard/operations",
@@ -91,6 +92,20 @@ const sidebarItems = [
       { title: "Add User", href: "/dashboard/operations/users/add", icon: UserPlus },
       { title: "Roles", href: "/dashboard/operations/users/roles", icon: Shield },
     ],
+  },
+];
+
+// Sidebar items for drivers - only Incidents and No Sales
+const driverSidebarItems = [
+  {
+    title: "Incidents",
+    href: "/dashboard/operations/incidents",
+    icon: AlertCircle,
+  },
+  {
+    title: "No Sales",
+    href: "/dashboard/operations/no-sales",
+    icon: TrendingDown,
   },
 ];
 
@@ -175,14 +190,30 @@ export default function OperationsLayout({ children }) {
   const { signOut } = useClerk();
   const role = user?.publicMetadata?.role || "franchisee";
   const isAdmin = role === "owner" || role === "admin";
+  const isDriver = role === "driver";
+  const canAccessOps = isAdmin || isDriver;
+
+  // Get sidebar items based on role
+  const sidebarItems = isDriver ? driverSidebarItems : adminSidebarItems;
 
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // Redirect non-admins
-  if (isLoaded && !isAdmin) {
+  // Redirect drivers to incidents if they're on a page they can't access
+  useEffect(() => {
+    if (isLoaded && isDriver) {
+      const allowedPaths = ["/dashboard/operations/incidents", "/dashboard/operations/no-sales"];
+      const isAllowed = allowedPaths.some(p => pathname.startsWith(p));
+      if (!isAllowed) {
+        redirect("/dashboard/operations/incidents");
+      }
+    }
+  }, [isLoaded, isDriver, pathname]);
+
+  // Redirect users who can't access operations
+  if (isLoaded && !canAccessOps) {
     redirect("/dashboard");
   }
 
