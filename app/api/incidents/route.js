@@ -177,6 +177,7 @@ export async function GET(request) {
             hasMore: false,
           });
         }
+
       }
     }
 
@@ -215,6 +216,9 @@ export async function GET(request) {
 
     if (slaOutcome) {
       where.slaOutcome = slaOutcome;
+    } else {
+      // By default, hide breached incidents - they go to penalties page
+      where.slaOutcome = { not: 'SLA_BREACHED' };
     }
 
     if (assignedOpsId) {
