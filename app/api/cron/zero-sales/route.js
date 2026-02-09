@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../lib/db/index.js';
 import { sendIncidentNotification } from '../../../../lib/push-notifications.ts';
-import { sendAlert } from '../../../../lib/telegram.js';
 
 // Time blocks for zero sales detection (Singapore time, UTC+8)
 // New: 9am-11pm with 2-hour blocks
@@ -191,7 +190,7 @@ export async function GET(request) {
           },
         });
 
-        // Send initial push notification
+        // Send initial push notification (PWA only, no Telegram)
         await sendIncidentNotification({
           type: 'new',
           incident: {
@@ -203,15 +202,6 @@ export async function GET(request) {
           title: '📉 No Sales Alert',
           body: `${stock.deviceName} has no sales in current block (${currentBlockLabel})`,
         });
-
-        // Send Telegram notification
-        const telegramMessage = `📉 No Sales Alert
-
-🎯 Device: ${stock.deviceName}
-📍 Device ID: ${stock.deviceId}
-🕐 Time Block: ${currentBlockLabel}
-📦 Stock: ${stock.quantity}/${stock.maxStock} pcs`;
-        await sendAlert(telegramMessage, 'zero_sales');
 
         newStagingEntries++;
         console.log(`[ZeroSales] Stage 0: ${stock.deviceName} added to staging`);
@@ -232,6 +222,7 @@ export async function GET(request) {
             },
           });
 
+          // Send 30min reminder push notification (PWA only, no Telegram)
           await sendIncidentNotification({
             type: 'reminder',
             incident: {
@@ -243,16 +234,6 @@ export async function GET(request) {
             title: '📉 No Sales - 30min Reminder',
             body: `${stock.deviceName} still has no sales. Please check the device.`,
           });
-
-          // Send Telegram notification
-          const telegramMessage30 = `📉 No Sales - 30min Reminder
-
-🎯 Device: ${stock.deviceName}
-📍 Device ID: ${stock.deviceId}
-🕐 Time Block: ${currentBlockLabel}
-
-⚠️ Still no sales. Please check the device.`;
-          await sendAlert(telegramMessage30, 'zero_sales');
 
           stage1Escalations++;
           console.log(`[ZeroSales] Stage 1: ${stock.deviceName} - 30min reminder sent`);
@@ -278,23 +259,13 @@ export async function GET(request) {
             where: { id: stagingEntry.id },
           });
 
-          // Send "head down" notification
+          // Send "head down" notification (PWA only, no Telegram)
           await sendIncidentNotification({
             type: 'breach',
             incident,
             title: '🚨 HEAD DOWN - Zero Sales Incident',
             body: `${stock.deviceName} has had no sales for 1 hour. Immediate action required!`,
           });
-
-          // Send Telegram notification
-          const telegramMessage60 = `🚨 HEAD DOWN - Zero Sales Incident
-
-🎯 Device: ${stock.deviceName}
-📍 Device ID: ${stock.deviceId}
-🕐 Time Block: ${currentBlockLabel}
-
-⚠️ No sales for 1 hour. Immediate action required!`;
-          await sendAlert(telegramMessage60, 'zero_sales');
 
           stage2Escalations++;
           console.log(`[ZeroSales] Stage 2: ${stock.deviceName} escalated to incident`);
