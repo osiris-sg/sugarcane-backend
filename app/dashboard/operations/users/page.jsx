@@ -23,6 +23,29 @@ import {
 import { TablePagination, usePagination } from "@/components/ui/table-pagination";
 
 const ITEMS_PER_PAGE = 20;
+
+// Helper to get all roles for a user (combines legacy role + roles array)
+function getUserRoles(user) {
+  const roles = new Set();
+  // Add legacy role
+  if (user.role) {
+    roles.add(user.role.toUpperCase());
+  }
+  // Add roles from roles array
+  if (user.roles && Array.isArray(user.roles)) {
+    user.roles.forEach(r => {
+      if (r.role) roles.add(r.role.toUpperCase());
+    });
+  }
+  return Array.from(roles);
+}
+
+// Helper to check if user has a specific role
+function hasRole(user, roleToCheck) {
+  const userRoles = getUserRoles(user);
+  const checkRoles = Array.isArray(roleToCheck) ? roleToCheck.map(r => r.toUpperCase()) : [roleToCheck.toUpperCase()];
+  return checkRoles.some(r => userRoles.includes(r));
+}
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -111,7 +134,7 @@ export default function UsersPage() {
       // Get all drivers - include those assigned to the current ops manager
       const drivers = users.filter(
         (u) =>
-          ["driver", "DRIVER"].includes(u.role) &&
+          hasRole(u, ["driver", "DRIVER"]) &&
           (!u.opsManagerId || u.opsManager?.id === targetUser?.id)
       );
       setAvailableDrivers(drivers);
@@ -233,10 +256,10 @@ export default function UsersPage() {
     });
   }
 
-  const ownerCount = users.filter((u) => ["owner", "admin", "OWNER", "ADMIN"].includes(u.role)).length;
-  const franchiseeCount = users.filter((u) => ["franchisee", "FRANCHISEE"].includes(u.role)).length;
-  const opsmanagerCount = users.filter((u) => ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(u.role)).length;
-  const driverCount = users.filter((u) => ["driver", "DRIVER"].includes(u.role)).length;
+  const ownerCount = users.filter((u) => hasRole(u, ["owner", "admin", "OWNER", "ADMIN"])).length;
+  const franchiseeCount = users.filter((u) => hasRole(u, ["franchisee", "FRANCHISEE"])).length;
+  const opsmanagerCount = users.filter((u) => hasRole(u, ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"])).length;
+  const driverCount = users.filter((u) => hasRole(u, ["driver", "DRIVER"])).length;
 
   // Filter users based on search and role
   const filteredUsers = users.filter((u) => {
@@ -251,13 +274,13 @@ export default function UsersPage() {
     // Role filter
     let matchesRole = true;
     if (roleFilter === "owner") {
-      matchesRole = ["owner", "admin", "OWNER", "ADMIN"].includes(u.role);
+      matchesRole = hasRole(u, ["owner", "admin", "OWNER", "ADMIN"]);
     } else if (roleFilter === "franchisee") {
-      matchesRole = ["franchisee", "FRANCHISEE"].includes(u.role);
+      matchesRole = hasRole(u, ["franchisee", "FRANCHISEE"]);
     } else if (roleFilter === "opsmanager") {
-      matchesRole = ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(u.role);
+      matchesRole = hasRole(u, ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"]);
     } else if (roleFilter === "driver") {
-      matchesRole = ["driver", "DRIVER"].includes(u.role);
+      matchesRole = hasRole(u, ["driver", "DRIVER"]);
     }
 
     return matchesSearch && matchesRole;
@@ -447,21 +470,24 @@ export default function UsersPage() {
                         <code className="text-sm text-muted-foreground">@{user.username}</code>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            ["owner", "admin", "OWNER", "ADMIN"].includes(user.role) ? "default" : "secondary"
-                          }
-                          className={`gap-1 ${
-                            ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) ? "bg-purple-100 text-purple-800" :
-                            ["driver", "DRIVER"].includes(user.role) ? "bg-orange-100 text-orange-800" : ""
-                          }`}
-                        >
-                          {["owner", "admin", "OWNER", "ADMIN"].includes(user.role) && <Crown className="h-3 w-3" />}
-                          {["franchisee", "FRANCHISEE"].includes(user.role) && <User className="h-3 w-3" />}
-                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) && <Briefcase className="h-3 w-3" />}
-                          {["driver", "DRIVER"].includes(user.role) && <Truck className="h-3 w-3" />}
-                          {user.role === "OPS_MANAGER" ? "opsmanager" : user.role?.toLowerCase()}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {getUserRoles(user).map((role) => (
+                            <Badge
+                              key={role}
+                              variant={["OWNER", "ADMIN"].includes(role) ? "default" : "secondary"}
+                              className={`gap-1 ${
+                                ["OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(role) ? "bg-purple-100 text-purple-800" :
+                                role === "DRIVER" ? "bg-orange-100 text-orange-800" : ""
+                              }`}
+                            >
+                              {["OWNER", "ADMIN"].includes(role) && <Crown className="h-3 w-3" />}
+                              {role === "FRANCHISEE" && <User className="h-3 w-3" />}
+                              {["OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(role) && <Briefcase className="h-3 w-3" />}
+                              {role === "DRIVER" && <Truck className="h-3 w-3" />}
+                              {role === "OPS_MANAGER" ? "opsmanager" : role.toLowerCase()}
+                            </Badge>
+                          ))}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) && user.assignedDrivers?.length > 0 ? (
@@ -618,21 +644,24 @@ export default function UsersPage() {
                       </DropdownMenu>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={["owner", "admin", "OWNER", "ADMIN"].includes(user.role) ? "default" : "secondary"}
-                          className={`gap-1 text-xs ${
-                            ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) ? "bg-purple-100 text-purple-800" :
-                            ["driver", "DRIVER"].includes(user.role) ? "bg-orange-100 text-orange-800" : ""
-                          }`}
-                        >
-                          {["owner", "admin", "OWNER", "ADMIN"].includes(user.role) && <Crown className="h-3 w-3" />}
-                          {["franchisee", "FRANCHISEE"].includes(user.role) && <User className="h-3 w-3" />}
-                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) && <Briefcase className="h-3 w-3" />}
-                          {["driver", "DRIVER"].includes(user.role) && <Truck className="h-3 w-3" />}
-                          {user.role === "OPS_MANAGER" ? "opsmanager" : user.role?.toLowerCase()}
-                        </Badge>
-                        {["driver", "DRIVER"].includes(user.role) && user.loginPin && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {getUserRoles(user).map((role) => (
+                          <Badge
+                            key={role}
+                            variant={["OWNER", "ADMIN"].includes(role) ? "default" : "secondary"}
+                            className={`gap-1 text-xs ${
+                              ["OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(role) ? "bg-purple-100 text-purple-800" :
+                              role === "DRIVER" ? "bg-orange-100 text-orange-800" : ""
+                            }`}
+                          >
+                            {["OWNER", "ADMIN"].includes(role) && <Crown className="h-3 w-3" />}
+                            {role === "FRANCHISEE" && <User className="h-3 w-3" />}
+                            {["OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(role) && <Briefcase className="h-3 w-3" />}
+                            {role === "DRIVER" && <Truck className="h-3 w-3" />}
+                            {role === "OPS_MANAGER" ? "opsmanager" : role.toLowerCase()}
+                          </Badge>
+                        ))}
+                        {hasRole(user, ["driver", "DRIVER"]) && user.loginPin && (
                           <code className="font-mono text-xs tracking-widest bg-muted px-1.5 py-0.5 rounded">
                             {user.loginPin}
                           </code>
