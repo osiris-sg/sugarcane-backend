@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { sendPushNotificationToRoles } from '@/lib/push-notifications';
 
 // POST /api/Machine/ReportDeviceInfo
 // Called by Android app on startup to report device info
@@ -68,6 +69,38 @@ export async function POST(request) {
 
     if (!device) {
       console.log(`[ReportDeviceInfo] No device found with terminalId=${hardwareId}`);
+
+      // Check if this hardware ID is already in pending registrations
+      const existingPending = await db.pendingDeviceRegistration.findUnique({
+        where: { hardwareId: String(hardwareId) },
+      });
+
+      if (!existingPending) {
+        // First time seeing this hardware ID - create pending registration and send notification
+        const pending = await db.pendingDeviceRegistration.create({
+          data: {
+            hardwareId: String(hardwareId),
+            notifiedAt: new Date(),
+          },
+        });
+
+        // Send push notification to drivers and ops managers
+        await sendPushNotificationToRoles({
+          title: '📱 New Device Detected',
+          body: `Are you installing a new app? Hardware ID: ${hardwareId}`,
+          url: `/dashboard/operations/device-registration?hardwareId=${hardwareId}`,
+        }, ['DRIVER', 'OPS_MANAGER']);
+
+        console.log(`[ReportDeviceInfo] Created pending registration for hardware ${hardwareId} and sent notification`);
+      } else if (!existingPending.registeredAt) {
+        // Pending registration exists but not yet registered - update last seen
+        await db.pendingDeviceRegistration.update({
+          where: { id: existingPending.id },
+          data: { updatedAt: new Date() },
+        });
+        console.log(`[ReportDeviceInfo] Updated pending registration for hardware ${hardwareId}`);
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Device not registered',

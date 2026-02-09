@@ -193,6 +193,50 @@ export async function sendPushNotificationToOps(
   }
 }
 
+/**
+ * Send push notification to users with specific roles
+ */
+export async function sendPushNotificationToRoles(
+  payload: NotificationPayload,
+  roles: string[]
+): Promise<{ success: boolean; sent: number; failed: number }> {
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    console.warn("[Push] VAPID keys not configured");
+    return { success: false, sent: 0, failed: 0 };
+  }
+
+  try {
+    // Get users with specified roles
+    const users = await db.user.findMany({
+      where: {
+        role: { in: roles as any },
+        isActive: true,
+      },
+      select: { clerkId: true },
+    });
+
+    if (users.length === 0) {
+      console.log(`[Push] No users found with roles: ${roles.join(", ")}`);
+      return { success: true, sent: 0, failed: 0 };
+    }
+
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    for (const user of users) {
+      const result = await sendPushNotification(user.clerkId, payload);
+      totalSent += result.sent;
+      totalFailed += result.failed;
+    }
+
+    console.log(`[Push] Sent to roles ${roles.join(", ")}: ${totalSent} sent, ${totalFailed} failed`);
+    return { success: true, sent: totalSent, failed: totalFailed };
+  } catch (error) {
+    console.error("[Push] Error sending to roles:", error);
+    return { success: false, sent: 0, failed: 0 };
+  }
+}
+
 // Check if current time is within day shift hours (8am to 10pm Singapore time)
 function isDayShift(): boolean {
   const now = new Date();

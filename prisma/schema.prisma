@@ -602,3 +602,16 @@ model ZeroSalesStaging {
   @@index([deviceId])
   @@index([stage])
 }
+
+// Pending device registrations - tracks unknown hardware IDs that need to be paired
+model PendingDeviceRegistration {
+  id           String    @id @default(cuid())
+  hardwareId   String    @unique // Build.SERIAL from Android device
+  notifiedAt   DateTime? // When notification was sent
+  registeredAt DateTime? // When hardware was paired with a device
+  deviceId     String?   // The device ID it was paired with (once registered)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([hardwareId])
+}
