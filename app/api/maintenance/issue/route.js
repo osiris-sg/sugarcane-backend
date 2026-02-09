@@ -155,8 +155,8 @@ export async function POST(request) {
     await sendIncidentNotification({
       type: 'new',
       incident,
-      title: `⚠️ Device Fault: ${faultCode || 'Error'}`,
-      body: `${deviceName}: ${resolvedFaultName}`,
+      title: `⚠️ ${resolvedFaultName}`,
+      body: deviceName,
     });
 
     return NextResponse.json({
