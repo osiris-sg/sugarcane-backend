@@ -334,7 +334,7 @@ export async function sendIncidentNotification(
       }
 
       // 2. Find and notify all unique ops managers (who manage these drivers)
-      const opsManagerIds = [...new Set(assignedDrivers.map((d) => d.opsManagerId).filter(Boolean))];
+      const opsManagerIds = Array.from(new Set(assignedDrivers.map((d) => d.opsManagerId).filter(Boolean)));
       for (const opsManagerId of opsManagerIds) {
         const opsManager = await db.user.findUnique({
           where: { id: opsManagerId as string },
@@ -388,7 +388,7 @@ export async function sendIncidentNotification(
       console.log(`[Push] Sent post-breach reminder to ${assignedDrivers.length} driver(s)`);
 
       // 2. Notify all unique ops managers (who manage these drivers) - NO admin
-      const opsManagerIds = [...new Set(assignedDrivers.map((d) => d.opsManagerId).filter(Boolean))];
+      const opsManagerIds = Array.from(new Set(assignedDrivers.map((d) => d.opsManagerId).filter(Boolean)));
       for (const opsManagerId of opsManagerIds) {
         const opsManager = await db.user.findUnique({
           where: { id: opsManagerId as string },
