@@ -6,7 +6,15 @@
     },
     {
       "path": "/api/cron/zero-sales",
-      "schedule": "0 2,4,6,8,10,12 * * *"
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/sla-monitor",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/cleaning-compliance",
+      "schedule": "0 16 28 * *"
     },
     {
       "path": "/api/cron/hourly-summary",
