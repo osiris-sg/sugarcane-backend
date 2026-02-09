@@ -63,12 +63,8 @@ self.addEventListener("notificationclick", function (event) {
         }
         // If there's any existing window, navigate it to the URL (better for PWA)
         if (windowClients.length > 0) {
-          const client = windowClients[0] as WindowClient;
-          if ("navigate" in client) {
-            return client.navigate(urlToOpen).then((c) => c?.focus());
-          }
-          // Fallback: focus and hope the app handles it
-          return client.focus();
+          const client = windowClients[0];
+          return client.navigate(urlToOpen).then((c) => c?.focus());
         }
         // No existing window, open a new one
         if (self.clients.openWindow) {
