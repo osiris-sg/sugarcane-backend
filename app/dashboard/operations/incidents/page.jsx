@@ -582,8 +582,8 @@ export default function IncidentsPage() {
           </CardContent>
         </Card>
 
-        {/* Incidents Table */}
-        <Card>
+        {/* Incidents Table - Desktop */}
+        <Card className="hidden md:block">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -771,6 +771,132 @@ export default function IncidentsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Incidents Cards - Mobile */}
+        <div className="md:hidden space-y-3">
+          {filteredIncidents.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No incidents found
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {paginatedIncidents.map((incident) => {
+                const isCritical = incident.slaOutcome === "SLA_BREACHED" || incident.reminderCount >= 2;
+                const isWarning = incident.reminderCount === 1;
+
+                return (
+                  <Card
+                    key={incident.id}
+                    className={
+                      isCritical
+                        ? "bg-red-600 text-white border-red-700"
+                        : isWarning
+                          ? "bg-yellow-50 border-yellow-200"
+                          : ""
+                    }
+                  >
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold">{incident.deviceName}</span>
+                            <PriorityBadge
+                              reminderCount={incident.reminderCount}
+                              slaOutcome={incident.slaOutcome}
+                            />
+                          </div>
+                          <div className={`text-xs ${isCritical ? "text-red-200" : "text-muted-foreground"}`}>
+                            {incident.deviceId}
+                          </div>
+                        </div>
+                        {isAdmin && incident.status !== "RESOLVED" && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant={isCritical ? "secondary" : "outline"}
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                disabled={actionLoading === incident.id}
+                              >
+                                {actionLoading === incident.id ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MoreHorizontal className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {incident.status === "OPEN" && (
+                                <DropdownMenuItem onClick={() => handleAcknowledge(incident.id)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  Acknowledge
+                                </DropdownMenuItem>
+                              )}
+                              {incident.status === "ACKNOWLEDGED" && (
+                                <DropdownMenuItem onClick={() => handleStartProgress(incident.id)}>
+                                  <Play className="mr-2 h-4 w-4" />
+                                  Start Progress
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => openResolveDialog(incident)}
+                                className="text-green-600"
+                              >
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Resolve
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <TypeBadge type={incident.type} />
+                        <StatusBadge status={incident.status} />
+                      </div>
+                      {incident.faultName && (
+                        <div className={`text-sm ${isCritical ? "text-red-100" : ""}`}>
+                          {incident.faultName}
+                          {incident.faultCode && (
+                            <span className={`ml-1 font-mono text-xs ${isCritical ? "text-red-200" : "text-muted-foreground"}`}>
+                              ({incident.faultCode})
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div className={`flex items-center justify-between text-xs ${isCritical ? "text-red-200" : "text-muted-foreground"}`}>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatElapsed(incident.elapsedMinutes)} elapsed
+                        </span>
+                        <span>{formatDateTime(incident.startTime)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+              {loadingMore && (
+                <div className="flex justify-center py-4">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">Loading more...</span>
+                  </div>
+                </div>
+              )}
+              {totalPages > 1 && (
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                />
+              )}
+            </>
+          )}
+        </div>
       </main>
 
       {/* Resolve Dialog */}

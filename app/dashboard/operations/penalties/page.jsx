@@ -245,8 +245,8 @@ export default function PenaltiesPage() {
           </Card>
         </div>
 
-        {/* Penalties Table */}
-        <Card>
+        {/* Penalties Table - Desktop */}
+        <Card className="hidden md:block">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -343,6 +343,103 @@ export default function PenaltiesPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Penalties Cards - Mobile */}
+        <div className="md:hidden space-y-3">
+          {penalties.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No penalties found
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {paginatedPenalties.map((penalty) => (
+                <Card
+                  key={penalty.id}
+                  className={`border-l-4 ${
+                    penalty.appealStatus === "approved"
+                      ? "border-l-green-500"
+                      : penalty.appealStatus === "rejected"
+                      ? "border-l-red-500"
+                      : penalty.appealStatus === "pending"
+                      ? "border-l-yellow-500"
+                      : "border-l-gray-400"
+                  }`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-medium">{penalty.incident?.deviceName || "-"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {penalty.incident?.deviceId || "-"}
+                        </div>
+                      </div>
+                      <AppealStatusBadge status={penalty.appealStatus} />
+                    </div>
+                    <div className="mb-2">
+                      <Badge variant="outline" className="mb-2">
+                        {penalty.incident?.type?.replace(/_/g, " ") || "-"}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                      {penalty.reason}
+                    </p>
+                    <div className="text-xs text-muted-foreground mb-3">
+                      {formatDateTime(penalty.createdAt)}
+                    </div>
+                    <div className="flex gap-2">
+                      {penalty.appealStatus === "none" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => openAppealDialog(penalty, "submit")}
+                          disabled={actionLoading === penalty.id}
+                        >
+                          Appeal
+                        </Button>
+                      )}
+                      {isAdmin && penalty.appealStatus === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-green-600"
+                            onClick={() => openAppealDialog(penalty, "approve")}
+                            disabled={actionLoading === penalty.id}
+                          >
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-red-600"
+                            onClick={() => openAppealDialog(penalty, "reject")}
+                            disabled={actionLoading === penalty.id}
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {totalPages > 1 && (
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                />
+              )}
+            </>
+          )}
+        </div>
       </main>
 
       {/* Appeal Dialog */}

@@ -281,118 +281,209 @@ export default function CleaningLogsPage() {
 
         {/* Compliance View */}
         {viewMode === "compliance" && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Device Compliance Status</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Device</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Cleanings</TableHead>
-                    <TableHead>Remaining</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {deviceList.length === 0 ? (
+          <>
+            {/* Desktop Table */}
+            <Card className="hidden md:block">
+              <CardHeader>
+                <CardTitle className="text-base">Device Compliance Status</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                        No devices found
-                      </TableCell>
+                      <TableHead>Device</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Cleanings</TableHead>
+                      <TableHead>Remaining</TableHead>
                     </TableRow>
-                  ) : (
-                    paginatedDevices.map((device) => (
-                      <TableRow key={device.deviceId}>
-                        <TableCell>
+                  </TableHeader>
+                  <TableBody>
+                    {deviceList.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                          No devices found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedDevices.map((device) => (
+                        <TableRow key={device.deviceId}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{device.deviceName}</div>
+                              <div className="text-xs text-muted-foreground">{device.deviceId}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <ComplianceBadge
+                              isCompliant={device.isCompliant}
+                              count={device.cleaningCount}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress
+                                value={(device.cleaningCount / REQUIRED_CLEANINGS) * 100}
+                                className="h-2 w-20"
+                              />
+                              <span className="text-sm">{device.cleaningCount}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {device.remaining > 0 ? (
+                              <Badge variant="outline">{device.remaining} more needed</Badge>
+                            ) : (
+                              <span className="text-green-600 text-sm">Complete</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                {totalPages > 1 && (
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                    onPageChange={setCurrentPage}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-3">
+              {deviceList.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    No devices found
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  {paginatedDevices.map((device) => (
+                    <Card
+                      key={device.deviceId}
+                      className={`border-l-4 ${device.isCompliant ? "border-l-green-500" : "border-l-red-500"}`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-3">
                           <div>
                             <div className="font-medium">{device.deviceName}</div>
                             <div className="text-xs text-muted-foreground">{device.deviceId}</div>
                           </div>
-                        </TableCell>
-                        <TableCell>
                           <ComplianceBadge
                             isCompliant={device.isCompliant}
                             count={device.cleaningCount}
                           />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress
-                              value={(device.cleaningCount / REQUIRED_CLEANINGS) * 100}
-                              className="h-2 w-20"
-                            />
-                            <span className="text-sm">{device.cleaningCount}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Progress
+                            value={(device.cleaningCount / REQUIRED_CLEANINGS) * 100}
+                            className="h-2 flex-1"
+                          />
+                          <span className="text-sm">{device.cleaningCount}/{REQUIRED_CLEANINGS}</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
                           {device.remaining > 0 ? (
-                            <Badge variant="outline">{device.remaining} more needed</Badge>
+                            <span>{device.remaining} more cleaning{device.remaining > 1 ? "s" : ""} needed</span>
                           ) : (
-                            <span className="text-green-600 text-sm">Complete</span>
+                            <span className="text-green-600">Compliant this month</span>
                           )}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {totalPages > 1 && (
+                    <TablePagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      totalItems={totalItems}
+                      itemsPerPage={ITEMS_PER_PAGE}
+                      onPageChange={setCurrentPage}
+                    />
                   )}
-                </TableBody>
-              </Table>
-              {totalPages > 1 && (
-                <TablePagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  totalItems={totalItems}
-                  itemsPerPage={ITEMS_PER_PAGE}
-                  onPageChange={setCurrentPage}
-                />
+                </>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </>
         )}
 
         {/* Logs View */}
         {viewMode === "logs" && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Cleaning Log History</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Device</TableHead>
-                    <TableHead>Cleaned By</TableHead>
-                    <TableHead>Date & Time</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {logs.length === 0 ? (
+          <>
+            {/* Desktop Table */}
+            <Card className="hidden md:block">
+              <CardHeader>
+                <CardTitle className="text-base">Cleaning Log History</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
-                        No cleaning logs found
-                      </TableCell>
+                      <TableHead>Device</TableHead>
+                      <TableHead>Cleaned By</TableHead>
+                      <TableHead>Date & Time</TableHead>
                     </TableRow>
-                  ) : (
-                    logs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{log.deviceName}</div>
-                            <div className="text-xs text-muted-foreground">{log.deviceId}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{log.userName}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDateTime(log.loggedAt)}
+                  </TableHeader>
+                  <TableBody>
+                    {logs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                          No cleaning logs found
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                    ) : (
+                      logs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{log.deviceName}</div>
+                              <div className="text-xs text-muted-foreground">{log.deviceId}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{log.userName}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatDateTime(log.loggedAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-3">
+              {logs.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    No cleaning logs found
+                  </CardContent>
+                </Card>
+              ) : (
+                logs.map((log) => (
+                  <Card key={log.id}>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="font-medium">{log.deviceName}</div>
+                          <div className="text-xs text-muted-foreground">{log.deviceId}</div>
+                        </div>
+                        <Sparkles className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>By: {log.userName}</span>
+                        <span>{formatDateTime(log.loggedAt)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </>
         )}
       </main>
 

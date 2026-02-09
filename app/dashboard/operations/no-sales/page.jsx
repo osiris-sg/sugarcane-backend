@@ -243,53 +243,81 @@ export default function NoSalesPage() {
           </Card>
         </div>
 
-        {/* Staging Table - Devices being monitored (0-60 min) */}
+        {/* Staging - Devices being monitored (0-60 min) */}
         {stagingEntries.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-yellow-600" />
-                Monitoring (0-60 min)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Device</TableHead>
-                    <TableHead>Time Block</TableHead>
-                    <TableHead>Stage</TableHead>
-                    <TableHead>Duration</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stagingEntries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{entry.deviceName}</div>
-                          <div className="text-xs text-muted-foreground">{entry.deviceId}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{entry.timeBlock || "-"}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <StageBadge stage={entry.stage} startedAt={entry.startedAt} />
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatElapsed(entry.startedAt)}
-                      </TableCell>
+          <>
+            {/* Desktop Table */}
+            <Card className="mb-6 hidden md:block">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-yellow-600" />
+                  Monitoring (0-60 min)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Device</TableHead>
+                      <TableHead>Time Block</TableHead>
+                      <TableHead>Stage</TableHead>
+                      <TableHead>Duration</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {stagingEntries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{entry.deviceName}</div>
+                            <div className="text-xs text-muted-foreground">{entry.deviceId}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{entry.timeBlock || "-"}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <StageBadge stage={entry.stage} startedAt={entry.startedAt} />
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {formatElapsed(entry.startedAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-3 mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="h-5 w-5 text-yellow-600" />
+                <span className="font-semibold">Monitoring (0-60 min)</span>
+              </div>
+              {stagingEntries.map((entry) => (
+                <Card key={entry.id} className="border-l-4 border-l-yellow-500">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-medium">{entry.deviceName}</div>
+                        <div className="text-xs text-muted-foreground">{entry.deviceId}</div>
+                      </div>
+                      <StageBadge stage={entry.stage} startedAt={entry.startedAt} />
+                    </div>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Block: {entry.timeBlock || "-"}</span>
+                      <span>Duration: {formatElapsed(entry.startedAt)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
         )}
 
-        {/* Zero Sales Incidents Table */}
-        <Card>
+        {/* Zero Sales Incidents - Desktop Table */}
+        <Card className="hidden md:block">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingDown className="h-5 w-5" />
@@ -361,6 +389,59 @@ export default function NoSalesPage() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Zero Sales Incidents - Mobile Cards */}
+        <div className="md:hidden space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingDown className="h-5 w-5" />
+            <span className="font-semibold">Zero Sales Incidents</span>
+          </div>
+          {zeroSalesIncidents.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No zero sales incidents
+              </CardContent>
+            </Card>
+          ) : (
+            zeroSalesIncidents.map((incident) => (
+              <Card
+                key={incident.id}
+                className={incident.escalatedAt ? "border-l-4 border-l-red-500" : "border-l-4 border-l-yellow-500"}
+              >
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="font-medium">{incident.deviceName}</div>
+                      <div className="text-xs text-muted-foreground">{incident.deviceId}</div>
+                    </div>
+                    {incident.escalatedAt ? (
+                      <Badge variant="destructive">Escalated</Badge>
+                    ) : (
+                      <Badge className="bg-yellow-100 text-yellow-800">Monitoring</Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
+                    <span>Block: {incident.timeBlock || "-"}</span>
+                    <span>Duration: {formatElapsed(incident.startTime)}</span>
+                    <span>Stock: {incident.stockQuantity || "-"}</span>
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-green-600"
+                      disabled={actionLoading === incident.id}
+                      onClick={() => openResolveDialog(incident)}
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Resolve
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
       </main>
 
       {/* Resolve Dialog */}

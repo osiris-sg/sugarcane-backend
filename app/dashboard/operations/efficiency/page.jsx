@@ -283,8 +283,8 @@ export default function EfficiencyPage() {
           </Card>
         </div>
 
-        {/* By Type Breakdown */}
-        <Card>
+        {/* By Type Breakdown - Desktop */}
+        <Card className="hidden md:block">
           <CardHeader>
             <CardTitle className="text-base">Incidents by Type</CardTitle>
           </CardHeader>
@@ -329,6 +329,54 @@ export default function EfficiencyPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* By Type Breakdown - Mobile */}
+        <div className="md:hidden space-y-3">
+          <h3 className="font-semibold text-base">Incidents by Type</h3>
+          {Object.entries(metrics?.byType || {}).map(([type, data]) => (
+            <Card
+              key={type}
+              className={`border-l-4 ${
+                data.complianceRate >= 90
+                  ? "border-l-green-500"
+                  : data.complianceRate >= 70
+                  ? "border-l-yellow-500"
+                  : "border-l-red-500"
+              }`}
+            >
+              <CardContent className="p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <Badge variant="outline">{type.replace(/_/g, " ")}</Badge>
+                  <Badge
+                    className={
+                      data.complianceRate >= 90
+                        ? "bg-green-100 text-green-800"
+                        : data.complianceRate >= 70
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                    }
+                  >
+                    {data.complianceRate.toFixed(0)}%
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-xl font-bold">{data.total}</p>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold text-green-600">{data.withinSla}</p>
+                    <p className="text-xs text-muted-foreground">Within SLA</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold text-red-600">{data.breach}</p>
+                    <p className="text-xs text-muted-foreground">Breached</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </main>
     </div>
   );
