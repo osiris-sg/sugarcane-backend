@@ -8,11 +8,15 @@ export const dynamic = 'force-dynamic';
 function mapRoleToEnum(role) {
   const roleMap = {
     admin: 'ADMIN',
+    owner: 'ADMIN', // owner maps to ADMIN
     manager: 'MANAGER',
+    opsmanager: 'OPS_MANAGER',
+    ops_manager: 'OPS_MANAGER',
     finance: 'FINANCE',
     franchisee: 'FRANCHISEE',
     driver: 'DRIVER',
     partnerships: 'PARTNERSHIPS',
+    adminops: 'ADMINOPS',
   };
   return roleMap[role?.toLowerCase()] || 'FRANCHISEE';
 }
@@ -20,9 +24,28 @@ function mapRoleToEnum(role) {
 // GET /api/admin/users - List all users (from DB, with fresh lastSignInAt from Clerk)
 export async function GET() {
   try {
-    // Get users from database with their group info
+    // Get users from database with their group info and assigned drivers (for ops managers)
     const dbUsers = await db.user.findMany({
-      include: { group: true },
+      include: {
+        group: true,
+        assignedDrivers: {
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+          },
+        },
+        opsManager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -61,7 +84,26 @@ export async function GET() {
 
       // Fetch again after sync
       const syncedUsers = await db.user.findMany({
-        include: { group: true },
+        include: {
+          group: true,
+          assignedDrivers: {
+            select: {
+              id: true,
+              clerkId: true,
+              firstName: true,
+              lastName: true,
+              username: true,
+            },
+          },
+          opsManager: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              username: true,
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
       });
 
@@ -117,7 +159,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { username, firstName, lastName, password, role, phone, loginPin } = body;
+    const { username, firstName, lastName, password, role, phone, loginPin, assignedDriverIds } = body;
 
     if (!username || !password) {
       return NextResponse.json(
@@ -194,17 +236,36 @@ export async function POST(request) {
     // Create user in database
     const dbUsername = clerkUser.username || username;
 
+    const userData = {
+      clerkId: clerkUser.id,
+      username: dbUsername,
+      firstName: firstName || null,
+      lastName: lastName || null,
+      role: mapRoleToEnum(role),
+      phone: phone || null,
+      imageUrl: clerkUser.imageUrl || null,
+      loginPin: role === 'driver' ? loginPin || null : null,
+      groupId: groupId,
+    };
+
+    // Connect assigned drivers for ops managers
+    if (role === 'opsmanager' && assignedDriverIds && assignedDriverIds.length > 0) {
+      userData.assignedDrivers = {
+        connect: assignedDriverIds.map(id => ({ id })),
+      };
+    }
+
     const dbUser = await db.user.create({
-      data: {
-        clerkId: clerkUser.id,
-        username: dbUsername,
-        firstName: firstName || null,
-        lastName: lastName || null,
-        role: mapRoleToEnum(role),
-        phone: phone || null,
-        imageUrl: clerkUser.imageUrl || null,
-        loginPin: role === 'driver' ? loginPin || null : null,
-        groupId: groupId,
+      data: userData,
+      include: {
+        assignedDrivers: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+          },
+        },
       },
     });
 

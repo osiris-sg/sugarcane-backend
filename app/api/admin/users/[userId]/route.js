@@ -8,9 +8,15 @@ export const dynamic = 'force-dynamic';
 function mapRoleToEnum(role) {
   const roleMap = {
     admin: 'ADMIN',
+    owner: 'ADMIN',
     manager: 'MANAGER',
+    opsmanager: 'OPS_MANAGER',
+    ops_manager: 'OPS_MANAGER',
+    finance: 'FINANCE',
     franchisee: 'FRANCHISEE',
     driver: 'DRIVER',
+    partnerships: 'PARTNERSHIPS',
+    adminops: 'ADMINOPS',
   };
   return roleMap[role?.toLowerCase()] || 'FRANCHISEE';
 }
@@ -27,6 +33,26 @@ export async function GET(request, { params }) {
           { id: userId },
           { clerkId: userId },
         ],
+      },
+      include: {
+        group: true,
+        assignedDrivers: {
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+          },
+        },
+        opsManager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+          },
+        },
       },
     });
 
@@ -66,7 +92,7 @@ export async function PATCH(request, { params }) {
   try {
     const { userId } = await params;
     const body = await request.json();
-    const { role, firstName, lastName, phone, isActive, groupId, createNewGroup } = body;
+    const { role, firstName, lastName, phone, isActive, groupId, createNewGroup, assignedDriverIds } = body;
 
     const client = await clerkClient();
 
@@ -116,12 +142,31 @@ export async function PATCH(request, { params }) {
     if (isActive !== undefined) dbUpdateData.isActive = isActive;
     if (finalGroupId !== undefined) dbUpdateData.groupId = finalGroupId || null;
 
+    // Handle assigned drivers for ops managers
+    if (assignedDriverIds !== undefined) {
+      // Set the assigned drivers - this replaces any existing assignments
+      dbUpdateData.assignedDrivers = {
+        set: assignedDriverIds.map(id => ({ id })),
+      };
+    }
+
     let updatedUser;
     if (dbUser) {
       updatedUser = await db.user.update({
         where: { id: dbUser.id },
         data: dbUpdateData,
-        include: { group: true },
+        include: {
+          group: true,
+          assignedDrivers: {
+            select: {
+              id: true,
+              clerkId: true,
+              firstName: true,
+              lastName: true,
+              username: true,
+            },
+          },
+        },
       });
     }
 

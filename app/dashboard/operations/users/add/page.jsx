@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus, Lock, User, Crown, ArrowLeft, Briefcase, Truck, KeyRound, AtSign } from "lucide-react";
+import { UserPlus, Lock, User, Crown, ArrowLeft, Briefcase, Truck, KeyRound, AtSign, Users, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,9 @@ export default function AddUserPage() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const [loading, setLoading] = useState(false);
+  const [availableDrivers, setAvailableDrivers] = useState([]);
+  const [selectedDriverIds, setSelectedDriverIds] = useState([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [formData, setFormData] = useState({
     username: "",
     firstName: "",
@@ -33,6 +36,42 @@ export default function AddUserPage() {
     phone: "",
     loginPin: "",
   });
+
+  // Fetch available drivers when role is opsmanager
+  useEffect(() => {
+    if (formData.role === "opsmanager") {
+      fetchDrivers();
+    } else {
+      setSelectedDriverIds([]);
+    }
+  }, [formData.role]);
+
+  async function fetchDrivers() {
+    setLoadingDrivers(true);
+    try {
+      const res = await fetch("/api/admin/users");
+      const data = await res.json();
+      if (data.success) {
+        // Filter to only drivers (and exclude those already assigned to an ops manager)
+        const drivers = data.users.filter(
+          (u) => ["driver", "DRIVER"].includes(u.role) && !u.opsManagerId
+        );
+        setAvailableDrivers(drivers);
+      }
+    } catch (error) {
+      console.error("Error fetching drivers:", error);
+    } finally {
+      setLoadingDrivers(false);
+    }
+  }
+
+  function toggleDriver(driverId) {
+    setSelectedDriverIds((prev) =>
+      prev.includes(driverId)
+        ? prev.filter((id) => id !== driverId)
+        : [...prev, driverId]
+    );
+  }
 
   // Redirect non-admins
   const userRole = user?.publicMetadata?.role || "franchisee";
@@ -80,6 +119,7 @@ export default function AddUserPage() {
           role: formData.role,
           phone: formData.phone,
           loginPin: formData.role === "driver" ? formData.loginPin : null,
+          assignedDriverIds: formData.role === "opsmanager" ? selectedDriverIds : [],
         }),
       });
 
@@ -293,6 +333,54 @@ export default function AddUserPage() {
                     <p className="text-xs text-muted-foreground">
                       This PIN will be used by the driver to log in to the machine
                     </p>
+                  </div>
+                )}
+
+                {formData.role === "opsmanager" && (
+                  <div className="grid gap-2">
+                    <Label className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Assign Drivers
+                    </Label>
+                    {loadingDrivers ? (
+                      <p className="text-sm text-muted-foreground">Loading drivers...</p>
+                    ) : availableDrivers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No unassigned drivers available
+                      </p>
+                    ) : (
+                      <div className="rounded-md border p-3 space-y-2 max-h-48 overflow-auto">
+                        {availableDrivers.map((driver) => (
+                          <div
+                            key={driver.id}
+                            onClick={() => toggleDriver(driver.id)}
+                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                              selectedDriverIds.includes(driver.id)
+                                ? "bg-primary/10 border border-primary"
+                                : "hover:bg-muted"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Truck className="h-4 w-4 text-orange-500" />
+                              <span className="text-sm font-medium">
+                                {driver.firstName} {driver.lastName}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                @{driver.username}
+                              </span>
+                            </div>
+                            {selectedDriverIds.includes(driver.id) && (
+                              <Check className="h-4 w-4 text-primary" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedDriverIds.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedDriverIds.length} driver(s) selected
+                      </p>
+                    )}
                   </div>
                 )}
 

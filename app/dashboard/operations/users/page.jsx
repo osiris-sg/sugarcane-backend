@@ -18,6 +18,7 @@ import {
   KeyRound,
   Search,
   X,
+  Check,
 } from "lucide-react";
 import { TablePagination, usePagination } from "@/components/ui/table-pagination";
 
@@ -68,6 +69,9 @@ export default function UsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchText, setSearchText] = useState("");
   const [roleFilter, setRoleFilter] = useState(null); // null = all, "owner", "franchisee", "opsmanager", "driver"
+  const [availableDrivers, setAvailableDrivers] = useState([]);
+  const [selectedDriverIds, setSelectedDriverIds] = useState([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
 
   // Redirect non-admins
   const role = user?.publicMetadata?.role || "franchisee";
@@ -79,6 +83,43 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Load drivers when editing an ops manager
+  useEffect(() => {
+    if (editingUser && ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(newRole)) {
+      fetchAvailableDrivers();
+      // Pre-select the already assigned drivers
+      setSelectedDriverIds(editingUser.assignedDrivers?.map((d) => d.id) || []);
+    } else {
+      setAvailableDrivers([]);
+      setSelectedDriverIds([]);
+    }
+  }, [editingUser, newRole]);
+
+  async function fetchAvailableDrivers() {
+    setLoadingDrivers(true);
+    try {
+      // Get all drivers - include those assigned to the current ops manager
+      const drivers = users.filter(
+        (u) =>
+          ["driver", "DRIVER"].includes(u.role) &&
+          (!u.opsManagerId || u.opsManager?.id === editingUser?.id)
+      );
+      setAvailableDrivers(drivers);
+    } catch (error) {
+      console.error("Error fetching drivers:", error);
+    } finally {
+      setLoadingDrivers(false);
+    }
+  }
+
+  function toggleDriver(driverId) {
+    setSelectedDriverIds((prev) =>
+      prev.includes(driverId)
+        ? prev.filter((id) => id !== driverId)
+        : [...prev, driverId]
+    );
+  }
 
   async function fetchUsers() {
     try {
@@ -99,23 +140,31 @@ export default function UsersPage() {
     if (!editingUser || !newRole) return;
 
     try {
+      const updateData = { role: newRole };
+
+      // Include assigned drivers for ops managers
+      if (["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(newRole)) {
+        updateData.assignedDriverIds = selectedDriverIds;
+      }
+
       const res = await fetch(`/api/admin/users/${editingUser.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify(updateData),
       });
 
       const data = await res.json();
       if (data.success) {
-        toast.success("User role updated");
+        toast.success("User updated");
         setEditingUser(null);
+        setSelectedDriverIds([]);
         fetchUsers();
       } else {
-        toast.error(data.error || "Failed to update role");
+        toast.error(data.error || "Failed to update user");
       }
     } catch (error) {
-      console.error("Error updating role:", error);
-      toast.error("Failed to update role");
+      console.error("Error updating user:", error);
+      toast.error("Failed to update user");
     }
   }
 
@@ -152,7 +201,7 @@ export default function UsersPage() {
 
   const ownerCount = users.filter((u) => ["owner", "admin", "OWNER", "ADMIN"].includes(u.role)).length;
   const franchiseeCount = users.filter((u) => ["franchisee", "FRANCHISEE"].includes(u.role)).length;
-  const opsmanagerCount = users.filter((u) => ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(u.role)).length;
+  const opsmanagerCount = users.filter((u) => ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(u.role)).length;
   const driverCount = users.filter((u) => ["driver", "DRIVER"].includes(u.role)).length;
 
   // Filter users based on search and role
@@ -172,7 +221,7 @@ export default function UsersPage() {
     } else if (roleFilter === "franchisee") {
       matchesRole = ["franchisee", "FRANCHISEE"].includes(u.role);
     } else if (roleFilter === "opsmanager") {
-      matchesRole = ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(u.role);
+      matchesRole = ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(u.role);
     } else if (roleFilter === "driver") {
       matchesRole = ["driver", "DRIVER"].includes(u.role);
     }
@@ -331,10 +380,10 @@ export default function UsersPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Username</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Assigned Drivers</TableHead>
                     <TableHead>PIN</TableHead>
-                    <TableHead>Created</TableHead>
                     <TableHead>Last Sign In</TableHead>
                     <TableHead className="w-[70px]">Actions</TableHead>
                   </TableRow>
@@ -361,10 +410,7 @@ export default function UsersPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          {user.email}
-                        </div>
+                        <code className="text-sm text-muted-foreground">@{user.username}</code>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -372,16 +418,32 @@ export default function UsersPage() {
                             ["owner", "admin", "OWNER", "ADMIN"].includes(user.role) ? "default" : "secondary"
                           }
                           className={`gap-1 ${
-                            ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(user.role) ? "bg-purple-100 text-purple-800" :
+                            ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) ? "bg-purple-100 text-purple-800" :
                             ["driver", "DRIVER"].includes(user.role) ? "bg-orange-100 text-orange-800" : ""
                           }`}
                         >
                           {["owner", "admin", "OWNER", "ADMIN"].includes(user.role) && <Crown className="h-3 w-3" />}
                           {["franchisee", "FRANCHISEE"].includes(user.role) && <User className="h-3 w-3" />}
-                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(user.role) && <Briefcase className="h-3 w-3" />}
+                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) && <Briefcase className="h-3 w-3" />}
                           {["driver", "DRIVER"].includes(user.role) && <Truck className="h-3 w-3" />}
-                          {user.role?.toLowerCase()}
+                          {user.role === "OPS_MANAGER" ? "opsmanager" : user.role?.toLowerCase()}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) && user.assignedDrivers?.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {user.assignedDrivers.map((driver) => (
+                              <Badge key={driver.id} variant="outline" className="text-xs">
+                                <Truck className="h-3 w-3 mr-1" />
+                                {driver.firstName || driver.username}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) ? (
+                          <span className="text-xs text-muted-foreground">No drivers</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {["driver", "DRIVER"].includes(user.role) && user.loginPin ? (
@@ -395,7 +457,6 @@ export default function UsersPage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell>{formatDate(user.createdAt)}</TableCell>
                       <TableCell>{formatDate(user.lastSignInAt)}</TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -511,15 +572,15 @@ export default function UsersPage() {
                         <Badge
                           variant={["owner", "admin", "OWNER", "ADMIN"].includes(user.role) ? "default" : "secondary"}
                           className={`gap-1 text-xs ${
-                            ["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(user.role) ? "bg-purple-100 text-purple-800" :
+                            ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) ? "bg-purple-100 text-purple-800" :
                             ["driver", "DRIVER"].includes(user.role) ? "bg-orange-100 text-orange-800" : ""
                           }`}
                         >
                           {["owner", "admin", "OWNER", "ADMIN"].includes(user.role) && <Crown className="h-3 w-3" />}
                           {["franchisee", "FRANCHISEE"].includes(user.role) && <User className="h-3 w-3" />}
-                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER"].includes(user.role) && <Briefcase className="h-3 w-3" />}
+                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) && <Briefcase className="h-3 w-3" />}
                           {["driver", "DRIVER"].includes(user.role) && <Truck className="h-3 w-3" />}
-                          {user.role?.toLowerCase()}
+                          {user.role === "OPS_MANAGER" ? "opsmanager" : user.role?.toLowerCase()}
                         </Badge>
                         {["driver", "DRIVER"].includes(user.role) && user.loginPin && (
                           <code className="font-mono text-xs tracking-widest bg-muted px-1.5 py-0.5 rounded">
@@ -549,12 +610,15 @@ export default function UsersPage() {
       </main>
 
       {/* Edit Role Dialog */}
-      <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-        <DialogContent>
+      <Dialog open={!!editingUser} onOpenChange={() => {
+        setEditingUser(null);
+        setSelectedDriverIds([]);
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit User Role</DialogTitle>
+            <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
-              Change the role for {editingUser?.firstName} {editingUser?.lastName}
+              Update {editingUser?.firstName} {editingUser?.lastName}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -592,9 +656,61 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Driver assignment for ops managers */}
+            {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(newRole) && (
+              <div className="grid gap-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Assign Drivers
+                </Label>
+                {loadingDrivers ? (
+                  <p className="text-sm text-muted-foreground">Loading drivers...</p>
+                ) : availableDrivers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No drivers available to assign
+                  </p>
+                ) : (
+                  <div className="rounded-md border p-3 space-y-2 max-h-48 overflow-auto">
+                    {availableDrivers.map((driver) => (
+                      <div
+                        key={driver.id}
+                        onClick={() => toggleDriver(driver.id)}
+                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                          selectedDriverIds.includes(driver.id)
+                            ? "bg-primary/10 border border-primary"
+                            : "hover:bg-muted"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Truck className="h-4 w-4 text-orange-500" />
+                          <span className="text-sm font-medium">
+                            {driver.firstName} {driver.lastName}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            @{driver.username}
+                          </span>
+                        </div>
+                        {selectedDriverIds.includes(driver.id) && (
+                          <Check className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {selectedDriverIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedDriverIds.length} driver(s) selected
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingUser(null)}>
+            <Button variant="outline" onClick={() => {
+              setEditingUser(null);
+              setSelectedDriverIds([]);
+            }}>
               Cancel
             </Button>
             <Button onClick={handleUpdateRole}>Save Changes</Button>

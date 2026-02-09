@@ -318,11 +318,17 @@ model User {
   groupId      String?
   group        Group?    @relation(fields: [groupId], references: [id])
 
+  // Ops Manager relationship (for drivers)
+  opsManagerId    String?
+  opsManager      User?    @relation("OpsManagerDrivers", fields: [opsManagerId], references: [id])
+  assignedDrivers User[]   @relation("OpsManagerDrivers")
+
   @@index([clerkId])
   @@index([username])
   @@index([role])
   @@index([loginPin])
   @@index([groupId])
+  @@index([opsManagerId])
 }
 
 model PushSubscription {
@@ -418,6 +424,7 @@ enum TemperatureAlertStatus {
 enum UserRole {
   ADMIN
   MANAGER
+  OPS_MANAGER
   FRANCHISEE
   DRIVER
   FINANCE
