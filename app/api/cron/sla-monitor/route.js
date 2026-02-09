@@ -43,13 +43,28 @@ export async function GET(request) {
     });
     const deviceLocationMap = new Map(devices.map(d => [d.deviceId, d.location]));
 
+    // Get driver assignments - SLA only applies to devices with assigned drivers
+    const deviceDrivers = await db.deviceDriver.findMany({
+      where: { deviceId: { in: deviceIds } },
+      select: { deviceId: true },
+    });
+    const devicesWithDrivers = new Set(deviceDrivers.map(dd => dd.deviceId));
+
     let reminders2h = 0;
+    let skippedUnassigned = 0;
     let reminders2h30 = 0;
     let breaches = 0;
     let postBreachReminders = 0;
 
     for (const incident of openIncidents) {
       const displayName = deviceLocationMap.get(incident.deviceId) || incident.deviceName;
+
+      // Skip SLA logic for devices without assigned drivers
+      if (!devicesWithDrivers.has(incident.deviceId)) {
+        skippedUnassigned++;
+        continue;
+      }
+
       const startTime = new Date(incident.startTime);
       const elapsed = now.getTime() - startTime.getTime();
       const elapsedHours = elapsed / (60 * 60 * 1000);
@@ -197,7 +212,7 @@ export async function GET(request) {
       });
     }
 
-    console.log(`[SLA-Monitor] Completed. 2h: ${reminders2h}, 2h30m: ${reminders2h30}, Breaches: ${breaches}, Post-breach: ${postBreachReminders}`);
+    console.log(`[SLA-Monitor] Completed. 2h: ${reminders2h}, 2h30m: ${reminders2h30}, Breaches: ${breaches}, Post-breach: ${postBreachReminders}, Skipped (no driver): ${skippedUnassigned}`);
 
     return NextResponse.json({
       success: true,
@@ -206,6 +221,7 @@ export async function GET(request) {
       reminders2h30,
       breaches,
       postBreachReminders,
+      skippedUnassigned,
       timestamp: now.toISOString(),
     });
   } catch (error) {
