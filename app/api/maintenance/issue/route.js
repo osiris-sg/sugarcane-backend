@@ -200,18 +200,27 @@ export async function GET(request) {
       });
 
       if (dbUser?.role === 'DRIVER') {
-        // Get devices assigned to this driver
-        const assignedDevices = await db.device.findMany({
-          where: {
-            OR: [
-              { driverId: dbUser.id },
-              { driverId: dbUser.clerkId },
-            ],
-          },
+        // Get devices assigned to this driver (from DeviceDriver table)
+        const deviceDrivers = await db.deviceDriver.findMany({
+          where: { userId: dbUser.id },
           select: { deviceId: true },
         });
 
-        const assignedDeviceIds = assignedDevices.map(d => d.deviceId);
+        let assignedDeviceIds = deviceDrivers.map(d => d.deviceId);
+
+        // Fallback: also check legacy driverId field
+        if (assignedDeviceIds.length === 0) {
+          const legacyDevices = await db.device.findMany({
+            where: {
+              OR: [
+                { driverId: dbUser.id },
+                { driverId: dbUser.clerkId },
+              ],
+            },
+            select: { deviceId: true },
+          });
+          assignedDeviceIds = legacyDevices.map(d => d.deviceId);
+        }
 
         if (assignedDeviceIds.length > 0) {
           where.deviceId = { in: assignedDeviceIds };

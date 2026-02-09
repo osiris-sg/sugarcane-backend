@@ -237,35 +237,59 @@ export async function sendIncidentNotification(
     let totalSent = 0;
     let totalFailed = 0;
 
-    // Find the device and its assigned driver
-    const device = await db.device.findUnique({
+    // Find all assigned drivers for this device (many-to-many)
+    const deviceDrivers = await db.deviceDriver.findMany({
       where: { deviceId: incident.deviceId },
-      select: { driverId: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            opsManagerId: true,
+            isActive: true,
+          },
+        },
+      },
     });
 
-    // Find the assigned driver
-    let assignedDriver = null;
-    if (device?.driverId) {
-      assignedDriver = await db.user.findFirst({
-        where: {
-          OR: [
-            { id: device.driverId },
-            { clerkId: device.driverId },
-          ],
-          isActive: true,
-        },
-        select: {
-          id: true,
-          clerkId: true,
-          firstName: true,
-          lastName: true,
-          opsManagerId: true,
-        },
+    // Filter to only active drivers
+    const assignedDrivers = deviceDrivers
+      .map((dd) => dd.user)
+      .filter((u) => u.isActive);
+
+    // For backward compatibility, also check legacy driverId field
+    if (assignedDrivers.length === 0) {
+      const device = await db.device.findUnique({
+        where: { deviceId: incident.deviceId },
+        select: { driverId: true },
       });
+
+      if (device?.driverId) {
+        const legacyDriver = await db.user.findFirst({
+          where: {
+            OR: [{ id: device.driverId }, { clerkId: device.driverId }],
+            isActive: true,
+          },
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            opsManagerId: true,
+          },
+        });
+        if (legacyDriver) {
+          assignedDrivers.push({ ...legacyDriver, isActive: true });
+        }
+      }
     }
 
-    const driverName = assignedDriver
-      ? `${assignedDriver.firstName || ""} ${assignedDriver.lastName || ""}`.trim() || "Driver"
+    // Use first driver's name for attribution (or "Unassigned")
+    const firstDriver = assignedDrivers[0];
+    const driverName = firstDriver
+      ? `${firstDriver.firstName || ""} ${firstDriver.lastName || ""}`.trim() || "Driver"
       : "Unassigned";
 
     // Base payload for driver
@@ -284,33 +308,36 @@ export async function sendIncidentNotification(
       renotify: type === "reminder" || type === "breach",
     };
 
-    // For new, reminder, resolved: Only notify assigned driver
+    // For new, reminder, resolved: Notify all assigned drivers
     if (type === "new" || type === "reminder" || type === "resolved") {
-      if (assignedDriver) {
-        const result = await sendPushNotification(assignedDriver.clerkId, driverPayload);
-        totalSent += result.sent;
-        totalFailed += result.failed;
-        console.log(`[Push] Sent ${type} notification to assigned driver: ${driverName}`);
+      if (assignedDrivers.length > 0) {
+        for (const driver of assignedDrivers) {
+          const result = await sendPushNotification(driver.clerkId, driverPayload);
+          totalSent += result.sent;
+          totalFailed += result.failed;
+        }
+        console.log(`[Push] Sent ${type} notification to ${assignedDrivers.length} assigned driver(s)`);
       } else {
-        console.log(`[Push] No assigned driver for device ${incident.deviceId}, skipping ${type} notification`);
+        console.log(`[Push] No assigned drivers for device ${incident.deviceId}, skipping ${type} notification`);
       }
 
       return { success: true, sent: totalSent, failed: totalFailed };
     }
 
-    // For breach and escalation: Notify driver + ops manager + admins
+    // For breach and escalation: Notify all drivers + their ops managers + admins
     if (type === "breach" || type === "escalation") {
-      // 1. Notify the assigned driver (if exists)
-      if (assignedDriver) {
-        const result = await sendPushNotification(assignedDriver.clerkId, driverPayload);
+      // 1. Notify all assigned drivers
+      for (const driver of assignedDrivers) {
+        const result = await sendPushNotification(driver.clerkId, driverPayload);
         totalSent += result.sent;
         totalFailed += result.failed;
       }
 
-      // 2. Find and notify the ops manager (who manages this driver)
-      if (assignedDriver?.opsManagerId) {
+      // 2. Find and notify all unique ops managers (who manage these drivers)
+      const opsManagerIds = [...new Set(assignedDrivers.map((d) => d.opsManagerId).filter(Boolean))];
+      for (const opsManagerId of opsManagerIds) {
         const opsManager = await db.user.findUnique({
-          where: { id: assignedDriver.opsManagerId },
+          where: { id: opsManagerId as string },
           select: { clerkId: true, isActive: true },
         });
 
@@ -323,9 +350,9 @@ export async function sendIncidentNotification(
           const result = await sendPushNotification(opsManager.clerkId, opsPayload);
           totalSent += result.sent;
           totalFailed += result.failed;
-          console.log(`[Push] Sent ${type} notification to ops manager`);
         }
       }
+      console.log(`[Push] Sent ${type} notification to ${opsManagerIds.length} ops manager(s)`);
 
       // 3. Notify all admins with attribution
       const admins = await db.user.findMany({
@@ -350,20 +377,21 @@ export async function sendIncidentNotification(
       console.log(`[Push] Sent ${type} notification to ${admins.length} admins`);
     }
 
-    // For post_breach_reminder: Notify driver + ops manager (NO admin - they only get notified once at breach)
+    // For post_breach_reminder: Notify all drivers + their ops managers (NO admin - they only get notified once at breach)
     if (type === "post_breach_reminder") {
-      // 1. Notify the assigned driver (if exists)
-      if (assignedDriver) {
-        const result = await sendPushNotification(assignedDriver.clerkId, driverPayload);
+      // 1. Notify all assigned drivers
+      for (const driver of assignedDrivers) {
+        const result = await sendPushNotification(driver.clerkId, driverPayload);
         totalSent += result.sent;
         totalFailed += result.failed;
-        console.log(`[Push] Sent post-breach reminder to driver: ${driverName}`);
       }
+      console.log(`[Push] Sent post-breach reminder to ${assignedDrivers.length} driver(s)`);
 
-      // 2. Notify the ops manager (who manages this driver) - NO admin
-      if (assignedDriver?.opsManagerId) {
+      // 2. Notify all unique ops managers (who manage these drivers) - NO admin
+      const opsManagerIds = [...new Set(assignedDrivers.map((d) => d.opsManagerId).filter(Boolean))];
+      for (const opsManagerId of opsManagerIds) {
         const opsManager = await db.user.findUnique({
-          where: { id: assignedDriver.opsManagerId },
+          where: { id: opsManagerId as string },
           select: { clerkId: true, isActive: true },
         });
 
@@ -376,9 +404,9 @@ export async function sendIncidentNotification(
           const result = await sendPushNotification(opsManager.clerkId, opsPayload);
           totalSent += result.sent;
           totalFailed += result.failed;
-          console.log(`[Push] Sent post-breach reminder to ops manager`);
         }
       }
+      console.log(`[Push] Sent post-breach reminder to ${opsManagerIds.length} ops manager(s)`);
     }
 
     console.log(
