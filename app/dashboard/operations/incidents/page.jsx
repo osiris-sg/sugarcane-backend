@@ -165,9 +165,9 @@ export default function IncidentsPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Sorting
+  // Sorting - default: oldest first (longest elapsed time at top)
   const [sortKey, setSortKey] = useState("startTime");
-  const [sortDirection, setSortDirection] = useState("desc");
+  const [sortDirection, setSortDirection] = useState("asc");
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("open");
