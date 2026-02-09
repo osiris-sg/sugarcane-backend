@@ -235,13 +235,7 @@ export async function GET(request) {
             body: `${displayName}: ${stock.quantity}/${stock.maxStock} pcs`,
           });
 
-          // Send Telegram notification
-          const telegramMessage = `${emoji} ${level} Alert
-
-🎯 Device: ${displayName}
-📍 Device ID: ${stock.deviceId}
-📊 Stock: ${stock.quantity}/${stock.maxStock} pcs`;
-          await sendAlert(telegramMessage, 'stock_alert');
+          // Note: No Telegram for LOW_STOCK - Telegram already sends 50% and 25% alerts
 
           newAlerts++;
           console.log(`[StockAlert] New low stock for ${displayName} (${stock.quantity} pcs)`);
