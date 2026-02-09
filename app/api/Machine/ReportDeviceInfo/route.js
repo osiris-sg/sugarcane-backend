@@ -84,12 +84,12 @@ export async function POST(request) {
           },
         });
 
-        // Send push notification to drivers and ops managers
+        // Send push notification to admins and ops managers
         await sendPushNotificationToRoles({
           title: '📱 New Device Detected',
           body: `Are you installing a new app? Hardware ID: ${hardwareId}`,
           url: `/dashboard/operations/device-registration?hardwareId=${hardwareId}`,
-        }, ['DRIVER', 'OPS_MANAGER']);
+        }, ['ADMIN', 'OPS_MANAGER']);
 
         console.log(`[ReportDeviceInfo] Created pending registration for hardware ${hardwareId} and sent notification`);
       } else if (!existingPending.registeredAt) {
