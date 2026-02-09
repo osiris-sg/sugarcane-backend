@@ -55,7 +55,7 @@ export async function GET(request) {
         ? (now.getTime() - lastReminder.getTime()) / (60 * 60 * 1000)
         : Infinity;
 
-      // === CASE 1: Already breached - send hourly reminders ===
+      // === CASE 1: Already breached - send hourly reminders to driver + ops manager (no admin) ===
       if (incident.slaOutcome === 'SLA_BREACHED') {
         // Don't send reminders for escalated zero sales incidents
         if (incident.type === 'ZERO_SALES' && incident.escalatedAt) {
@@ -72,8 +72,9 @@ export async function GET(request) {
             },
           });
 
+          // Use post_breach_reminder type: sends to driver + ops manager, NOT admin
           await sendIncidentNotification({
-            type: 'reminder',
+            type: 'post_breach_reminder',
             incident,
             title: '🔴 SLA BREACHED - Ongoing',
             body: `${incident.deviceName} is still unresolved. ${Math.round(elapsedHours)}h elapsed.`,

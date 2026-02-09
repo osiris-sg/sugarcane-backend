@@ -202,7 +202,7 @@ function isDayShift(): boolean {
 }
 
 export interface IncidentNotificationParams {
-  type: "new" | "reminder" | "breach" | "escalation" | "resolved";
+  type: "new" | "reminder" | "breach" | "escalation" | "resolved" | "post_breach_reminder";
   incident: {
     id: string;
     type: string;
@@ -221,6 +221,7 @@ export interface IncidentNotificationParams {
  * - breach: Driver + their ops manager + all admins (with attribution for ops/admin)
  * - escalation: Ops manager + admins
  * - resolved: Assigned driver only
+ * - post_breach_reminder: Driver + ops manager (NO admin - they only get notified once at breach)
  */
 export async function sendIncidentNotification(
   params: IncidentNotificationParams
@@ -347,6 +348,37 @@ export async function sendIncidentNotification(
       }
 
       console.log(`[Push] Sent ${type} notification to ${admins.length} admins`);
+    }
+
+    // For post_breach_reminder: Notify driver + ops manager (NO admin - they only get notified once at breach)
+    if (type === "post_breach_reminder") {
+      // 1. Notify the assigned driver (if exists)
+      if (assignedDriver) {
+        const result = await sendPushNotification(assignedDriver.clerkId, driverPayload);
+        totalSent += result.sent;
+        totalFailed += result.failed;
+        console.log(`[Push] Sent post-breach reminder to driver: ${driverName}`);
+      }
+
+      // 2. Notify the ops manager (who manages this driver) - NO admin
+      if (assignedDriver?.opsManagerId) {
+        const opsManager = await db.user.findUnique({
+          where: { id: assignedDriver.opsManagerId },
+          select: { clerkId: true, isActive: true },
+        });
+
+        if (opsManager?.isActive) {
+          const opsPayload: NotificationPayload = {
+            ...driverPayload,
+            title: "🔴 SLA BREACHED - Ongoing",
+            body: `${incident.deviceName}: ${driverName} still unresolved`,
+          };
+          const result = await sendPushNotification(opsManager.clerkId, opsPayload);
+          totalSent += result.sent;
+          totalFailed += result.failed;
+          console.log(`[Push] Sent post-breach reminder to ops manager`);
+        }
+      }
     }
 
     console.log(
