@@ -217,11 +217,10 @@ export interface IncidentNotificationParams {
 
 /**
  * Send incident-specific push notifications to appropriate staff
- * - new: Initial incident notification to ops staff
- * - reminder: SLA reminder to ops staff
- * - breach: SLA breach notification to ops staff + ops manager + admin
- * - escalation: Escalate to ops manager + admin
- * - resolved: Resolution notification
+ * - new/reminder: Only to the driver assigned to the device
+ * - breach: Driver + their ops manager + all admins (with attribution for ops/admin)
+ * - escalation: Ops manager + admins
+ * - resolved: Assigned driver only
  */
 export async function sendIncidentNotification(
   params: IncidentNotificationParams
@@ -234,50 +233,42 @@ export async function sendIncidentNotification(
   const { type, incident, title, body } = params;
 
   try {
-    // Determine which roles to notify based on notification type
-    let roles: string[] = [];
-
-    if (type === "breach" || type === "escalation") {
-      // Breach and escalation: notify admin, manager (ops manager), and driver
-      roles = ["ADMIN", "MANAGER", "DRIVER"];
-    } else if (type === "new" || type === "reminder") {
-      // New incidents and reminders: shift-based routing
-      if (isDayShift()) {
-        roles = ["MANAGER", "DRIVER"]; // Day shift ops
-      } else {
-        roles = ["DRIVER"]; // Night shift ops
-      }
-    } else if (type === "resolved") {
-      // Resolution: notify relevant ops staff
-      if (isDayShift()) {
-        roles = ["MANAGER", "DRIVER"];
-      } else {
-        roles = ["DRIVER"];
-      }
-    }
-
-    if (roles.length === 0) {
-      console.log("[Push] No roles to notify for incident type:", type);
-      return { success: true, sent: 0, failed: 0 };
-    }
-
-    const users = await db.user.findMany({
-      where: {
-        role: { in: roles as ("ADMIN" | "MANAGER" | "DRIVER")[] },
-        isActive: true,
-      },
-      select: { clerkId: true },
-    });
-
-    if (users.length === 0) {
-      console.log("[Push] No users found for roles:", roles);
-      return { success: true, sent: 0, failed: 0 };
-    }
-
     let totalSent = 0;
     let totalFailed = 0;
 
-    const payload: NotificationPayload = {
+    // Find the device and its assigned driver
+    const device = await db.device.findUnique({
+      where: { deviceId: incident.deviceId },
+      select: { driverId: true },
+    });
+
+    // Find the assigned driver
+    let assignedDriver = null;
+    if (device?.driverId) {
+      assignedDriver = await db.user.findFirst({
+        where: {
+          OR: [
+            { id: device.driverId },
+            { clerkId: device.driverId },
+          ],
+          isActive: true,
+        },
+        select: {
+          id: true,
+          clerkId: true,
+          firstName: true,
+          lastName: true,
+          opsManagerId: true,
+        },
+      });
+    }
+
+    const driverName = assignedDriver
+      ? `${assignedDriver.firstName || ""} ${assignedDriver.lastName || ""}`.trim() || "Driver"
+      : "Unassigned";
+
+    // Base payload for driver
+    const driverPayload: NotificationPayload = {
       title,
       body,
       tag: `incident-${incident.id}`,
@@ -292,10 +283,70 @@ export async function sendIncidentNotification(
       renotify: type === "reminder" || type === "breach",
     };
 
-    for (const user of users) {
-      const result = await sendPushNotification(user.clerkId, payload);
-      totalSent += result.sent;
-      totalFailed += result.failed;
+    // For new, reminder, resolved: Only notify assigned driver
+    if (type === "new" || type === "reminder" || type === "resolved") {
+      if (assignedDriver) {
+        const result = await sendPushNotification(assignedDriver.clerkId, driverPayload);
+        totalSent += result.sent;
+        totalFailed += result.failed;
+        console.log(`[Push] Sent ${type} notification to assigned driver: ${driverName}`);
+      } else {
+        console.log(`[Push] No assigned driver for device ${incident.deviceId}, skipping ${type} notification`);
+      }
+
+      return { success: true, sent: totalSent, failed: totalFailed };
+    }
+
+    // For breach and escalation: Notify driver + ops manager + admins
+    if (type === "breach" || type === "escalation") {
+      // 1. Notify the assigned driver (if exists)
+      if (assignedDriver) {
+        const result = await sendPushNotification(assignedDriver.clerkId, driverPayload);
+        totalSent += result.sent;
+        totalFailed += result.failed;
+      }
+
+      // 2. Find and notify the ops manager (who manages this driver)
+      if (assignedDriver?.opsManagerId) {
+        const opsManager = await db.user.findUnique({
+          where: { id: assignedDriver.opsManagerId },
+          select: { clerkId: true, isActive: true },
+        });
+
+        if (opsManager?.isActive) {
+          const opsPayload: NotificationPayload = {
+            ...driverPayload,
+            title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
+            body: `${incident.deviceName}: ${driverName} breached SLA`,
+          };
+          const result = await sendPushNotification(opsManager.clerkId, opsPayload);
+          totalSent += result.sent;
+          totalFailed += result.failed;
+          console.log(`[Push] Sent ${type} notification to ops manager`);
+        }
+      }
+
+      // 3. Notify all admins with attribution
+      const admins = await db.user.findMany({
+        where: {
+          role: "ADMIN",
+          isActive: true,
+        },
+        select: { clerkId: true },
+      });
+
+      for (const admin of admins) {
+        const adminPayload: NotificationPayload = {
+          ...driverPayload,
+          title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
+          body: `${incident.deviceName}: ${driverName} breached SLA`,
+        };
+        const result = await sendPushNotification(admin.clerkId, adminPayload);
+        totalSent += result.sent;
+        totalFailed += result.failed;
+      }
+
+      console.log(`[Push] Sent ${type} notification to ${admins.length} admins`);
     }
 
     console.log(
