@@ -429,6 +429,7 @@ enum IssueStatus {
 enum IncidentType {
   ERROR_NOTIFICATION // Machine-generated errors (current DEVICE_ERROR)
   OUT_OF_STOCK // Stock = 0
+  LOW_STOCK // Stock below threshold but > 0
   ZERO_SALES // No movement alerts
   CLEANING_COMPLIANCE // Cleaning & maintenance non-compliance
   MANUAL_ERROR // Manual/Unknown/System-related

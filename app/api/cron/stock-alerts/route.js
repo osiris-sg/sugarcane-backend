@@ -71,18 +71,18 @@ export async function GET(request) {
       const isOutOfStock = stock.quantity === 0;
 
       // === CASE 1: OUT OF STOCK - Immediate SLA breach ===
-      if (isOutOfStock && !stock.isLowStock) {
+      if (isOutOfStock) {
         // Check for existing open incident
         const existingIncident = await db.incident.findFirst({
           where: {
             deviceId: stock.deviceId,
-            type: 'OUT_OF_STOCK',
+            type: { in: ['OUT_OF_STOCK', 'LOW_STOCK'] },
             status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
           }
         });
 
         if (!existingIncident) {
-          // Create incident with immediate SLA breach
+          // No existing incident - create new OUT_OF_STOCK with immediate breach
           const incident = await db.incident.create({
             data: {
               type: 'OUT_OF_STOCK',
@@ -135,16 +135,66 @@ export async function GET(request) {
 
           immediateBreaches++;
           console.log(`[StockAlert] OUT OF STOCK: ${displayName} - Created incident with immediate breach`);
+        } else if (existingIncident.type === 'LOW_STOCK') {
+          // Upgrade LOW_STOCK to OUT_OF_STOCK with immediate breach
+          await db.incident.update({
+            where: { id: existingIncident.id },
+            data: {
+              type: 'OUT_OF_STOCK',
+              slaDeadline: now,
+              slaOutcome: 'SLA_BREACHED',
+              penaltyFlag: true,
+              stockQuantity: 0,
+            }
+          });
+
+          // Create penalty record if not already breached
+          if (existingIncident.slaOutcome !== 'SLA_BREACHED') {
+            await db.penalty.create({
+              data: {
+                incidentId: existingIncident.id,
+                reason: 'Out of stock - upgraded from low stock, immediate SLA breach',
+              }
+            });
+          }
+
+          // Update stock record priority
+          await db.stock.update({
+            where: { id: stock.id },
+            data: { priority: 3 }
+          });
+
+          // Send push notification
+          await sendIncidentNotification({
+            type: 'breach',
+            incident: { ...existingIncident, type: 'OUT_OF_STOCK', stockQuantity: 0 },
+            title: '⚫ OUT OF STOCK - IMMEDIATE BREACH',
+            body: `${displayName} is now out of stock! Immediate action required.`,
+          });
+
+          // Send Telegram notification
+          const telegramMessage = `⚫ OUT OF STOCK - IMMEDIATE BREACH
+
+🎯 Device: ${displayName}
+📍 Device ID: ${stock.deviceId}
+📊 Stock: 0/${stock.maxStock} pcs
+
+⚠️ Was low stock, now OUT OF STOCK!`;
+          await sendAlert(telegramMessage, 'stock_alert');
+
+          immediateBreaches++;
+          console.log(`[StockAlert] OUT OF STOCK: ${displayName} - Upgraded from LOW_STOCK with immediate breach`);
         }
+        // If existingIncident.type === 'OUT_OF_STOCK', do nothing (already handled)
       }
 
       // === CASE 2: Low stock (but not out) - Create incident with 3h SLA ===
       else if (isLowStock && !stock.isLowStock && !isOutOfStock) {
-        // Check for existing open incident
+        // Check for existing open incident (either LOW_STOCK or OUT_OF_STOCK)
         const existingIncident = await db.incident.findFirst({
           where: {
             deviceId: stock.deviceId,
-            type: 'OUT_OF_STOCK',
+            type: { in: ['LOW_STOCK', 'OUT_OF_STOCK'] },
             status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
           }
         });
@@ -154,7 +204,7 @@ export async function GET(request) {
 
           const incident = await db.incident.create({
             data: {
-              type: 'OUT_OF_STOCK',
+              type: 'LOW_STOCK',
               deviceId: stock.deviceId,
               deviceName: stock.deviceName,
               startTime: now,
@@ -200,11 +250,11 @@ export async function GET(request) {
 
       // === CASE 3: Stock back above threshold - auto resolve ===
       else if (!isLowStock && stock.isLowStock) {
-        // Find and resolve any open incidents
+        // Find and resolve any open incidents (both LOW_STOCK and OUT_OF_STOCK)
         const openIncidents = await db.incident.findMany({
           where: {
             deviceId: stock.deviceId,
-            type: 'OUT_OF_STOCK',
+            type: { in: ['LOW_STOCK', 'OUT_OF_STOCK'] },
             status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
           }
         });
