@@ -81,11 +81,12 @@ export async function GET(request) {
           });
 
           // Use post_breach_reminder type: sends to driver + ops manager, NOT admin
+          const issueDescription = incident.faultName || incident.faultCode || incident.type.replace(/_/g, ' ');
           await sendIncidentNotification({
             type: 'post_breach_reminder',
             incident,
             title: '🔴 SLA BREACHED - Ongoing',
-            body: `${displayName} is still unresolved. ${Math.round(elapsedHours)}h elapsed.`,
+            body: `${displayName}: ${issueDescription} (${Math.round(elapsedHours)}h)`,
           });
 
           postBreachReminders++;
@@ -117,11 +118,12 @@ export async function GET(request) {
         });
 
         // Send breach notification (escalates to admin + ops manager)
+        const breachIssueDescription = incident.faultName || incident.faultCode || incident.type.replace(/_/g, ' ');
         await sendIncidentNotification({
           type: 'breach',
           incident,
           title: '🔴 SLA BREACHED',
-          body: `${displayName} has exceeded the ${SLA_HOURS}h SLA. Immediate action required.`,
+          body: `${displayName}: ${breachIssueDescription} - exceeded ${SLA_HOURS}h SLA`,
         });
 
         // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts

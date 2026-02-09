@@ -42,7 +42,7 @@ export default function GooglePayPage() {
           client_secret: clientSecret,
           currency: currency,
           country_code: 'SG',
-          methods: ['googlepay', 'card'], // Google Pay preferred, card as fallback
+          methods: ['googlepay'], // Google Pay only
           successUrl: `${window.location.origin}/pay/success?intent_id=${intentId}`,
           failUrl: `${window.location.origin}/pay/failed?intent_id=${intentId}`,
         });

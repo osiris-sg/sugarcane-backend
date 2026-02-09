@@ -42,7 +42,7 @@ export default function ApplePayPage() {
           client_secret: clientSecret,
           currency: currency,
           country_code: 'SG',
-          methods: ['applepay', 'card'], // Apple Pay preferred, card as fallback
+          methods: ['applepay'], // Apple Pay only
           applePayRequestOptions: {
             countryCode: 'SG',
             buttonType: 'plain',

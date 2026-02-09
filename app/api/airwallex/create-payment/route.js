@@ -45,7 +45,7 @@ async function getAccessToken() {
 }
 
 // Create a Payment Intent
-async function createPaymentIntent(amount, currency, orderId, returnUrl) {
+async function createPaymentIntent(amount, currency, orderId, returnUrl, scheme) {
   const token = await getAccessToken();
 
   const payload = {
@@ -55,9 +55,17 @@ async function createPaymentIntent(amount, currency, orderId, returnUrl) {
     request_id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     return_url: returnUrl,
     metadata: {
-      order_id: orderId
+      order_id: orderId,
+      scheme: scheme || 'ALL'
     }
   };
+
+  // Add payment method restriction if scheme is specified
+  const paymentMethods = getPaymentMethodTypes(scheme);
+  if (paymentMethods) {
+    payload.payment_method_types = paymentMethods;
+    console.log('[Airwallex] Restricting payment intent to methods:', paymentMethods);
+  }
 
   console.log('[Airwallex] Creating payment intent:', payload);
 
@@ -174,7 +182,7 @@ export async function POST(request) {
     if (scheme && ['APPLEPAY', 'GOOGLEPAY', 'SAMSUNGPAY', 'CARD'].includes(scheme.toUpperCase())) {
       // Create payment intent for custom hosted page
       const returnUrl = `${baseUrl}/pay/success`;
-      const paymentIntent = await createPaymentIntent(amount, currency, merchantOrderId, returnUrl);
+      const paymentIntent = await createPaymentIntent(amount, currency, merchantOrderId, returnUrl, scheme);
 
       console.log('[Airwallex Create Payment] Payment intent created for custom page:', paymentIntent.id);
 
@@ -221,7 +229,7 @@ export async function POST(request) {
     } else {
       // Create payment intent
       const returnUrl = `${baseUrl}/api/airwallex/return`;
-      const paymentIntent = await createPaymentIntent(amount, currency, merchantOrderId, returnUrl);
+      const paymentIntent = await createPaymentIntent(amount, currency, merchantOrderId, returnUrl, scheme);
 
       console.log('[Airwallex Create Payment] Payment intent created:', paymentIntent.id);
 
