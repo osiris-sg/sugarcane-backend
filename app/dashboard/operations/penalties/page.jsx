@@ -252,6 +252,7 @@ export default function PenaltiesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Device</TableHead>
+                  <TableHead>Driver</TableHead>
                   <TableHead>Incident Type</TableHead>
                   <TableHead>Reason</TableHead>
                   <TableHead>Appeal Status</TableHead>
@@ -262,7 +263,7 @@ export default function PenaltiesPage() {
               <TableBody>
                 {penalties.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                       No penalties found
                     </TableCell>
                   </TableRow>
@@ -275,6 +276,21 @@ export default function PenaltiesPage() {
                           <div className="text-xs text-muted-foreground">
                             {penalty.incident?.deviceId || "-"}
                           </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {penalty.drivers && penalty.drivers.length > 0 ? (
+                            penalty.drivers.map((driver, idx) => (
+                              <div key={driver.id || idx} className="text-muted-foreground">
+                                {driver.firstName && driver.lastName
+                                  ? `${driver.firstName} ${driver.lastName}`
+                                  : driver.username || "-"}
+                              </div>
+                            ))
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -377,6 +393,13 @@ export default function PenaltiesPage() {
                       </div>
                       <AppealStatusBadge status={penalty.appealStatus} />
                     </div>
+                    {penalty.drivers && penalty.drivers.length > 0 && (
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Driver: {penalty.drivers.map((d) =>
+                          d.firstName && d.lastName ? `${d.firstName} ${d.lastName}` : d.username
+                        ).join(", ")}
+                      </div>
+                    )}
                     <div className="mb-2">
                       <Badge variant="outline" className="mb-2">
                         {penalty.incident?.type?.replace(/_/g, " ") || "-"}

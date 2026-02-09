@@ -58,10 +58,41 @@ export async function GET(request) {
     });
     const incidentMap = new Map(incidents.map((i) => [i.id, i]));
 
-    const enrichedPenalties = penalties.map((penalty) => ({
-      ...penalty,
-      incident: incidentMap.get(penalty.incidentId) || null,
-    }));
+    // Get device IDs from incidents to fetch drivers
+    const deviceIds = [...new Set(incidents.map((i) => i.deviceId))];
+
+    // Fetch drivers assigned to these devices
+    const deviceDrivers = await db.deviceDriver.findMany({
+      where: { deviceId: { in: deviceIds } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    // Create a map of deviceId -> drivers array
+    const deviceDriverMap = new Map();
+    for (const dd of deviceDrivers) {
+      const existing = deviceDriverMap.get(dd.deviceId) || [];
+      existing.push(dd.user);
+      deviceDriverMap.set(dd.deviceId, existing);
+    }
+
+    const enrichedPenalties = penalties.map((penalty) => {
+      const incident = incidentMap.get(penalty.incidentId) || null;
+      const drivers = incident ? deviceDriverMap.get(incident.deviceId) || [] : [];
+      return {
+        ...penalty,
+        incident,
+        drivers,
+      };
+    });
 
     return NextResponse.json({
       success: true,
