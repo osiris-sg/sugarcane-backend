@@ -25,42 +25,61 @@ export async function GET(request) {
     if (userId) {
       dbUser = await db.user.findUnique({
         where: { clerkId: userId },
-        select: { id: true, clerkId: true, role: true, groupId: true, roles: { select: { role: true } } },
+        select: {
+          id: true,
+          clerkId: true,
+          role: true,
+          groupId: true,
+          roles: { select: { role: true } },
+          assignedDrivers: { select: { id: true } }, // Drivers managed by this ops manager
+        },
       });
 
       // Franchisees and Partnerships users can only see their own group's devices
       if ((dbUser?.role === 'FRANCHISEE' || dbUser?.role === 'PARTNERSHIPS') && dbUser.groupId) {
         userGroupId = dbUser.groupId;
       }
-
-      // Check if user has DRIVER role (legacy field OR roles table)
-      const hasDriverRole = dbUser?.role === 'DRIVER' || dbUser?.roles?.some(r => r.role === 'DRIVER');
-      // Check if user also has admin/manager role (they see all devices)
-      const hasAdminRole = ['ADMIN', 'MANAGER', 'OPS_MANAGER'].includes(dbUser?.role) ||
-        dbUser?.roles?.some(r => ['ADMIN', 'MANAGER', 'OPS_MANAGER'].includes(r.role));
-
-      // Drivers can only see devices assigned to them (unless they also have admin role)
-      if (hasDriverRole && !hasAdminRole) {
-        userDriverId = dbUser.id;
-      }
     }
 
-    // Build where clause for devices
+    // Build where clause for devices based on role
     let whereClause = {};
 
     if (userGroupId) {
       // Franchisee/Partnerships: filter by group
       whereClause = { groups: { some: { groupId: userGroupId } } };
-    } else if (userDriverId) {
-      // Driver: filter by assigned devices from DeviceDriver table
-      // Also check legacy driverId field for backward compatibility
-      whereClause = {
-        OR: [
-          { drivers: { some: { userId: userDriverId } } },
-          { driverId: userDriverId },
-          { driverId: dbUser.clerkId },
-        ],
-      };
+    } else if (dbUser) {
+      // Check roles
+      const hasAdminRole = ['ADMIN', 'MANAGER'].includes(dbUser.role) ||
+        dbUser.roles?.some(r => ['ADMIN', 'MANAGER'].includes(r.role));
+      const hasOpsManagerRole = dbUser.role === 'OPS_MANAGER' ||
+        dbUser.roles?.some(r => r.role === 'OPS_MANAGER');
+      const hasDriverRole = dbUser.role === 'DRIVER' ||
+        dbUser.roles?.some(r => r.role === 'DRIVER');
+
+      if (hasAdminRole) {
+        // ADMIN/MANAGER: see all devices (no filter)
+        whereClause = {};
+      } else if (hasOpsManagerRole) {
+        // OPS_MANAGER: see their assigned devices + devices of drivers they manage
+        const managedDriverIds = dbUser.assignedDrivers?.map(d => d.id) || [];
+        const allUserIds = [dbUser.id, ...managedDriverIds];
+
+        whereClause = {
+          OR: [
+            { drivers: { some: { userId: { in: allUserIds } } } },
+            { driverId: { in: [dbUser.id, dbUser.clerkId, ...managedDriverIds] } },
+          ],
+        };
+      } else if (hasDriverRole) {
+        // DRIVER: only see their assigned devices
+        whereClause = {
+          OR: [
+            { drivers: { some: { userId: dbUser.id } } },
+            { driverId: dbUser.id },
+            { driverId: dbUser.clerkId },
+          ],
+        };
+      }
     }
 
     const devices = await db.device.findMany({

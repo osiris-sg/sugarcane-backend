@@ -125,36 +125,54 @@ export async function GET(request) {
 
     const where = {};
 
-    // Check if user is a driver - filter to only their assigned devices
+    // Filter devices based on user role
     const { userId } = await auth();
     if (userId) {
       const dbUser = await db.user.findUnique({
         where: { clerkId: userId },
-        select: { id: true, clerkId: true, role: true, roles: { select: { role: true } } },
+        select: {
+          id: true,
+          clerkId: true,
+          role: true,
+          roles: { select: { role: true } },
+          assignedDrivers: { select: { id: true } },
+        },
       });
 
-      // Check if user has DRIVER role (legacy field OR roles table)
-      const hasDriverRole = dbUser?.role === 'DRIVER' || dbUser?.roles?.some(r => r.role === 'DRIVER');
-      // Check if user also has admin/manager role (they see all devices)
-      const hasAdminRole = ['ADMIN', 'MANAGER', 'OPS_MANAGER'].includes(dbUser?.role) ||
-        dbUser?.roles?.some(r => ['ADMIN', 'MANAGER', 'OPS_MANAGER'].includes(r.role));
+      // Check roles
+      const hasAdminRole = ['ADMIN', 'MANAGER'].includes(dbUser?.role) ||
+        dbUser?.roles?.some(r => ['ADMIN', 'MANAGER'].includes(r.role));
+      const hasOpsManagerRole = dbUser?.role === 'OPS_MANAGER' ||
+        dbUser?.roles?.some(r => r.role === 'OPS_MANAGER');
+      const hasDriverRole = dbUser?.role === 'DRIVER' ||
+        dbUser?.roles?.some(r => r.role === 'DRIVER');
 
-      // Only filter if user is ONLY a driver (not also an admin/manager)
-      if (hasDriverRole && !hasAdminRole) {
-        // Get devices assigned to this driver (from DeviceDriver table)
+      // ADMIN/MANAGER: see all (no filter)
+      // OPS_MANAGER: see their devices + devices of drivers they manage
+      // DRIVER: see only their assigned devices
+      if (!hasAdminRole && (hasOpsManagerRole || hasDriverRole)) {
+        let userIdsToCheck = [dbUser.id];
+
+        // If ops manager, also include managed drivers
+        if (hasOpsManagerRole) {
+          const managedDriverIds = dbUser.assignedDrivers?.map(d => d.id) || [];
+          userIdsToCheck = [...userIdsToCheck, ...managedDriverIds];
+        }
+
+        // Get devices assigned to these users (from DeviceDriver table)
         const deviceDrivers = await db.deviceDriver.findMany({
-          where: { userId: dbUser.id },
+          where: { userId: { in: userIdsToCheck } },
           select: { deviceId: true },
         });
 
-        let assignedDeviceIds = deviceDrivers.map(d => d.deviceId);
+        let assignedDeviceIds = [...new Set(deviceDrivers.map(d => d.deviceId))];
 
         // Fallback: also check legacy driverId field
         if (assignedDeviceIds.length === 0) {
           const legacyDevices = await db.device.findMany({
             where: {
               OR: [
-                { driverId: dbUser.id },
+                { driverId: { in: userIdsToCheck } },
                 { driverId: dbUser.clerkId },
               ],
             },
@@ -166,7 +184,7 @@ export async function GET(request) {
         if (assignedDeviceIds.length > 0) {
           where.deviceId = { in: assignedDeviceIds };
         } else {
-          // Driver has no assigned devices, return empty
+          // No assigned devices, return empty
           return NextResponse.json({
             success: true,
             incidents: [],
@@ -177,7 +195,6 @@ export async function GET(request) {
             hasMore: false,
           });
         }
-
       }
     }
 
