@@ -35,15 +35,29 @@ self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
   const urlToOpen = event.notification.data?.url || "/dashboard";
+  console.log("[Push SW] URL to open:", urlToOpen);
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clientList) {
+      // Check if there is already a window/tab open with the target URL
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
         if (client.url.includes(urlToOpen) && "focus" in client) {
           return client.focus();
         }
       }
+      // If there's any existing window, navigate it to the URL (better for PWA)
+      if (clientList.length > 0) {
+        const client = clientList[0];
+        if ("navigate" in client) {
+          return client.navigate(urlToOpen).then(function (c) {
+            return c && c.focus();
+          });
+        }
+        // Fallback: focus and hope the app handles it
+        return client.focus();
+      }
+      // No existing window, open a new one
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
