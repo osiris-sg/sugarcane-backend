@@ -321,7 +321,7 @@ model User {
   clerkId      String    @unique
   firstName    String?
   lastName     String?
-  role         UserRole  @default(FRANCHISEE)
+  role         UserRole  @default(FRANCHISEE) // Legacy single role (kept for backward compatibility)
   phone        String?
   imageUrl     String?
   isActive     Boolean   @default(true)
@@ -341,12 +341,28 @@ model User {
   // Device assignments (many-to-many)
   assignedDevices DeviceDriver[]
 
+  // Multiple roles (many-to-many)
+  roles UserRoleAssignment[]
+
   @@index([clerkId])
   @@index([username])
   @@index([role])
   @@index([loginPin])
   @@index([groupId])
   @@index([opsManagerId])
+}
+
+// Junction table for User <-> Role many-to-many relationship
+model UserRoleAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  role      UserRole
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([userId])
+  @@index([role])
 }
 
 model PushSubscription {
