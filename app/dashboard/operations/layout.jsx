@@ -27,6 +27,7 @@ import {
   Ban,
   BarChart3,
   Sparkles,
+  Smartphone,
 } from "lucide-react";
 import { NotificationToggle } from "@/components/notification-toggle";
 import { cn } from "@/lib/utils";
@@ -83,6 +84,11 @@ const adminSidebarItems = [
     title: "Driver Assignment",
     href: "/dashboard/operations/driver-assignment",
     icon: Truck,
+  },
+  {
+    title: "Device Registration",
+    href: "/dashboard/operations/device-registration",
+    icon: Smartphone,
   },
   {
     title: "User Management",

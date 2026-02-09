@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { RefreshCw, Smartphone, CheckCircle, AlertCircle } from "lucide-react";
+import { RefreshCw, Smartphone, CheckCircle, AlertCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+// Helper to format date/time
+function formatDateTime(dateString) {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  return date.toLocaleString("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 export default function DeviceRegistrationPage() {
   const searchParams = useSearchParams();
@@ -22,6 +45,7 @@ export default function DeviceRegistrationPage() {
   const hardwareId = searchParams.get("hardwareId");
 
   const [devices, setDevices] = useState([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -29,7 +53,10 @@ export default function DeviceRegistrationPage() {
 
   useEffect(() => {
     fetchDevices();
-  }, []);
+    if (!hardwareId) {
+      fetchPendingRegistrations();
+    }
+  }, [hardwareId]);
 
   async function fetchDevices() {
     try {
@@ -47,6 +74,19 @@ export default function DeviceRegistrationPage() {
       toast.error("Failed to fetch devices");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchPendingRegistrations() {
+    try {
+      const res = await fetch("/api/device/register");
+      const data = await res.json();
+
+      if (data.pendingRegistrations) {
+        setPendingRegistrations(data.pendingRegistrations);
+      }
+    } catch (error) {
+      console.error("Error fetching pending registrations:", error);
     }
   }
 
@@ -94,22 +134,80 @@ export default function DeviceRegistrationPage() {
     return (
       <div className="flex flex-col h-screen bg-background">
         <header className="sticky top-0 z-30 border-b bg-background shrink-0">
-          <div className="flex h-14 md:h-16 items-center px-4 md:px-6">
-            <h1 className="text-lg md:text-xl font-semibold">Device Registration</h1>
+          <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
+            <div>
+              <h1 className="text-lg md:text-xl font-semibold">Device Registration</h1>
+              <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
+                Pending hardware registrations
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchPendingRegistrations}>
+              <RefreshCw className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Refresh</span>
+            </Button>
           </div>
         </header>
-        <main className="flex-1 flex items-center justify-center p-4">
-          <Card className="max-w-md w-full">
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center text-center">
-                <AlertCircle className="h-12 w-12 text-yellow-500 mb-4" />
-                <h2 className="text-lg font-semibold mb-2">No Hardware ID</h2>
-                <p className="text-muted-foreground">
-                  This page requires a hardware ID parameter. Please access this page from a device registration notification.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          {pendingRegistrations.length === 0 ? (
+            <Card className="max-w-md mx-auto">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center text-center">
+                  <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+                  <h2 className="text-lg font-semibold mb-2">No Pending Registrations</h2>
+                  <p className="text-muted-foreground">
+                    All detected hardware IDs have been registered. New devices will appear here when they report for the first time.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Pending Registrations ({pendingRegistrations.length})
+                </CardTitle>
+                <CardDescription>
+                  These hardware IDs have been detected but not yet assigned to a device
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Hardware ID</TableHead>
+                      <TableHead>First Detected</TableHead>
+                      <TableHead>Last Seen</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingRegistrations.map((pending) => (
+                      <TableRow key={pending.id}>
+                        <TableCell className="font-mono text-sm">
+                          {pending.hardwareId}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDateTime(pending.createdAt)}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDateTime(pending.updatedAt)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            onClick={() => router.push(`/dashboard/operations/device-registration?hardwareId=${pending.hardwareId}`)}
+                          >
+                            Register
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </main>
       </div>
     );
