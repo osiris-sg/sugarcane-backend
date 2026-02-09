@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../lib/db/index.js';
 import { sendIncidentNotification, sendEscalationNotification } from '../../../../lib/push-notifications.ts';
-import { sendAlert } from '../../../../lib/telegram.js';
 
 // SLA Configuration
 const SLA_HOURS = 3;
@@ -116,16 +115,7 @@ export async function GET(request) {
           body: `${incident.deviceName} has exceeded the ${SLA_HOURS}h SLA. Immediate action required.`,
         });
 
-        // Send Telegram notification
-        const telegramBreach = `🔴 SLA BREACHED
-
-🎯 Device: ${incident.deviceName}
-📍 Device ID: ${incident.deviceId}
-🔧 Type: ${incident.type}
-⏱️ Elapsed: ${Math.round(elapsedHours)} hours
-
-⚠️ Immediate action required!`;
-        await sendAlert(telegramBreach, 'sla_breach');
+        // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts
 
         breaches++;
         console.log(`[SLA-Monitor] SLA BREACH for ${incident.deviceName} - penalty logged`);
@@ -153,15 +143,7 @@ export async function GET(request) {
           body: `${incident.deviceName}: ${remainingMinutes} minutes remaining before SLA breach.`,
         });
 
-        // Send Telegram notification
-        const telegram2h = `⚠️ SLA Warning - 2h elapsed
-
-🎯 Device: ${incident.deviceName}
-🔧 Type: ${incident.type}
-⏱️ Remaining: ${remainingMinutes} minutes
-
-Please resolve before SLA breach.`;
-        await sendAlert(telegram2h, 'sla_warning');
+        // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts
 
         reminders2h++;
         console.log(`[SLA-Monitor] 2h reminder for ${incident.deviceName} (${remainingMinutes}m remaining)`);
@@ -186,15 +168,7 @@ Please resolve before SLA breach.`;
           body: `${incident.deviceName}: Only ${remainingMinutes} minutes before SLA breach!`,
         });
 
-        // Send Telegram notification
-        const telegram2h30 = `🟠 SLA Critical - 30min remaining
-
-🎯 Device: ${incident.deviceName}
-🔧 Type: ${incident.type}
-⏱️ Remaining: ${remainingMinutes} minutes
-
-⚠️ Urgent action needed!`;
-        await sendAlert(telegram2h30, 'sla_warning');
+        // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts
 
         reminders2h30++;
         console.log(`[SLA-Monitor] 2h30m reminder for ${incident.deviceName} (${remainingMinutes}m remaining)`);
