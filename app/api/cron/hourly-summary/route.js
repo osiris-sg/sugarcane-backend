@@ -96,8 +96,17 @@ async function getSubscribersForHourlySummary() {
   return subscribers;
 }
 
+// Escape HTML special characters for Telegram
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // Main cron handler - runs every hour
-// Sends simplified summary nudge - details are in the app
+// Sends detailed list of all open alerts
 export async function GET(request) {
   const authHeader = request.headers.get('authorization');
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -133,7 +142,6 @@ export async function GET(request) {
 
     // Count totals
     const totalOpen = openIncidents.length + openIssues.length + lowStockItems.length;
-    const slaBreaches = openIncidents.filter((i) => i.slaOutcome === 'SLA_BREACHED').length;
 
     // Skip if nothing to report
     if (totalOpen === 0) {
@@ -146,31 +154,54 @@ export async function GET(request) {
       });
     }
 
-    // Find oldest issue
-    let oldestTime = null;
-    let oldestName = '';
+    // Build detailed message with all alerts
+    let message = `📋 <b>Hourly Alert Summary</b>\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`;
 
+    // List incidents
     if (openIncidents.length > 0) {
-      const oldest = openIncidents[0];
-      oldestTime = new Date(oldest.startTime);
-      oldestName = oldest.deviceName;
-    } else if (openIssues.length > 0) {
-      const oldest = openIssues[0];
-      oldestTime = new Date(oldest.triggeredAt);
-      oldestName = oldest.deviceName;
-    } else if (lowStockItems.length > 0 && lowStockItems[0].lowStockTriggeredAt) {
-      oldestTime = new Date(lowStockItems[0].lowStockTriggeredAt);
-      oldestName = lowStockItems[0].deviceName;
+      message += `🚨 <b>Incidents (${openIncidents.length})</b>\n`;
+      for (const incident of openIncidents) {
+        const elapsed = formatElapsed(now.getTime() - new Date(incident.startTime).getTime());
+        const time = formatSGTime(incident.startTime);
+        const breachTag = incident.slaOutcome === 'SLA_BREACHED' ? ' ⚠️ BREACH' : '';
+        const faultInfo = incident.faultCode ? ` [${incident.faultCode}]` : '';
+        message += `• <b>${escapeHtml(incident.deviceName)}</b>${faultInfo}\n`;
+        message += `  ${time} (${elapsed})${breachTag}\n`;
+      }
+      message += `\n`;
     }
 
-    const elapsed = oldestTime ? formatElapsed(now.getTime() - oldestTime.getTime()) : 'N/A';
-    const oldestTimeStr = oldestTime ? formatSGTime(oldestTime) : 'N/A';
+    // List legacy issues
+    if (openIssues.length > 0) {
+      message += `⚠️ <b>Faults (${openIssues.length})</b>\n`;
+      for (const issue of openIssues) {
+        const elapsed = formatElapsed(now.getTime() - new Date(issue.triggeredAt).getTime());
+        const time = formatSGTime(issue.triggeredAt);
+        const faultInfo = issue.faultCode ? ` [${issue.faultCode}]` : '';
+        message += `• <b>${escapeHtml(issue.deviceName)}</b>${faultInfo}\n`;
+        message += `  ${time} (${elapsed})\n`;
+      }
+      message += `\n`;
+    }
 
-    // Build simplified summary message (as per plan)
-    let message = `📋 Outstanding Faults: ${totalOpen}\n`;
-    message += `• Oldest fault: ${oldestTimeStr} (${elapsed} elapsed)\n`;
-    message += `• SLA breaches: ${slaBreaches}\n`;
-    message += `\n(Please check app for details)`;
+    // List low stock
+    if (lowStockItems.length > 0) {
+      message += `📦 <b>Low Stock (${lowStockItems.length})</b>\n`;
+      for (const stock of lowStockItems) {
+        const elapsed = stock.lowStockTriggeredAt
+          ? formatElapsed(now.getTime() - new Date(stock.lowStockTriggeredAt).getTime())
+          : 'N/A';
+        message += `• <b>${escapeHtml(stock.deviceName)}</b>: ${stock.quantity} sticks\n`;
+        if (stock.lowStockTriggeredAt) {
+          message += `  Low for ${elapsed}\n`;
+        }
+      }
+      message += `\n`;
+    }
+
+    message += `━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `Total: ${totalOpen} open alerts`;
 
     // Get subscribers
     const subscribers = await getSubscribersForHourlySummary();
@@ -186,17 +217,19 @@ export async function GET(request) {
     await db.notificationLog.create({
       data: {
         type: 'hourly_summary',
-        message: `Hourly summary: ${totalOpen} open, ${slaBreaches} breaches`,
+        message: `Hourly summary: ${totalOpen} open alerts`,
         recipients: subscribers.length,
       },
     });
 
-    console.log(`[HourlySummary] Sent summary: ${totalOpen} open, ${slaBreaches} breaches`);
+    console.log(`[HourlySummary] Sent summary: ${totalOpen} open alerts`);
 
     return NextResponse.json({
       success: true,
       totalOpen,
-      slaBreaches,
+      incidents: openIncidents.length,
+      issues: openIssues.length,
+      lowStock: lowStockItems.length,
       recipientCount: subscribers.length,
       timestamp: now.toISOString(),
     });
