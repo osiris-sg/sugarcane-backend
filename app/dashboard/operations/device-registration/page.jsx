@@ -1,20 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { RefreshCw, Smartphone, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { RefreshCw, Smartphone, CheckCircle, AlertCircle, Clock, Search, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -50,6 +44,8 @@ export default function DeviceRegistrationPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -295,30 +291,79 @@ export default function DeviceRegistrationPage() {
                       <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
                     </div>
                   ) : (
-                    <Select
-                      value={selectedDeviceId}
-                      onValueChange={setSelectedDeviceId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a device..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {devices.map((device) => (
-                          <SelectItem key={device.deviceId} value={device.deviceId}>
-                            <div className="flex flex-col">
-                              <span>{device.location || device.deviceName}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {device.deviceId}
-                                {device.terminalId && ` (current: ${device.terminalId})`}
-                              </span>
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search by device ID or location..."
+                          value={searchQuery}
+                          onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setDropdownOpen(true);
+                          }}
+                          onFocus={() => setDropdownOpen(true)}
+                          className="pl-9"
+                        />
+                      </div>
+                      {dropdownOpen && (
+                        <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-[300px] overflow-y-auto">
+                          {devices
+                            .filter((device) => {
+                              const query = searchQuery.toLowerCase();
+                              return (
+                                device.deviceId.toLowerCase().includes(query) ||
+                                (device.location && device.location.toLowerCase().includes(query)) ||
+                                device.deviceName.toLowerCase().includes(query)
+                              );
+                            })
+                            .map((device) => (
+                              <div
+                                key={device.deviceId}
+                                className={cn(
+                                  "flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-accent",
+                                  selectedDeviceId === device.deviceId && "bg-accent"
+                                )}
+                                onClick={() => {
+                                  setSelectedDeviceId(device.deviceId);
+                                  setSearchQuery(device.location || device.deviceName);
+                                  setDropdownOpen(false);
+                                }}
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{device.location || device.deviceName}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {device.deviceId}
+                                    {device.terminalId && ` (current: ${device.terminalId})`}
+                                  </span>
+                                </div>
+                                {selectedDeviceId === device.deviceId && (
+                                  <Check className="h-4 w-4 text-primary" />
+                                )}
+                              </div>
+                            ))}
+                          {devices.filter((device) => {
+                            const query = searchQuery.toLowerCase();
+                            return (
+                              device.deviceId.toLowerCase().includes(query) ||
+                              (device.location && device.location.toLowerCase().includes(query)) ||
+                              device.deviceName.toLowerCase().includes(query)
+                            );
+                          }).length === 0 && (
+                            <div className="py-6 text-center text-sm text-muted-foreground">
+                              No devices found
                             </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {selectedDeviceId && (
+                    <p className="text-xs text-green-600">
+                      Selected: {selectedDeviceId}
+                    </p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Select the device ID that this machine should be linked to
+                    Type to search by device ID or location
                   </p>
                 </div>
 
