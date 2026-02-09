@@ -307,6 +307,7 @@ export default function OperationsPage() {
                     <TableHead>Actions</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Stock</TableHead>
+                    <TableHead>Min Threshold</TableHead>
                     <TableHead>Temp (°C)</TableHead>
                     <TableHead>Last Seen</TableHead>
                   </TableRow>
@@ -314,7 +315,7 @@ export default function OperationsPage() {
                 <TableBody>
                   {filteredDevices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                         No devices found
                       </TableCell>
                     </TableRow>
@@ -350,7 +351,7 @@ export default function OperationsPage() {
                                   View
                                 </Button>
                               </Link>
-                              <Link href={`/dashboard/sales/equipment/${device.id}`}>
+                              <Link href={`/dashboard/operations/machines/${device.id}`}>
                                 <Button size="sm" variant="outline">
                                   Edit
                                 </Button>
@@ -389,6 +390,11 @@ export default function OperationsPage() {
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-sm ${device.stockQuantity !== null && device.stockQuantity <= device.minStockThreshold ? "text-red-500 font-medium" : ""}`}>
+                              {device.minStockThreshold}
+                            </span>
                           </TableCell>
                           <TableCell>
                             {device.machineTemp !== null ? (

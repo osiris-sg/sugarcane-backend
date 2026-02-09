@@ -96,12 +96,12 @@ model Device {
   latitude          Float?
   longitude         Float?
   groups            DeviceGroup[]
-  terminalId        String?          // Terminal ID assigned to this device
-  tid               String?          // TID for payment terminal
-  appVersion        String?          // App version name (e.g., "3.2")
-  appVersionCode    Int?             // App version code (e.g., 186777)
-  versionUpdatedAt  DateTime?        // When version was last reported
-  fomoTid           String?          // FomoPay Terminal ID (falls back to "10000001" if not set)
+  terminalId        String? // Terminal ID assigned to this device
+  tid               String? // TID for payment terminal
+  appVersion        String? // App version name (e.g., "3.2")
+  appVersionCode    Int? // App version code (e.g., 186777)
+  versionUpdatedAt  DateTime? // When version was last reported
+  fomoTid           String? // FomoPay Terminal ID (falls back to "10000001" if not set)
 
   @@index([deviceId])
   @@index([driverId])
@@ -117,6 +117,7 @@ model Stock {
   alertLevel          String?
   lastAlertAt         DateTime?
   maxStock            Int       @default(80)
+  minStockThreshold   Int       @default(20) // Low stock alert threshold (in sticks)
   lastSaleAt          DateTime?
   isLowStock          Boolean   @default(false)
   lowStockTriggeredAt DateTime?
@@ -128,22 +129,22 @@ model Stock {
 }
 
 model Order {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   orderId           String
   deviceId          String
   deviceName        String
   amount            Int
-  quantity          Int      @default(1)
+  quantity          Int       @default(1)
   payWay            Int?
-  isSuccess         Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  orderTime         DateTime?  // Original order timestamp from device
+  isSuccess         Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  orderTime         DateTime? // Original order timestamp from device
   deliverCount      Int?
   payAmount         Int?
   refundAmount      Int?
   totalCount        Int?
-  fomoTransactionId String?  // FomoPay reference number (Field 37)
-  fomoStan          String?  // FomoPay STAN
+  fomoTransactionId String? // FomoPay reference number (Field 37)
+  fomoStan          String? // FomoPay STAN
 
   @@index([deviceId, createdAt])
   @@index([deviceId, orderTime])
@@ -381,6 +382,28 @@ enum IssueStatus {
   MACHINE_OK
 }
 
+// New Incident System (replaces Issue for new workflow)
+enum IncidentType {
+  ERROR_NOTIFICATION // Machine-generated errors (current DEVICE_ERROR)
+  OUT_OF_STOCK // Stock = 0
+  ZERO_SALES // No movement alerts
+  CLEANING_COMPLIANCE // Cleaning & maintenance non-compliance
+  MANUAL_ERROR // Manual/Unknown/System-related
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum SlaOutcome {
+  PENDING
+  WITHIN_SLA
+  SLA_BREACHED
+}
+
 enum TemperatureAlertType {
   TEMPERATURE_RISING
   THRESHOLD_EXCEEDED
@@ -412,11 +435,11 @@ model FomoPayTransaction {
   id          String   @id @default(cuid())
   deviceId    String
   stan        String
-  reference   String?  // FomoPay reference (Field 37), set when payment succeeds
-  amount      Int      // Amount in cents
-  scheme      String?  // PAYNOW, ALIPAY, WECHATPAY, GRABPAY
+  reference   String? // FomoPay reference (Field 37), set when payment succeeds
+  amount      Int // Amount in cents
+  scheme      String? // PAYNOW, ALIPAY, WECHATPAY, GRABPAY
   status      String   @default("pending") // pending, completed, failed, voided
-  tid         String?  // Terminal ID used
+  tid         String? // Terminal ID used
   linkedOrder Boolean  @default(false) // Whether this has been linked to an Order
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -427,14 +450,110 @@ model FomoPayTransaction {
 }
 
 model SalesPrediction {
-  id              String   @id @default(cuid())
-  predictionDate  DateTime @unique // The date being predicted
-  predictedSales  Float    // Predicted total sales
-  actualSales     Int?     // Filled in after the day passes
-  rollingMean7    Float?   // 7-day rolling average used
-  rollingMean14   Float?   // 14-day rolling average used
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  predictionDate DateTime @unique // The date being predicted
+  predictedSales Float // Predicted total sales
+  actualSales    Int? // Filled in after the day passes
+  rollingMean7   Float? // 7-day rolling average used
+  rollingMean14  Float? // 14-day rolling average used
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([predictionDate])
+}
+
+// New Incident model - unified incident lifecycle with SLA tracking
+model Incident {
+  id         String       @id @default(cuid())
+  type       IncidentType
+  deviceId   String
+  deviceName String
+
+  // Assignment
+  assignedOpsId    String?
+  assignedDriverId String?
+
+  // Timing & SLA
+  startTime      DateTime  @default(now())
+  acknowledgedAt DateTime?
+  inProgressAt   DateTime?
+  resolvedAt     DateTime?
+  slaDeadline    DateTime? // startTime + 3 hours
+
+  // Status
+  status      IncidentStatus @default(OPEN)
+  slaOutcome  SlaOutcome     @default(PENDING)
+  penaltyFlag Boolean        @default(false)
+
+  // Resolution
+  resolution         String?
+  resolutionCategory String? // For zero sales dropdown
+
+  // Metadata
+  faultCode     String?
+  faultName     String?
+  timeBlock     String?
+  stockQuantity Int?
+
+  // Reminder tracking
+  lastReminderAt DateTime?
+  reminderCount  Int       @default(0)
+  escalatedAt    DateTime?
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([deviceId, status])
+  @@index([type, status])
+  @@index([startTime])
+  @@index([status, slaOutcome])
+  @@index([slaDeadline])
+}
+
+// Penalty tracking for SLA breaches
+model Penalty {
+  id           String   @id @default(cuid())
+  incidentId   String
+  reason       String
+  appealStatus String   @default("none") // none, pending, approved, rejected
+  appealNotes  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  // Note: amount field to be added later when penalty amounts are defined
+
+  @@index([incidentId])
+  @@index([appealStatus])
+}
+
+// Cleaning compliance tracking
+model CleaningLog {
+  id         String   @id @default(cuid())
+  deviceId   String
+  deviceName String
+  userId     String?
+  userName   String
+  loggedAt   DateTime @default(now())
+  month      Int
+  year       Int
+
+  @@index([deviceId, month, year])
+  @@index([loggedAt])
+}
+
+// Zero sales staging - tracks devices in escalation stages before becoming incidents
+model ZeroSalesStaging {
+  id            String    @id @default(cuid())
+  deviceId      String    @unique
+  deviceName    String
+  timeBlock     String
+  stage         Int       @default(0) // 0: initial, 1: 30min, 2: 60min (escalated to incident)
+  startedAt     DateTime  @default(now())
+  lastCheckedAt DateTime  @default(now())
+  notifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([deviceId])
+  @@index([stage])
 }

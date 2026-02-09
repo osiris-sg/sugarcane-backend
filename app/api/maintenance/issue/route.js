@@ -78,19 +78,30 @@ export async function POST(request) {
     }
 
     // Check for existing open issue of same type for this device
-    const existingIssue = await db.issue.findFirst({
-      where: {
-        deviceId,
-        type,
-        status: { in: ['OPEN', 'CHECKING'] }
-      }
-    });
+    const [existingIssue, existingIncident] = await Promise.all([
+      db.issue.findFirst({
+        where: {
+          deviceId,
+          type,
+          status: { in: ['OPEN', 'CHECKING'] }
+        }
+      }),
+      db.incident.findFirst({
+        where: {
+          deviceId,
+          type: 'ERROR_NOTIFICATION',
+          faultCode,
+          status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
+        }
+      })
+    ]);
 
-    if (existingIssue) {
+    if (existingIssue || existingIncident) {
       return NextResponse.json({
         success: false,
         error: 'An open issue of this type already exists for this device',
-        existingIssueId: existingIssue.id
+        existingIssueId: existingIssue?.id,
+        existingIncidentId: existingIncident?.id
       }, { status: 409 });
     }
 
@@ -100,7 +111,11 @@ export async function POST(request) {
       resolvedFaultName = FAULT_CODE_NAMES[faultCode] || faultCode;
     }
 
-    // Create the issue
+    const now = new Date();
+    const SLA_HOURS = 3;
+    const slaDeadline = new Date(now.getTime() + SLA_HOURS * 60 * 60 * 1000);
+
+    // Create the issue (legacy table)
     const issue = await db.issue.create({
       data: {
         deviceId,
@@ -112,15 +127,32 @@ export async function POST(request) {
         timeBlock,
         priority: priority || 1, // Default to low priority
         status: 'OPEN',
-        triggeredAt: new Date()
+        triggeredAt: now
       }
     });
 
-    console.log(`[Issue] Created ${type} issue for ${deviceName}: ${issue.id}`);
+    // Also create in Incident table (new unified system)
+    const incident = await db.incident.create({
+      data: {
+        type: 'ERROR_NOTIFICATION',
+        deviceId,
+        deviceName,
+        faultCode,
+        faultName: resolvedFaultName,
+        timeBlock,
+        startTime: now,
+        slaDeadline,
+        status: 'OPEN',
+        slaOutcome: 'PENDING',
+      }
+    });
+
+    console.log(`[Issue] Created ${type} issue for ${deviceName}: ${issue.id}, incident: ${incident.id}`);
 
     return NextResponse.json({
       success: true,
-      issue
+      issue,
+      incident
     });
 
   } catch (error) {

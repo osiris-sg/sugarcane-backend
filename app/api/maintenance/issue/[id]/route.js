@@ -156,6 +156,55 @@ ${resolution === 'unresolved' ? '📢 Issue escalated to manager. Machine set to
       data: updateData
     });
 
+    // Also update corresponding Incident (if exists)
+    const matchingIncident = await db.incident.findFirst({
+      where: {
+        deviceId: issue.deviceId,
+        type: 'ERROR_NOTIFICATION',
+        faultCode: issue.faultCode,
+        status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
+      }
+    });
+
+    if (matchingIncident) {
+      let incidentUpdate = {};
+
+      if (action === 'respond') {
+        incidentUpdate = {
+          status: 'ACKNOWLEDGED',
+          acknowledgedAt: now,
+        };
+      } else if (action === 'resolve') {
+        // Check if within SLA
+        const wasWithinSla = matchingIncident.slaDeadline && now <= new Date(matchingIncident.slaDeadline);
+
+        incidentUpdate = {
+          status: 'RESOLVED',
+          resolvedAt: now,
+          resolution: resolution === 'resolved' ? 'Resolved by staff' : 'Marked unresolved by staff',
+          slaOutcome: wasWithinSla ? 'WITHIN_SLA' : 'SLA_BREACHED',
+        };
+
+        // Create penalty if SLA breached and not already flagged
+        if (!wasWithinSla && !matchingIncident.penaltyFlag) {
+          await db.penalty.create({
+            data: {
+              incidentId: matchingIncident.id,
+              reason: 'SLA breached - resolved after 3 hour deadline',
+            }
+          });
+          incidentUpdate.penaltyFlag = true;
+        }
+      }
+
+      await db.incident.update({
+        where: { id: matchingIncident.id },
+        data: incidentUpdate
+      });
+
+      console.log(`[Issue] Also updated incident ${matchingIncident.id}`);
+    }
+
     return NextResponse.json({
       success: true,
       issue: updatedIssue,

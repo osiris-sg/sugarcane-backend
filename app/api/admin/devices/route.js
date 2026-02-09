@@ -53,6 +53,7 @@ export async function GET(request) {
         deviceId: true,
         quantity: true,
         maxStock: true,
+        minStockThreshold: true,
         lastSaleAt: true,
       },
     });
@@ -96,6 +97,7 @@ export async function GET(request) {
         allGroups: deviceGroups.map(dg => dg.group),
         stockQuantity: stock?.quantity ?? null,
         stockMax: stock?.maxStock ?? null,
+        minStockThreshold: stock?.minStockThreshold ?? 20,
         cupStock: stock ? Math.round((stock.quantity / stock.maxStock) * 100) : null,
         lastSeenAt: device.tempUpdatedAt || null,
         // Temperature data (already in device table)

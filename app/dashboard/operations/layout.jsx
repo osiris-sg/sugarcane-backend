@@ -22,6 +22,11 @@ import {
   Shield,
   Menu,
   X,
+  AlertCircle,
+  TrendingDown,
+  Ban,
+  BarChart3,
+  Sparkles,
 } from "lucide-react";
 import { NotificationToggle } from "@/components/notification-toggle";
 import { cn } from "@/lib/utils";
@@ -39,9 +44,34 @@ const sidebarItems = [
     icon: LayoutDashboard,
   },
   {
+    title: "Incidents",
+    href: "/dashboard/operations/incidents",
+    icon: AlertCircle,
+  },
+  {
+    title: "No Sales",
+    href: "/dashboard/operations/no-sales",
+    icon: TrendingDown,
+  },
+  {
     title: "Faults",
     href: "/dashboard/operations/faults",
     icon: AlertTriangle,
+  },
+  {
+    title: "Penalties",
+    href: "/dashboard/operations/penalties",
+    icon: Ban,
+  },
+  {
+    title: "Efficiency",
+    href: "/dashboard/operations/efficiency",
+    icon: BarChart3,
+  },
+  {
+    title: "Cleaning Logs",
+    href: "/dashboard/operations/cleaning-logs",
+    icon: Sparkles,
   },
   {
     title: "Maintenance Logs",

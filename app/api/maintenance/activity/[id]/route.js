@@ -75,6 +75,11 @@ export async function PATCH(request, { params }) {
     const now = new Date();
     const durationMs = now.getTime() - new Date(activity.startedAt).getTime();
 
+    // Get Singapore time for month/year
+    const sgTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+    const month = sgTime.getMonth() + 1;
+    const year = sgTime.getFullYear();
+
     // Update the activity
     const updatedActivity = await db.maintenanceActivity.update({
       where: { id },
@@ -85,6 +90,28 @@ export async function PATCH(request, { params }) {
         notes
       }
     });
+
+    // If clean_wash completed successfully, also create CleaningLog entry for compliance tracking
+    if (activity.activityType === 'clean_wash' && newStatus === 'completed') {
+      // Get the most recent maintenance login for this device to find who did the cleaning
+      const recentLogin = await db.maintenanceLogin.findFirst({
+        where: { deviceId: activity.deviceId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      await db.cleaningLog.create({
+        data: {
+          deviceId: activity.deviceId,
+          deviceName: activity.deviceName,
+          userId: recentLogin?.userId || null,
+          userName: recentLogin?.userName || 'Unknown',
+          loggedAt: now,
+          month,
+          year,
+        }
+      });
+      console.log(`[Activity] Created CleaningLog entry for ${activity.deviceName} by ${recentLogin?.userName || 'Unknown'} (${month}/${year})`);
+    }
 
     const typeLabel = activity.activityType === 'clean_wash' ? 'Clean/Wash Down' : 'Customer Feedback';
     const durationFormatted = formatDuration(durationMs);

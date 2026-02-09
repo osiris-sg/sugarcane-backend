@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../lib/db/index.js';
+import { sendIncidentNotification } from '../../../../lib/push-notifications.ts';
+import { sendAlert } from '../../../../lib/telegram.js';
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const LOW_STOCK_THRESHOLD = 25; // Alert when stock <= 25%
+const DEFAULT_LOW_STOCK_THRESHOLD = 20; // Default alert threshold (used if not set per device)
+const SLA_HOURS = 3;
 
 // Check if current time is within day shift hours (8am to 10pm Singapore time)
 function isDayShift() {
@@ -20,84 +22,21 @@ function isNightShift() {
   return sgHour >= 22 || sgHour < 8;
 }
 
-// Send message to Telegram
-async function sendTelegramMessage(chatId, text) {
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-
-  try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-      }),
-    });
-  } catch (error) {
-    console.error('Error sending Telegram message:', error);
-  }
-}
-
-// Get subscribers for stock alerts based on time
-// - OPSMANAGER: 8am-10pm only
-// - DAYOPS: 8am-10pm only
-// - NIGHTOPS: 10pm-8am only
-// - ADMIN: never (only daily summary)
-async function getSubscribersForStockAlert() {
-  const roles = [];
-
-  if (isDayShift()) {
-    // Day shift (8am-10pm): OPSMANAGER and DAYOPS
-    roles.push('OPSMANAGER', 'DAYOPS');
-  } else if (isNightShift()) {
-    // Night shift (10pm-8am): Only NIGHTOPS
-    roles.push('NIGHTOPS');
-  }
-
-  if (roles.length === 0) {
-    return [];
-  }
-
-  const subscribers = await db.subscriber.findMany({
-    where: {
-      role: { in: roles },
-    },
-  });
-
-  return subscribers;
-}
-
-// Send stock alert to subscribers
-async function sendStockAlert(message) {
-  const subscribers = await getSubscribersForStockAlert();
-
-  console.log(`[StockAlert] Sending to ${subscribers.length} subscribers (isDayShift: ${isDayShift()}, isNightShift: ${isNightShift()})`);
-
-  for (const subscriber of subscribers) {
-    await sendTelegramMessage(subscriber.chatId, message);
-  }
-
-  return subscribers.length;
-}
-
 // Get stock level description
-function getStockLevel(percent) {
-  if (percent <= 0) return 'Out of Stock';
-  if (percent <= 15) return 'Critical Stock';
+function getStockLevel(quantity) {
+  if (quantity <= 0) return 'Out of Stock';
+  if (quantity <= 10) return 'Critical Stock';
   return 'Low Stock';
 }
 
 // Get emoji for stock level
-function getStockEmoji(percent) {
-  if (percent <= 0) return '⚫';
-  if (percent <= 15) return '🔴';
+function getStockEmoji(quantity) {
+  if (quantity <= 0) return '⚫';
+  if (quantity <= 10) return '🔴';
   return '🟠';
 }
 
-// Main cron handler - runs every hour
-// Only detects NEW low stock and sends initial alert
-// Reminders are handled by hourly-summary cron
+// Main cron handler - runs every 15 minutes
 export async function GET(request) {
   // Verify cron secret (optional security)
   const authHeader = request.headers.get('authorization');
@@ -113,38 +52,175 @@ export async function GET(request) {
     const stocks = await db.stock.findMany();
     let newAlerts = 0;
     let resolved = 0;
+    let immediateBreaches = 0;
 
     for (const stock of stocks) {
-      const percent = Math.round((stock.quantity / stock.maxStock) * 100);
-      const isLowStock = percent <= LOW_STOCK_THRESHOLD;
+      // Use per-device threshold, or fall back to default
+      const threshold = stock.minStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD;
+      const isLowStock = stock.quantity <= threshold;
+      const isOutOfStock = stock.quantity === 0;
 
-      // === CASE 1: New low stock detected - send initial alert ===
-      if (isLowStock && !stock.isLowStock) {
-        const emoji = getStockEmoji(percent);
-        const level = getStockLevel(percent);
-
-        await db.stock.update({
-          where: { id: stock.id },
-          data: {
-            isLowStock: true,
-            lowStockTriggeredAt: now,
-            priority: 1,
+      // === CASE 1: OUT OF STOCK - Immediate SLA breach ===
+      if (isOutOfStock && !stock.isLowStock) {
+        // Check for existing open incident
+        const existingIncident = await db.incident.findFirst({
+          where: {
+            deviceId: stock.deviceId,
+            type: 'OUT_OF_STOCK',
+            status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
           }
         });
 
-        const message = `${emoji} ${level} Alert
+        if (!existingIncident) {
+          // Create incident with immediate SLA breach
+          const incident = await db.incident.create({
+            data: {
+              type: 'OUT_OF_STOCK',
+              deviceId: stock.deviceId,
+              deviceName: stock.deviceName,
+              startTime: now,
+              slaDeadline: now, // Already breached
+              status: 'OPEN',
+              slaOutcome: 'SLA_BREACHED',
+              penaltyFlag: true,
+              stockQuantity: 0,
+            }
+          });
 
-🎯 Device ID: ${stock.deviceId}
-📍 Device Name: ${stock.deviceName}
-📊 Stock: ${stock.quantity}/${stock.maxStock} pcs (${percent}%)`;
+          // Create penalty record
+          await db.penalty.create({
+            data: {
+              incidentId: incident.id,
+              reason: 'Out of stock - immediate SLA breach',
+            }
+          });
 
-        const recipientCount = await sendStockAlert(message);
-        newAlerts++;
-        console.log(`[StockAlert] New low stock for ${stock.deviceName} (${percent}%), sent to ${recipientCount} subscribers`);
+          // Update stock record
+          await db.stock.update({
+            where: { id: stock.id },
+            data: {
+              isLowStock: true,
+              lowStockTriggeredAt: now,
+              priority: 3, // Highest priority
+            }
+          });
+
+          // Send push notification
+          await sendIncidentNotification({
+            type: 'breach',
+            incident,
+            title: '⚫ OUT OF STOCK - IMMEDIATE BREACH',
+            body: `${stock.deviceName} is out of stock! Immediate action required.`,
+          });
+
+          // Send Telegram notification
+          const telegramMessage = `⚫ OUT OF STOCK - IMMEDIATE BREACH
+
+🎯 Device: ${stock.deviceName}
+📍 Device ID: ${stock.deviceId}
+📊 Stock: 0/${stock.maxStock} pcs
+
+⚠️ Immediate action required!`;
+          await sendAlert(telegramMessage, 'stock_alert');
+
+          immediateBreaches++;
+          console.log(`[StockAlert] OUT OF STOCK: ${stock.deviceName} - Created incident with immediate breach`);
+        }
       }
 
-      // === CASE 2: Stock back above threshold - auto resolve ===
+      // === CASE 2: Low stock (but not out) - Create incident with 3h SLA ===
+      else if (isLowStock && !stock.isLowStock && !isOutOfStock) {
+        // Check for existing open incident
+        const existingIncident = await db.incident.findFirst({
+          where: {
+            deviceId: stock.deviceId,
+            type: 'OUT_OF_STOCK',
+            status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
+          }
+        });
+
+        if (!existingIncident) {
+          const slaDeadline = new Date(now.getTime() + SLA_HOURS * 60 * 60 * 1000);
+
+          const incident = await db.incident.create({
+            data: {
+              type: 'OUT_OF_STOCK',
+              deviceId: stock.deviceId,
+              deviceName: stock.deviceName,
+              startTime: now,
+              slaDeadline,
+              status: 'OPEN',
+              slaOutcome: 'PENDING',
+              stockQuantity: stock.quantity,
+            }
+          });
+
+          await db.stock.update({
+            where: { id: stock.id },
+            data: {
+              isLowStock: true,
+              lowStockTriggeredAt: now,
+              priority: 1,
+            }
+          });
+
+          const emoji = getStockEmoji(stock.quantity);
+          const level = getStockLevel(stock.quantity);
+
+          // Send push notification
+          await sendIncidentNotification({
+            type: 'new',
+            incident,
+            title: `${emoji} ${level} Alert`,
+            body: `${stock.deviceName}: ${stock.quantity}/${stock.maxStock} pcs`,
+          });
+
+          // Send Telegram notification
+          const telegramMessage = `${emoji} ${level} Alert
+
+🎯 Device: ${stock.deviceName}
+📍 Device ID: ${stock.deviceId}
+📊 Stock: ${stock.quantity}/${stock.maxStock} pcs`;
+          await sendAlert(telegramMessage, 'stock_alert');
+
+          newAlerts++;
+          console.log(`[StockAlert] New low stock for ${stock.deviceName} (${stock.quantity} pcs)`);
+        }
+      }
+
+      // === CASE 3: Stock back above threshold - auto resolve ===
       else if (!isLowStock && stock.isLowStock) {
+        // Find and resolve any open incidents
+        const openIncidents = await db.incident.findMany({
+          where: {
+            deviceId: stock.deviceId,
+            type: 'OUT_OF_STOCK',
+            status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
+          }
+        });
+
+        for (const incident of openIncidents) {
+          const wasWithinSla = incident.slaOutcome !== 'SLA_BREACHED';
+
+          await db.incident.update({
+            where: { id: incident.id },
+            data: {
+              status: 'RESOLVED',
+              resolvedAt: now,
+              resolution: 'Auto-resolved: Stock replenished',
+              slaOutcome: wasWithinSla ? 'WITHIN_SLA' : 'SLA_BREACHED',
+            }
+          });
+
+          // Send push notification for resolution
+          await sendIncidentNotification({
+            type: 'resolved',
+            incident,
+            title: '✅ Stock Replenished',
+            body: `${stock.deviceName}: now ${stock.quantity}/${stock.maxStock} pcs`,
+          });
+        }
+
         await db.stock.update({
           where: { id: stock.id },
           data: {
@@ -154,26 +230,27 @@ export async function GET(request) {
           }
         });
         resolved++;
-        console.log(`[StockAlert] Resolved low stock for ${stock.deviceName} (now ${percent}%)`);
+        console.log(`[StockAlert] Resolved low stock for ${stock.deviceName} (now ${stock.quantity} pcs)`);
       }
     }
 
     // Log notification
-    if (newAlerts > 0) {
+    if (newAlerts > 0 || immediateBreaches > 0) {
       await db.notificationLog.create({
         data: {
           type: 'stock_alert',
-          message: `Stock alerts: ${newAlerts} new`,
-          recipients: newAlerts,
+          message: `Stock alerts: ${newAlerts} new, ${immediateBreaches} immediate breaches`,
+          recipients: newAlerts + immediateBreaches,
         },
       });
     }
 
-    console.log(`[StockAlert] Completed. New: ${newAlerts}, Resolved: ${resolved}`);
+    console.log(`[StockAlert] Completed. New: ${newAlerts}, Immediate breaches: ${immediateBreaches}, Resolved: ${resolved}`);
 
     return NextResponse.json({
       success: true,
       newAlerts,
+      immediateBreaches,
       resolved,
       timestamp: now.toISOString(),
     });

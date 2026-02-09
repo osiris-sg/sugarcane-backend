@@ -192,3 +192,160 @@ export async function sendPushNotificationToOps(
     return { success: false, sent: 0, failed: 0 };
   }
 }
+
+// Check if current time is within day shift hours (8am to 10pm Singapore time)
+function isDayShift(): boolean {
+  const now = new Date();
+  const sgTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const sgHour = sgTime.getUTCHours();
+  return sgHour >= 8 && sgHour < 22;
+}
+
+export interface IncidentNotificationParams {
+  type: "new" | "reminder" | "breach" | "escalation" | "resolved";
+  incident: {
+    id: string;
+    type: string;
+    deviceId: string;
+    deviceName: string;
+    startTime?: Date;
+    slaDeadline?: Date | null;
+  };
+  title: string;
+  body: string;
+}
+
+/**
+ * Send incident-specific push notifications to appropriate staff
+ * - new: Initial incident notification to ops staff
+ * - reminder: SLA reminder to ops staff
+ * - breach: SLA breach notification to ops staff + ops manager + admin
+ * - escalation: Escalate to ops manager + admin
+ * - resolved: Resolution notification
+ */
+export async function sendIncidentNotification(
+  params: IncidentNotificationParams
+): Promise<{ success: boolean; sent: number; failed: number }> {
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    console.warn("[Push] VAPID keys not configured");
+    return { success: false, sent: 0, failed: 0 };
+  }
+
+  const { type, incident, title, body } = params;
+
+  try {
+    // Determine which roles to notify based on notification type
+    let roles: string[] = [];
+
+    if (type === "breach" || type === "escalation") {
+      // Breach and escalation: notify admin, manager (ops manager), and driver
+      roles = ["ADMIN", "MANAGER", "DRIVER"];
+    } else if (type === "new" || type === "reminder") {
+      // New incidents and reminders: shift-based routing
+      if (isDayShift()) {
+        roles = ["MANAGER", "DRIVER"]; // Day shift ops
+      } else {
+        roles = ["DRIVER"]; // Night shift ops
+      }
+    } else if (type === "resolved") {
+      // Resolution: notify relevant ops staff
+      if (isDayShift()) {
+        roles = ["MANAGER", "DRIVER"];
+      } else {
+        roles = ["DRIVER"];
+      }
+    }
+
+    if (roles.length === 0) {
+      console.log("[Push] No roles to notify for incident type:", type);
+      return { success: true, sent: 0, failed: 0 };
+    }
+
+    const users = await db.user.findMany({
+      where: {
+        role: { in: roles as ("ADMIN" | "MANAGER" | "DRIVER")[] },
+        isActive: true,
+      },
+      select: { clerkId: true },
+    });
+
+    if (users.length === 0) {
+      console.log("[Push] No users found for roles:", roles);
+      return { success: true, sent: 0, failed: 0 };
+    }
+
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    const payload: NotificationPayload = {
+      title,
+      body,
+      tag: `incident-${incident.id}`,
+      url: `/dashboard/operations/incidents?id=${incident.id}`,
+      data: {
+        incidentId: incident.id,
+        incidentType: incident.type,
+        deviceId: incident.deviceId,
+        notificationType: type,
+      },
+      requireInteraction: type === "breach" || type === "escalation",
+      renotify: type === "reminder" || type === "breach",
+    };
+
+    for (const user of users) {
+      const result = await sendPushNotification(user.clerkId, payload);
+      totalSent += result.sent;
+      totalFailed += result.failed;
+    }
+
+    console.log(
+      `[Push] Incident notification (${type}) sent: ${totalSent}, failed: ${totalFailed}`
+    );
+
+    return { success: true, sent: totalSent, failed: totalFailed };
+  } catch (error) {
+    console.error("[Push] Error sending incident notification:", error);
+    return { success: false, sent: 0, failed: 0 };
+  }
+}
+
+/**
+ * Send push notification to ops manager and admin only (for escalations)
+ */
+export async function sendEscalationNotification(
+  payload: NotificationPayload
+): Promise<{ success: boolean; sent: number; failed: number }> {
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    console.warn("[Push] VAPID keys not configured");
+    return { success: false, sent: 0, failed: 0 };
+  }
+
+  try {
+    const users = await db.user.findMany({
+      where: {
+        role: { in: ["ADMIN", "MANAGER"] },
+        isActive: true,
+      },
+      select: { clerkId: true },
+    });
+
+    if (users.length === 0) {
+      console.log("[Push] No admin/manager users found for escalation");
+      return { success: true, sent: 0, failed: 0 };
+    }
+
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    for (const user of users) {
+      const result = await sendPushNotification(user.clerkId, payload);
+      totalSent += result.sent;
+      totalFailed += result.failed;
+    }
+
+    return { success: true, sent: totalSent, failed: totalFailed };
+  } catch (error) {
+    console.error("[Push] Error sending escalation:", error);
+    return { success: false, sent: 0, failed: 0 };
+  }
+}
