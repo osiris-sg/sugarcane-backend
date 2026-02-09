@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { db, getDeviceNameById } from '@/lib/db';
 
 // Fault code to name mapping (from TelegramHelper.smali)
@@ -180,6 +181,45 @@ export async function GET(request) {
     const endDate = searchParams.get('endDate');
 
     const where = {};
+
+    // Check if user is a driver - filter to only their assigned devices
+    const { userId } = await auth();
+    if (userId) {
+      const dbUser = await db.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true, clerkId: true, role: true },
+      });
+
+      if (dbUser?.role === 'DRIVER') {
+        // Get devices assigned to this driver
+        const assignedDevices = await db.device.findMany({
+          where: {
+            OR: [
+              { driverId: dbUser.id },
+              { driverId: dbUser.clerkId },
+            ],
+          },
+          select: { deviceId: true },
+        });
+
+        const assignedDeviceIds = assignedDevices.map(d => d.deviceId);
+
+        if (assignedDeviceIds.length > 0) {
+          where.deviceId = { in: assignedDeviceIds };
+        } else {
+          // Driver has no assigned devices, return empty
+          return NextResponse.json({
+            success: true,
+            issues: [],
+            count: 0,
+            total: 0,
+            offset,
+            limit,
+            hasMore: false,
+          });
+        }
+      }
+    }
 
     // Date range filter for triggeredAt
     if (startDate || endDate) {

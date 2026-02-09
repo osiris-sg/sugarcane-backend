@@ -19,23 +19,41 @@ export async function GET(request) {
     // Get current user's role and group for access control
     const { userId } = await auth();
     let userGroupId = null;
+    let userDriverId = null;
+    let dbUser = null;
 
     if (userId) {
-      const dbUser = await db.user.findUnique({
+      dbUser = await db.user.findUnique({
         where: { clerkId: userId },
-        select: { role: true, groupId: true },
+        select: { id: true, clerkId: true, role: true, groupId: true },
       });
 
       // Franchisees and Partnerships users can only see their own group's devices
       if ((dbUser?.role === 'FRANCHISEE' || dbUser?.role === 'PARTNERSHIPS') && dbUser.groupId) {
         userGroupId = dbUser.groupId;
       }
+
+      // Drivers can only see devices assigned to them
+      if (dbUser?.role === 'DRIVER') {
+        userDriverId = dbUser.id; // Use the User.id as driverId
+      }
     }
 
-    // Build where clause for devices using many-to-many relationship
-    const whereClause = userGroupId
-      ? { groups: { some: { groupId: userGroupId } } }
-      : {};
+    // Build where clause for devices
+    let whereClause = {};
+
+    if (userGroupId) {
+      // Franchisee/Partnerships: filter by group
+      whereClause = { groups: { some: { groupId: userGroupId } } };
+    } else if (userDriverId) {
+      // Driver: filter by assigned driver (check both id and clerkId for compatibility)
+      whereClause = {
+        OR: [
+          { driverId: userDriverId },
+          { driverId: dbUser.clerkId },
+        ],
+      };
+    }
 
     const devices = await db.device.findMany({
       where: whereClause,
