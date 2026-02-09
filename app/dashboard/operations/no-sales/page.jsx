@@ -101,18 +101,20 @@ export default function NoSalesPage() {
     try {
       // Fetch staging entries and zero sales incidents in parallel
       const [stagingRes, incidentsRes] = await Promise.all([
-        fetch("/api/incidents?type=ZERO_SALES&status=OPEN,ACKNOWLEDGED,IN_PROGRESS"),
+        fetch("/api/zero-sales/staging"),
         fetch("/api/incidents?type=ZERO_SALES&status=OPEN,ACKNOWLEDGED,IN_PROGRESS"),
       ]);
 
+      const stagingData = await stagingRes.json();
       const incidentsData = await incidentsRes.json();
+
+      if (stagingData.entries) {
+        setStagingEntries(stagingData.entries);
+      }
 
       if (incidentsData.incidents) {
         setZeroSalesIncidents(incidentsData.incidents);
       }
-
-      // Note: Staging entries would come from a separate endpoint
-      // For now, we'll show the incidents that haven't been fully escalated
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -211,12 +213,10 @@ export default function NoSalesPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="h-4 w-4 text-yellow-600" />
-                <span className="text-sm font-medium">Monitoring</span>
+                <span className="text-sm font-medium">Staging</span>
               </div>
-              <p className="text-2xl font-bold">
-                {zeroSalesIncidents.filter((i) => !i.escalatedAt).length}
-              </p>
-              <p className="text-xs text-muted-foreground">Devices in staging</p>
+              <p className="text-2xl font-bold">{stagingEntries.length}</p>
+              <p className="text-xs text-muted-foreground">Devices being monitored</p>
             </CardContent>
           </Card>
           <Card>
@@ -226,7 +226,7 @@ export default function NoSalesPage() {
                 <span className="text-sm font-medium">Incidents</span>
               </div>
               <p className="text-2xl font-bold">{zeroSalesIncidents.length}</p>
-              <p className="text-xs text-muted-foreground">Active zero sales</p>
+              <p className="text-xs text-muted-foreground">Escalated (60min+)</p>
             </CardContent>
           </Card>
           <Card>
@@ -242,6 +242,51 @@ export default function NoSalesPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Staging Table - Devices being monitored (0-60 min) */}
+        {stagingEntries.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-yellow-600" />
+                Monitoring (0-60 min)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Device</TableHead>
+                    <TableHead>Time Block</TableHead>
+                    <TableHead>Stage</TableHead>
+                    <TableHead>Duration</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stagingEntries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{entry.deviceName}</div>
+                          <div className="text-xs text-muted-foreground">{entry.deviceId}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{entry.timeBlock || "-"}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <StageBadge stage={entry.stage} startedAt={entry.startedAt} />
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {formatElapsed(entry.startedAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Zero Sales Incidents Table */}
         <Card>
