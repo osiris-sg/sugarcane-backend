@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
 import {
@@ -90,6 +90,11 @@ export default function NoSalesPage() {
   const [resolution, setResolution] = useState("");
   const [resolutionCategory, setResolutionCategory] = useState("");
 
+  // Pull-to-refresh state
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const pullStartY = useRef(0);
+
   useEffect(() => {
     fetchData();
     // Auto-refresh every 30 seconds
@@ -164,6 +169,46 @@ export default function NoSalesPage() {
     }
   }
 
+  // Add non-passive touch listener for pull-to-refresh (needed for preventDefault)
+  useEffect(() => {
+    const handleTouchMoveNonPassive = (e) => {
+      if (isPulling && window.scrollY <= 0 && pullDistance > 0) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove', handleTouchMoveNonPassive, { passive: false });
+    return () => document.removeEventListener('touchmove', handleTouchMoveNonPassive);
+  }, [isPulling, pullDistance]);
+
+  // Pull-to-refresh handlers
+  const handleTouchStart = useCallback((e) => {
+    if (window.scrollY <= 0) {
+      pullStartY.current = e.touches[0].clientY;
+      setIsPulling(true);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!isPulling) return;
+    if (window.scrollY > 0) {
+      setIsPulling(false);
+      setPullDistance(0);
+      return;
+    }
+    const currentY = e.touches[0].clientY;
+    const distance = Math.max(0, Math.min(100, currentY - pullStartY.current));
+    setPullDistance(distance);
+  }, [isPulling]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullDistance > 60 && !refreshing) {
+      handleRefresh();
+    }
+    setPullDistance(0);
+    setIsPulling(false);
+  }, [pullDistance, refreshing]);
+
   // Get current time block
   const now = new Date();
   const sgTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Singapore" }));
@@ -188,7 +233,27 @@ export default function NoSalesPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div
+      className="flex flex-col h-screen bg-background"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator - Mobile only */}
+      <div className="md:hidden">
+        {pullDistance > 0 && (
+          <div
+            className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center bg-background border-b transition-all"
+            style={{ height: pullDistance, opacity: Math.min(1, pullDistance / 40) }}
+          >
+            <RefreshCw className={`h-5 w-5 text-primary ${pullDistance > 60 ? 'animate-spin' : ''}`} />
+            <span className="ml-2 text-sm text-muted-foreground">
+              {pullDistance > 60 ? 'Release to refresh' : 'Pull to refresh'}
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* Header */}
       <header className="sticky top-0 z-30 border-b bg-background shrink-0">
         <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
