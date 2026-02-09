@@ -400,10 +400,9 @@ export default function IncidentsPage() {
     // Priority filter
     if (priorityFilter !== "all") {
       const level = getPriorityLevel(incident);
-      if (priorityFilter === "breached" && incident.slaOutcome !== "SLA_BREACHED") return false;
       if (priorityFilter === "final" && incident.reminderCount < 2) return false;
       if (priorityFilter === "first" && incident.reminderCount !== 1) return false;
-      if (priorityFilter === "recent" && (incident.reminderCount > 0 || incident.slaOutcome === "SLA_BREACHED")) return false;
+      if (priorityFilter === "recent" && incident.reminderCount > 0) return false;
     }
     // Search
     if (searchText) {
@@ -420,10 +419,9 @@ export default function IncidentsPage() {
 
   // Count by priority
   const priorityCounts = {
-    breached: incidents.filter((i) => i.slaOutcome === "SLA_BREACHED" && i.status !== "RESOLVED").length,
-    final: incidents.filter((i) => i.reminderCount >= 2 && i.slaOutcome !== "SLA_BREACHED" && i.status !== "RESOLVED").length,
-    first: incidents.filter((i) => i.reminderCount === 1 && i.slaOutcome !== "SLA_BREACHED" && i.status !== "RESOLVED").length,
-    recent: incidents.filter((i) => i.reminderCount === 0 && i.slaOutcome !== "SLA_BREACHED" && i.status !== "RESOLVED").length,
+    final: incidents.filter((i) => i.reminderCount >= 2 && i.status !== "RESOLVED").length,
+    first: incidents.filter((i) => i.reminderCount === 1 && i.status !== "RESOLVED").length,
+    recent: incidents.filter((i) => i.reminderCount === 0 && i.status !== "RESOLVED").length,
   };
 
   // Get unique devices from incidents
@@ -537,22 +535,7 @@ export default function IncidentsPage() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto p-4 md:p-6">
         {/* Summary Cards - Priority based */}
-        <div className="mb-4 md:mb-6 grid grid-cols-4 gap-2 md:gap-4">
-          <Card
-            className={`cursor-pointer transition-colors ${priorityFilter === "breached" ? "ring-2 ring-red-500" : ""}`}
-            onClick={() => setPriorityFilter(priorityFilter === "breached" ? "all" : "breached")}
-          >
-            <CardContent className="flex flex-col md:flex-row items-center justify-between p-3 md:p-4 gap-2">
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-red-100">
-                  <AlertTriangle className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
-                </div>
-                <span className="font-medium text-xs md:text-sm">Breached</span>
-              </div>
-              <span className="text-xl md:text-2xl font-bold">{priorityCounts.breached}</span>
-            </CardContent>
-          </Card>
-
+        <div className="mb-4 md:mb-6 grid grid-cols-3 gap-2 md:gap-4">
           <Card
             className={`cursor-pointer transition-colors ${priorityFilter === "final" ? "ring-2 ring-orange-500" : ""}`}
             onClick={() => setPriorityFilter(priorityFilter === "final" ? "all" : "final")}
