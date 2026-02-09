@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { db, getDeviceNameById } from '@/lib/db';
+import { sendIncidentNotification } from '@/lib/push-notifications';
 
 // Fault code to name mapping (from TelegramHelper.smali)
 const FAULT_CODE_NAMES = {
@@ -149,6 +150,14 @@ export async function POST(request) {
     });
 
     console.log(`[Issue] Created ${type} issue for ${deviceName}: ${issue.id}, incident: ${incident.id}`);
+
+    // Send push notification for new device fault
+    await sendIncidentNotification({
+      type: 'new',
+      incident,
+      title: `⚠️ Device Fault: ${faultCode || 'Error'}`,
+      body: `${deviceName}: ${resolvedFaultName}`,
+    });
 
     return NextResponse.json({
       success: true,

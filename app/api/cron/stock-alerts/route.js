@@ -212,13 +212,7 @@ export async function GET(request) {
             }
           });
 
-          // Send push notification for resolution
-          await sendIncidentNotification({
-            type: 'resolved',
-            incident,
-            title: '✅ Stock Replenished',
-            body: `${stock.deviceName}: now ${stock.quantity}/${stock.maxStock} pcs`,
-          });
+          // No push notification for stock replenished - auto-resolved silently
         }
 
         await db.stock.update({
