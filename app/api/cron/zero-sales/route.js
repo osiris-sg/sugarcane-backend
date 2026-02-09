@@ -104,19 +104,30 @@ export async function GET(request) {
 
     console.log(`[ZeroSales] Processing time block: ${currentBlockLabel}`);
 
-    // Get all stocks (active devices)
-    const stocks = await db.stock.findMany();
+    // Get all active devices
+    const devices = await db.device.findMany({
+      where: { isActive: true },
+      select: { deviceId: true, deviceName: true },
+    });
+
+    // Get stock data for quantity info
+    const stocks = await db.stock.findMany({
+      select: { deviceId: true, quantity: true, maxStock: true },
+    });
+    const stockMap = new Map(stocks.map(s => [s.deviceId, s]));
 
     let newStagingEntries = 0;
     let stage1Escalations = 0;
     let stage2Escalations = 0;
     let resolved = 0;
 
-    for (const stock of stocks) {
+    for (const device of devices) {
+      const stock = stockMap.get(device.deviceId);
+
       // Check for orders since block start
       const recentOrders = await db.order.findMany({
         where: {
-          deviceId: stock.deviceId,
+          deviceId: device.deviceId,
           isSuccess: true,
           createdAt: { gte: blockStartUTC },
         },
@@ -126,7 +137,7 @@ export async function GET(request) {
 
       // Get existing staging entry for this device
       const stagingEntry = await db.zeroSalesStaging.findUnique({
-        where: { deviceId: stock.deviceId },
+        where: { deviceId: device.deviceId },
       });
 
       // === CASE 1: Device has sales - clear staging if exists ===
@@ -135,7 +146,7 @@ export async function GET(request) {
           await db.zeroSalesStaging.delete({
             where: { id: stagingEntry.id },
           });
-          console.log(`[ZeroSales] Device ${stock.deviceName} has sales, cleared from staging`);
+          console.log(`[ZeroSales] Device ${device.deviceName} has sales, cleared from staging`);
           resolved++;
         }
         continue;
@@ -146,7 +157,7 @@ export async function GET(request) {
       // Check for existing open incident (don't create duplicates)
       const existingIncident = await db.incident.findFirst({
         where: {
-          deviceId: stock.deviceId,
+          deviceId: device.deviceId,
           type: 'ZERO_SALES',
           status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] },
         },
@@ -168,10 +179,10 @@ export async function GET(request) {
             type: 'escalation',
             incident: existingIncident,
             title: '⚠️ Zero Sales Escalation',
-            body: `${stock.deviceName} has had no sales for over 1 hour`,
+            body: `${device.deviceName} has had no sales for over 1 hour`,
           });
 
-          console.log(`[ZeroSales] Escalated incident for ${stock.deviceName} to ops manager`);
+          console.log(`[ZeroSales] Escalated incident for ${device.deviceName} to ops manager`);
         }
         continue;
       }
@@ -181,8 +192,8 @@ export async function GET(request) {
         // === STAGE 0: Initial detection - create staging entry ===
         await db.zeroSalesStaging.create({
           data: {
-            deviceId: stock.deviceId,
-            deviceName: stock.deviceName,
+            deviceId: device.deviceId,
+            deviceName: device.deviceName,
             timeBlock: currentBlockLabel,
             stage: 0,
             startedAt: now,
@@ -194,17 +205,17 @@ export async function GET(request) {
         await sendIncidentNotification({
           type: 'new',
           incident: {
-            id: `staging-${stock.deviceId}`,
+            id: `staging-${device.deviceId}`,
             type: 'ZERO_SALES',
-            deviceId: stock.deviceId,
-            deviceName: stock.deviceName,
+            deviceId: device.deviceId,
+            deviceName: device.deviceName,
           },
           title: '📉 No Sales Alert',
-          body: `${stock.deviceName} has no sales in current block (${currentBlockLabel})`,
+          body: `${device.deviceName} has no sales in current block (${currentBlockLabel})`,
         });
 
         newStagingEntries++;
-        console.log(`[ZeroSales] Stage 0: ${stock.deviceName} added to staging`);
+        console.log(`[ZeroSales] Stage 0: ${device.deviceName} added to staging`);
       } else {
         // Check how long since staging started
         const stagingAge = now.getTime() - new Date(stagingEntry.startedAt).getTime();
@@ -226,17 +237,17 @@ export async function GET(request) {
           await sendIncidentNotification({
             type: 'reminder',
             incident: {
-              id: `staging-${stock.deviceId}`,
+              id: `staging-${device.deviceId}`,
               type: 'ZERO_SALES',
-              deviceId: stock.deviceId,
-              deviceName: stock.deviceName,
+              deviceId: device.deviceId,
+              deviceName: device.deviceName,
             },
             title: '📉 No Sales - 30min Reminder',
-            body: `${stock.deviceName} still has no sales. Please check the device.`,
+            body: `${device.deviceName} still has no sales. Please check the device.`,
           });
 
           stage1Escalations++;
-          console.log(`[ZeroSales] Stage 1: ${stock.deviceName} - 30min reminder sent`);
+          console.log(`[ZeroSales] Stage 1: ${device.deviceName} - 30min reminder sent`);
         } else if (stagingEntry.stage === 1 && stagingAge >= sixtyMin) {
           // === STAGE 2: 60 minutes - escalate to incident ===
 
@@ -244,13 +255,13 @@ export async function GET(request) {
           const incident = await db.incident.create({
             data: {
               type: 'ZERO_SALES',
-              deviceId: stock.deviceId,
-              deviceName: stock.deviceName,
+              deviceId: device.deviceId,
+              deviceName: device.deviceName,
               startTime: new Date(stagingEntry.startedAt),
               status: 'OPEN',
               slaOutcome: 'PENDING', // No SLA for zero sales, but track anyway
               timeBlock: currentBlockLabel,
-              stockQuantity: stock.quantity,
+              stockQuantity: stock?.quantity || 0,
             },
           });
 
@@ -264,11 +275,11 @@ export async function GET(request) {
             type: 'breach',
             incident,
             title: '🚨 HEAD DOWN - Zero Sales Incident',
-            body: `${stock.deviceName} has had no sales for 1 hour. Immediate action required!`,
+            body: `${device.deviceName} has had no sales for 1 hour. Immediate action required!`,
           });
 
           stage2Escalations++;
-          console.log(`[ZeroSales] Stage 2: ${stock.deviceName} escalated to incident`);
+          console.log(`[ZeroSales] Stage 2: ${device.deviceName} escalated to incident`);
         } else {
           // Update last checked time
           await db.zeroSalesStaging.update({
