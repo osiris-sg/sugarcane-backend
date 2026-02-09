@@ -24,7 +24,7 @@ function mapRoleToEnum(role) {
 // GET /api/admin/users - List all users (from DB, with fresh lastSignInAt from Clerk)
 export async function GET() {
   try {
-    // Get users from database with their group info and assigned drivers (for ops managers)
+    // Get users from database with their group info, assigned drivers, and roles
     const dbUsers = await db.user.findMany({
       include: {
         group: true,
@@ -43,6 +43,11 @@ export async function GET() {
             firstName: true,
             lastName: true,
             username: true,
+          },
+        },
+        roles: {
+          select: {
+            role: true,
           },
         },
       },
@@ -101,6 +106,11 @@ export async function GET() {
               firstName: true,
               lastName: true,
               username: true,
+            },
+          },
+          roles: {
+            select: {
+              role: true,
             },
           },
         },

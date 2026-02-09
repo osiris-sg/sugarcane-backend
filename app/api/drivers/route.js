@@ -11,9 +11,12 @@ export async function GET() {
   try {
     const drivers = await db.user.findMany({
       where: {
-        role: 'DRIVER',
         isActive: true,
-        loginPin: { not: null }
+        loginPin: { not: null },
+        OR: [
+          { role: 'DRIVER' },
+          { roles: { some: { role: 'DRIVER' } } },
+        ],
       },
       select: {
         id: true,

@@ -25,7 +25,7 @@ export async function GET(request) {
     if (userId) {
       dbUser = await db.user.findUnique({
         where: { clerkId: userId },
-        select: { id: true, clerkId: true, role: true, groupId: true },
+        select: { id: true, clerkId: true, role: true, groupId: true, roles: { select: { role: true } } },
       });
 
       // Franchisees and Partnerships users can only see their own group's devices
@@ -33,9 +33,15 @@ export async function GET(request) {
         userGroupId = dbUser.groupId;
       }
 
-      // Drivers can only see devices assigned to them
-      if (dbUser?.role === 'DRIVER') {
-        userDriverId = dbUser.id; // Use the User.id as driverId
+      // Check if user has DRIVER role (legacy field OR roles table)
+      const hasDriverRole = dbUser?.role === 'DRIVER' || dbUser?.roles?.some(r => r.role === 'DRIVER');
+      // Check if user also has admin/manager role (they see all devices)
+      const hasAdminRole = ['ADMIN', 'MANAGER', 'OPS_MANAGER'].includes(dbUser?.role) ||
+        dbUser?.roles?.some(r => ['ADMIN', 'MANAGER', 'OPS_MANAGER'].includes(r.role));
+
+      // Drivers can only see devices assigned to them (unless they also have admin role)
+      if (hasDriverRole && !hasAdminRole) {
+        userDriverId = dbUser.id;
       }
     }
 
@@ -46,9 +52,11 @@ export async function GET(request) {
       // Franchisee/Partnerships: filter by group
       whereClause = { groups: { some: { groupId: userGroupId } } };
     } else if (userDriverId) {
-      // Driver: filter by assigned driver (check both id and clerkId for compatibility)
+      // Driver: filter by assigned devices from DeviceDriver table
+      // Also check legacy driverId field for backward compatibility
       whereClause = {
         OR: [
+          { drivers: { some: { userId: userDriverId } } },
           { driverId: userDriverId },
           { driverId: dbUser.clerkId },
         ],
