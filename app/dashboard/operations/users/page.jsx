@@ -72,6 +72,7 @@ export default function UsersPage() {
   const [availableDrivers, setAvailableDrivers] = useState([]);
   const [selectedDriverIds, setSelectedDriverIds] = useState([]);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
+  const [editingDriversUser, setEditingDriversUser] = useState(null); // Separate state for editing drivers only
 
   // Redirect non-admins
   const role = user?.publicMetadata?.role || "franchisee";
@@ -84,26 +85,34 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  // Load drivers when editing an ops manager
+  // Load drivers when editing an ops manager (role edit)
   useEffect(() => {
     if (editingUser && ["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(newRole)) {
-      fetchAvailableDrivers();
+      fetchAvailableDrivers(editingUser);
       // Pre-select the already assigned drivers
       setSelectedDriverIds(editingUser.assignedDrivers?.map((d) => d.id) || []);
-    } else {
+    } else if (!editingDriversUser) {
       setAvailableDrivers([]);
       setSelectedDriverIds([]);
     }
   }, [editingUser, newRole]);
 
-  async function fetchAvailableDrivers() {
+  // Load drivers when using the dedicated "Edit Assigned Drivers" dialog
+  useEffect(() => {
+    if (editingDriversUser) {
+      fetchAvailableDrivers(editingDriversUser);
+      setSelectedDriverIds(editingDriversUser.assignedDrivers?.map((d) => d.id) || []);
+    }
+  }, [editingDriversUser]);
+
+  async function fetchAvailableDrivers(targetUser) {
     setLoadingDrivers(true);
     try {
       // Get all drivers - include those assigned to the current ops manager
       const drivers = users.filter(
         (u) =>
           ["driver", "DRIVER"].includes(u.role) &&
-          (!u.opsManagerId || u.opsManager?.id === editingUser?.id)
+          (!u.opsManagerId || u.opsManager?.id === targetUser?.id)
       );
       setAvailableDrivers(drivers);
     } catch (error) {
@@ -119,6 +128,31 @@ export default function UsersPage() {
         ? prev.filter((id) => id !== driverId)
         : [...prev, driverId]
     );
+  }
+
+  async function handleUpdateDrivers() {
+    if (!editingDriversUser) return;
+
+    try {
+      const res = await fetch(`/api/admin/users/${editingDriversUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedDriverIds: selectedDriverIds }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Assigned drivers updated");
+        setEditingDriversUser(null);
+        setSelectedDriverIds([]);
+        fetchUsers();
+      } else {
+        toast.error(data.error || "Failed to update drivers");
+      }
+    } catch (error) {
+      console.error("Error updating drivers:", error);
+      toast.error("Failed to update drivers");
+    }
   }
 
   async function fetchUsers() {
@@ -475,6 +509,14 @@ export default function UsersPage() {
                               <Edit className="mr-2 h-4 w-4" />
                               Edit Role
                             </DropdownMenuItem>
+                            {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) && (
+                              <DropdownMenuItem
+                                onClick={() => setEditingDriversUser(user)}
+                              >
+                                <Users className="mr-2 h-4 w-4" />
+                                Edit Assigned Drivers
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-red-600"
@@ -556,6 +598,14 @@ export default function UsersPage() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit Role
                           </DropdownMenuItem>
+                          {["opsmanager", "manager", "OPSMANAGER", "MANAGER", "OPS_MANAGER"].includes(user.role) && (
+                            <DropdownMenuItem
+                              onClick={() => setEditingDriversUser(user)}
+                            >
+                              <Users className="mr-2 h-4 w-4" />
+                              Edit Assigned Drivers
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600"
@@ -735,6 +785,71 @@ export default function UsersPage() {
             <Button variant="destructive" onClick={handleDeleteUser}>
               Delete User
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Assigned Drivers Dialog (for Ops Managers) */}
+      <Dialog open={!!editingDriversUser} onOpenChange={() => {
+        setEditingDriversUser(null);
+        setSelectedDriverIds([]);
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Assigned Drivers</DialogTitle>
+            <DialogDescription>
+              Manage drivers assigned to {editingDriversUser?.firstName} {editingDriversUser?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {loadingDrivers ? (
+              <p className="text-sm text-muted-foreground">Loading drivers...</p>
+            ) : availableDrivers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No drivers available to assign
+              </p>
+            ) : (
+              <div className="rounded-md border p-3 space-y-2 max-h-64 overflow-auto">
+                {availableDrivers.map((driver) => (
+                  <div
+                    key={driver.id}
+                    onClick={() => toggleDriver(driver.id)}
+                    className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                      selectedDriverIds.includes(driver.id)
+                        ? "bg-primary/10 border border-primary"
+                        : "hover:bg-muted"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-orange-500" />
+                      <span className="text-sm font-medium">
+                        {driver.firstName} {driver.lastName}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        @{driver.username}
+                      </span>
+                    </div>
+                    {selectedDriverIds.includes(driver.id) && (
+                      <Check className="h-4 w-4 text-primary" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {selectedDriverIds.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {selectedDriverIds.length} driver(s) selected
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setEditingDriversUser(null);
+              setSelectedDriverIds([]);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateDrivers}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
