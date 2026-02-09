@@ -17,13 +17,24 @@ export default function DashboardPage() {
   // Get role from user metadata (default to franchisee)
   const role = user?.publicMetadata?.role || "franchisee";
   const isOwnerOrAdmin = role === "owner" || role === "admin";
+  const isDriver = role === "driver";
+  const isOpsManager = role === "opsmanager" || role === "ops_manager";
 
-  // Redirect sales-only users (franchisee, finance) directly to sales page
-  // ADMINOPS goes to equipment page (their primary access)
+  // Role-based redirects
   if (isLoaded && !isOwnerOrAdmin) {
+    // Drivers go directly to operations/incidents
+    if (isDriver) {
+      redirect("/dashboard/operations/incidents");
+    }
+    // Ops managers go to operations
+    if (isOpsManager) {
+      redirect("/dashboard/operations");
+    }
+    // ADMINOPS goes to equipment page
     if (role === "adminops") {
       redirect("/dashboard/sales/equipment");
     }
+    // Everyone else (franchisee, finance, etc.) goes to sales
     redirect("/dashboard/sales");
   }
 

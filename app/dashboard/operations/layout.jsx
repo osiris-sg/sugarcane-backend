@@ -191,9 +191,11 @@ export default function OperationsLayout({ children }) {
   const role = user?.publicMetadata?.role || "franchisee";
   const isAdmin = role === "owner" || role === "admin";
   const isDriver = role === "driver";
-  const canAccessOps = isAdmin || isDriver;
+  const isOpsManager = role === "opsmanager" || role === "ops_manager";
+  const canAccessOps = isAdmin || isDriver || isOpsManager;
 
   // Get sidebar items based on role
+  // Drivers only see incidents and no-sales, ops managers and admins see everything
   const sidebarItems = isDriver ? driverSidebarItems : adminSidebarItems;
 
   // Close mobile menu on route change
