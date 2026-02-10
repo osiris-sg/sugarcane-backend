@@ -112,25 +112,30 @@ export async function GET(request) {
 
       // === CASE 2: SLA breach happening now ===
       if (isPastDeadline && incident.slaOutcome === 'PENDING') {
+        // Only OUT_OF_STOCK creates penalties (LOW_STOCK does not)
+        const shouldCreatePenalty = incident.type === 'OUT_OF_STOCK';
+
         // Mark as breached
         await db.incident.update({
           where: { id: incident.id },
           data: {
             slaOutcome: 'SLA_BREACHED',
-            penaltyFlag: true,
+            penaltyFlag: shouldCreatePenalty,
             lastReminderAt: now,
             reminderCount: { increment: 1 },
             escalatedAt: now,
           },
         });
 
-        // Create penalty record
-        await db.penalty.create({
-          data: {
-            incidentId: incident.id,
-            reason: `SLA breach - ${incident.type} not resolved within ${SLA_HOURS} hours`,
-          },
-        });
+        // Create penalty record only for OUT_OF_STOCK
+        if (shouldCreatePenalty) {
+          await db.penalty.create({
+            data: {
+              incidentId: incident.id,
+              reason: `SLA breach - ${incident.type} not resolved within ${SLA_HOURS} hours`,
+            },
+          });
+        }
 
         // Send breach notification (escalates to admin + ops manager)
         const breachIssueDescription = incident.faultName || incident.faultCode || incident.type.replace(/_/g, ' ');
@@ -144,7 +149,7 @@ export async function GET(request) {
         // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts
 
         breaches++;
-        console.log(`[SLA-Monitor] SLA BREACH for ${displayName} - penalty logged`);
+        console.log(`[SLA-Monitor] SLA BREACH for ${displayName} (${incident.type})${shouldCreatePenalty ? ' - penalty logged' : ' - no penalty (LOW_STOCK)'}`);
         continue;
       }
 
