@@ -269,7 +269,15 @@ export async function GET(request) {
       }),
     ]);
 
-    // Add calculated fields
+    // Fetch device locations for all incidents
+    const deviceIds = [...new Set(incidents.map(i => i.deviceId))];
+    const devices = await db.device.findMany({
+      where: { deviceId: { in: deviceIds } },
+      select: { deviceId: true, location: true },
+    });
+    const deviceLocationMap = new Map(devices.map(d => [d.deviceId, d.location]));
+
+    // Add calculated fields and device location
     const enrichedIncidents = incidents.map((incident) => {
       const now = new Date();
       const startTime = new Date(incident.startTime);
@@ -284,6 +292,7 @@ export async function GET(request) {
 
       return {
         ...incident,
+        deviceLocation: deviceLocationMap.get(incident.deviceId) || null,
         elapsedMinutes,
         slaRemainingMinutes,
       };

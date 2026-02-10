@@ -408,6 +408,7 @@ export default function IncidentsPage() {
     if (searchText) {
       const search = searchText.toLowerCase();
       return (
+        incident.deviceLocation?.toLowerCase().includes(search) ||
         incident.deviceName?.toLowerCase().includes(search) ||
         incident.deviceId?.toLowerCase().includes(search) ||
         incident.faultCode?.toLowerCase().includes(search) ||
@@ -719,7 +720,7 @@ export default function IncidentsPage() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{incident.deviceName}</div>
+                          <div className="font-medium">{incident.deviceLocation || incident.deviceName}</div>
                           <div className={`text-xs ${isCritical ? "text-red-100" : "text-muted-foreground"}`}>{incident.deviceId}</div>
                         </div>
                       </TableCell>
@@ -849,7 +850,7 @@ export default function IncidentsPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold">{incident.deviceName}</span>
+                            <span className="font-semibold">{incident.deviceLocation || incident.deviceName}</span>
                             <PriorityBadge
                               reminderCount={incident.reminderCount}
                               slaOutcome={incident.slaOutcome}
@@ -956,7 +957,7 @@ export default function IncidentsPage() {
           <div className="space-y-4">
             <div>
               <p className="text-sm font-medium mb-1">Device</p>
-              <p className="text-sm text-muted-foreground">{selectedIncident?.deviceName}</p>
+              <p className="text-sm text-muted-foreground">{selectedIncident?.deviceLocation || selectedIncident?.deviceName}</p>
             </div>
             {selectedIncident?.type === "ZERO_SALES" && (
               <div>
