@@ -281,6 +281,13 @@ export async function sendIncidentNotification(
     let totalSent = 0;
     let totalFailed = 0;
 
+    // Fetch device location for display (use location instead of deviceName)
+    const deviceRecord = await db.device.findUnique({
+      where: { deviceId: incident.deviceId },
+      select: { location: true },
+    });
+    const displayName = deviceRecord?.location || incident.deviceName;
+
     // Find all assigned drivers for this device (many-to-many)
     const deviceDrivers = await db.deviceDriver.findMany({
       where: { deviceId: incident.deviceId },
@@ -369,7 +376,13 @@ export async function sendIncidentNotification(
     }
 
     // For breach and escalation: Notify all drivers + their ops managers + admins
+    // BUT only if there are assigned drivers (skip unassigned devices)
     if (type === "breach" || type === "escalation") {
+      if (assignedDrivers.length === 0) {
+        console.log(`[Push] No assigned drivers for device ${incident.deviceId}, skipping ${type} notification`);
+        return { success: true, sent: totalSent, failed: totalFailed };
+      }
+
       // 1. Notify all assigned drivers
       for (const driver of assignedDrivers) {
         const result = await sendPushNotification(driver.clerkId, driverPayload);
@@ -389,7 +402,7 @@ export async function sendIncidentNotification(
           const opsPayload: NotificationPayload = {
             ...driverPayload,
             title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
-            body: `${incident.deviceName}: ${driverName} breached SLA`,
+            body: `${displayName}: ${driverName} breached SLA`,
           };
           const result = await sendPushNotification(opsManager.clerkId, opsPayload);
           totalSent += result.sent;
@@ -411,7 +424,7 @@ export async function sendIncidentNotification(
         const adminPayload: NotificationPayload = {
           ...driverPayload,
           title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
-          body: `${incident.deviceName}: ${driverName} breached SLA`,
+          body: `${displayName}: ${driverName} breached SLA`,
         };
         const result = await sendPushNotification(admin.clerkId, adminPayload);
         totalSent += result.sent;
@@ -422,7 +435,13 @@ export async function sendIncidentNotification(
     }
 
     // For post_breach_reminder: Notify all drivers + their ops managers (NO admin - they only get notified once at breach)
+    // BUT only if there are assigned drivers (skip unassigned devices)
     if (type === "post_breach_reminder") {
+      if (assignedDrivers.length === 0) {
+        console.log(`[Push] No assigned drivers for device ${incident.deviceId}, skipping post_breach_reminder notification`);
+        return { success: true, sent: totalSent, failed: totalFailed };
+      }
+
       // 1. Notify all assigned drivers
       for (const driver of assignedDrivers) {
         const result = await sendPushNotification(driver.clerkId, driverPayload);
@@ -443,7 +462,7 @@ export async function sendIncidentNotification(
           const opsPayload: NotificationPayload = {
             ...driverPayload,
             title: "🔴 SLA BREACHED - Ongoing",
-            body: `${incident.deviceName}: ${driverName} still unresolved`,
+            body: `${displayName}: ${driverName} still unresolved`,
           };
           const result = await sendPushNotification(opsManager.clerkId, opsPayload);
           totalSent += result.sent;
