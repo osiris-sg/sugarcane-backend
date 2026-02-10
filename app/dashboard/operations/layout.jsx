@@ -28,6 +28,10 @@ import {
   BarChart3,
   Sparkles,
   Smartphone,
+  CircleAlert,
+  FileText,
+  ClipboardList,
+  Settings,
 } from "lucide-react";
 import { NotificationToggle } from "@/components/notification-toggle";
 import { cn } from "@/lib/utils";
@@ -46,55 +50,37 @@ const adminSidebarItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Incidents",
-    href: "/dashboard/operations/incidents",
-    icon: AlertCircle,
-  },
-  {
-    title: "No Sales",
-    href: "/dashboard/operations/no-sales",
-    icon: TrendingDown,
-  },
-  {
-    title: "Faults",
-    href: "/dashboard/operations/faults",
-    icon: AlertTriangle,
-  },
-  {
-    title: "Penalties",
-    href: "/dashboard/operations/penalties",
-    icon: Ban,
-  },
-  {
-    title: "Efficiency",
-    href: "/dashboard/operations/efficiency",
-    icon: BarChart3,
-  },
-  {
-    title: "Cleaning Logs",
-    href: "/dashboard/operations/cleaning-logs",
-    icon: Sparkles,
-  },
-  {
-    title: "Maintenance Logs",
-    href: "/dashboard/operations/maintenance-logs",
-    icon: Wrench,
-  },
-  {
-    title: "Driver Assignment",
-    href: "/dashboard/operations/driver-assignment",
-    icon: Truck,
-  },
-  {
-    title: "Device Registration",
-    href: "/dashboard/operations/device-registration",
-    icon: Smartphone,
-  },
-  {
-    title: "User Management",
-    icon: Users,
+    title: "Issues",
+    icon: CircleAlert,
     children: [
-      { title: "User List", href: "/dashboard/operations/users", icon: List },
+      { title: "Incidents", href: "/dashboard/operations/incidents", icon: AlertCircle },
+      { title: "No Sales", href: "/dashboard/operations/no-sales", icon: TrendingDown },
+      { title: "Faults", href: "/dashboard/operations/faults", icon: AlertTriangle },
+      { title: "Penalties", href: "/dashboard/operations/penalties", icon: Ban },
+    ],
+  },
+  {
+    title: "Reports",
+    icon: BarChart3,
+    children: [
+      { title: "Efficiency", href: "/dashboard/operations/efficiency", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Logs",
+    icon: ClipboardList,
+    children: [
+      { title: "Cleaning Logs", href: "/dashboard/operations/cleaning-logs", icon: Sparkles },
+      { title: "Maintenance Logs", href: "/dashboard/operations/maintenance-logs", icon: Wrench },
+    ],
+  },
+  {
+    title: "Setup",
+    icon: Settings,
+    children: [
+      { title: "Driver Assignment", href: "/dashboard/operations/driver-assignment", icon: Truck },
+      { title: "Device Registration", href: "/dashboard/operations/device-registration", icon: Smartphone },
+      { title: "User List", href: "/dashboard/operations/users", icon: Users },
       { title: "Add User", href: "/dashboard/operations/users/add", icon: UserPlus },
       { title: "Roles", href: "/dashboard/operations/users/roles", icon: Shield },
     ],
