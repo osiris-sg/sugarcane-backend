@@ -138,21 +138,14 @@ export async function GET(request) {
     }
 
     // Add date range filter
-    // Dates from frontend are in SGT, DB stores UTC
-    // SGT is UTC+8, so we need to subtract 8 hours to convert SGT to UTC
-    const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+    // Frontend already converts SGT to UTC ISO strings
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) {
-        // startDate "2026-02-12" means Feb 12 00:00:00 SGT = Feb 11 16:00:00 UTC
-        const startSGT = new Date(startDate);
-        where.createdAt.gte = new Date(startSGT.getTime() - SGT_OFFSET_MS);
+        where.createdAt.gte = new Date(startDate);
       }
       if (endDate) {
-        // endDate "2026-02-12" means end of Feb 12 SGT = Feb 12 23:59:59.999 SGT = Feb 12 15:59:59.999 UTC
-        const endSGT = new Date(endDate);
-        endSGT.setHours(23, 59, 59, 999);
-        where.createdAt.lte = new Date(endSGT.getTime() - SGT_OFFSET_MS);
+        where.createdAt.lte = new Date(endDate);
       }
     }
 
