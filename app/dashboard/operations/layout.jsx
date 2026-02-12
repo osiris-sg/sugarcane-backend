@@ -67,7 +67,6 @@ const adminSidebarItems = [
     children: [
       { title: "Incidents", href: "/dashboard/operations/incidents", icon: AlertCircle },
       { title: "No Sales", href: "/dashboard/operations/no-sales", icon: TrendingDown },
-      { title: "Faults", href: "/dashboard/operations/faults", icon: AlertTriangle },
       { title: "Penalties", href: "/dashboard/operations/penalties", icon: Ban },
     ],
   },
