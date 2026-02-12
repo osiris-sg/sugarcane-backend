@@ -164,11 +164,13 @@ export async function GET(request) {
         deliverCount: true,
         totalCount: true,
         quantity: true,
+        isSuccess: true,
       },
     });
 
-    // Calculate proportional revenue and cups by device
-    // Revenue = PayAmount × (DeliverCount / TotalCount)
+    // Calculate revenue and cups by device
+    // Success orders: count full amount
+    // Failed orders with delivery: (amount / totalCount) * deliverCount
     const deviceStats = {};
     ordersWithDelivery.forEach(order => {
       const deviceId = order.deviceId;
@@ -176,15 +178,24 @@ export async function GET(request) {
         deviceStats[deviceId] = { totalSales: 0, totalCups: 0, orderCount: 0 };
       }
 
-      const deliverCount = order.deliverCount ?? order.quantity ?? 1;
+      const deliverCount = order.deliverCount ?? 0;
       const totalCount = order.totalCount ?? order.quantity ?? 1;
+      const isSuccess = order.isSuccess ?? true;
 
-      // Calculate proportional revenue
-      const proportionalAmount = totalCount > 0
-        ? Math.round(order.amount * (deliverCount / totalCount))
-        : 0;
+      if (deliverCount === 0) return;
 
-      deviceStats[deviceId].totalSales += proportionalAmount;
+      let revenue;
+      if (isSuccess) {
+        // Success: count full amount
+        revenue = order.amount || 0;
+      } else {
+        // Failed but delivered: proportional amount
+        revenue = totalCount > 0
+          ? Math.round((order.amount || 0) * (deliverCount / totalCount))
+          : 0;
+      }
+
+      deviceStats[deviceId].totalSales += revenue;
       deviceStats[deviceId].totalCups += deliverCount;
       deviceStats[deviceId].orderCount += 1;
     });
