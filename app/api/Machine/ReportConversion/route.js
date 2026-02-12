@@ -1,4 +1,4 @@
-import { db, getDeviceNameById } from '@/lib/db';
+import { db, getDeviceNameById, swapDeviceId } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -99,7 +99,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const {
-      deviceId,
+      deviceId: rawDeviceId,
       deviceName: reportedName,
       amount,           // Amount being converted
       oldStorage,       // Storage before conversion
@@ -109,12 +109,15 @@ export async function POST(request) {
     } = body;
 
     // Validate required fields
-    if (!deviceId || amount === undefined) {
+    if (!rawDeviceId || amount === undefined) {
       return NextResponse.json(
         { success: false, error: 'deviceId and amount are required' },
         { status: 400 }
       );
     }
+
+    // Swap device ID if needed
+    const deviceId = swapDeviceId(rawDeviceId);
 
     // Look up the correct device name from database
     const deviceName = await getDeviceNameById(deviceId, reportedName);

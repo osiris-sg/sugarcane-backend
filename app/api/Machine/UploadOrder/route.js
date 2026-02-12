@@ -1,4 +1,4 @@
-import { db, getDeviceNameById } from '@/lib/db';
+import { db, getDeviceNameById, swapDeviceId } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { sendAlert } from '@/lib/telegram';
 
@@ -12,7 +12,7 @@ export async function POST(request) {
     // The Android app sends: orderId, deviceId, deviceName, payAmount, deliverCount, totalCount, payWay, isSuccess
     const {
       orderId,
-      deviceId,
+      deviceId: rawDeviceId,
       deviceName: reportedName,
       amount,           // Legacy field
       payAmount,        // New field - amount in cents (may be 100x)
@@ -26,8 +26,14 @@ export async function POST(request) {
     // Determine success - null or false means failed
     const orderSuccess = isSuccess === true;
 
-    if (!deviceId) {
+    if (!rawDeviceId) {
       return NextResponse.json({ success: false, error: 'deviceId is required' }, { status: 400 });
+    }
+
+    // Swap device ID if needed (for mismatched device IDs)
+    const deviceId = swapDeviceId(rawDeviceId);
+    if (deviceId !== rawDeviceId) {
+      console.log(`[UploadOrder] Swapped device ID: ${rawDeviceId} -> ${deviceId}`);
     }
 
     // Look up device to get price

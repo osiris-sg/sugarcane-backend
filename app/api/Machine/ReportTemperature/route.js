@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, swapDeviceId } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 // POST /api/Machine/ReportTemperature
@@ -6,15 +6,18 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, refrigerationTemp, machineTemp } = body;
+    const { deviceId: rawDeviceId, deviceName, refrigerationTemp, machineTemp } = body;
 
     // Validate required fields
-    if (!deviceId) {
+    if (!rawDeviceId) {
       return NextResponse.json(
         { success: false, error: 'deviceId is required' },
         { status: 400 }
       );
     }
+
+    // Swap device ID if needed
+    const deviceId = swapDeviceId(rawDeviceId);
 
     // Parse temperature values (may come as numbers or strings)
     const temp1 = parseFloat(refrigerationTemp) || 0;
