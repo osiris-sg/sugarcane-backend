@@ -84,34 +84,6 @@ export async function POST(request) {
       }
     }
 
-    // Check for existing open issue of same type for this device
-    const [existingIssue, existingIncident] = await Promise.all([
-      db.issue.findFirst({
-        where: {
-          deviceId,
-          type,
-          status: { in: ['OPEN', 'CHECKING'] }
-        }
-      }),
-      db.incident.findFirst({
-        where: {
-          deviceId,
-          type: 'ERROR_NOTIFICATION',
-          faultCode,
-          status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
-        }
-      })
-    ]);
-
-    if (existingIssue || existingIncident) {
-      return NextResponse.json({
-        success: false,
-        error: 'An open issue of this type already exists for this device',
-        existingIssueId: existingIssue?.id,
-        existingIncidentId: existingIncident?.id
-      }, { status: 409 });
-    }
-
     // Use lookup table if faultName is missing or same as faultCode
     let resolvedFaultName = faultName;
     if (faultCode && (!faultName || faultName === faultCode)) {
