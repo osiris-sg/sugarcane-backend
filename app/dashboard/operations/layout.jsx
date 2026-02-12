@@ -33,6 +33,8 @@ import {
   ClipboardList,
   Settings,
   Package,
+  Warehouse,
+  TrendingUp,
 } from "lucide-react";
 import { NotificationToggle } from "@/components/notification-toggle";
 import { cn } from "@/lib/utils";
@@ -52,8 +54,12 @@ const adminSidebarItems = [
   },
   {
     title: "Inventory",
-    href: "/dashboard/operations/inventory/stock",
     icon: Package,
+    children: [
+      { title: "Stock", href: "/dashboard/operations/inventory/stock", icon: Package },
+      { title: "Storage", href: "/dashboard/operations/inventory/storage", icon: Warehouse },
+      { title: "Stock Prediction", href: "/dashboard/operations/inventory/prediction", icon: TrendingUp },
+    ],
   },
   {
     title: "Issues",
