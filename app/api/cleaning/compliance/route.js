@@ -52,7 +52,8 @@ export async function GET(request) {
 
       return {
         deviceId: device.deviceId,
-        deviceName: device.deviceName,
+        deviceName: device.location || device.deviceName,
+        location: device.location,
         cleaningCount,
         requiredCount: REQUIRED_CLEANINGS_PER_MONTH,
         isCompliant,

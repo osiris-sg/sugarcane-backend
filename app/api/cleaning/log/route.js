@@ -94,9 +94,26 @@ export async function GET(request) {
       }),
     ]);
 
+    // Get device locations for enrichment
+    const deviceIds = [...new Set(logs.map(l => l.deviceId))];
+    const devices = await db.device.findMany({
+      where: { deviceId: { in: deviceIds } },
+      select: { deviceId: true, location: true, deviceName: true },
+    });
+    const deviceMap = {};
+    devices.forEach(d => {
+      deviceMap[d.deviceId] = d.location || d.deviceName;
+    });
+
+    // Enrich logs with device location
+    const enrichedLogs = logs.map(log => ({
+      ...log,
+      deviceName: deviceMap[log.deviceId] || log.deviceName,
+    }));
+
     return NextResponse.json({
       success: true,
-      logs,
+      logs: enrichedLogs,
       count: logs.length,
       total,
       offset,

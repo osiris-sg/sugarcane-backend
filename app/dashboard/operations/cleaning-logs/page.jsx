@@ -157,19 +157,20 @@ export default function CleaningLogsPage() {
     setActionLoading(true);
     try {
       const device = devices.find((d) => d.deviceId === selectedDevice);
+      const displayName = device?.location || device?.deviceName || selectedDevice;
       const res = await fetch("/api/cleaning/log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           deviceId: selectedDevice,
-          deviceName: device?.deviceName || selectedDevice,
+          deviceName: displayName,
           userId: user?.id,
           userName: `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.id,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`Cleaning logged for ${device?.deviceName || selectedDevice}`);
+        toast.success(`Cleaning logged for ${displayName}`);
         setLogDialogOpen(false);
         fetchData();
       } else {
@@ -503,7 +504,7 @@ export default function CleaningLogsPage() {
                 <SelectContent>
                   {devices.map((device) => (
                     <SelectItem key={device.deviceId} value={device.deviceId}>
-                      {device.deviceName}
+                      {device.location || device.deviceName}
                     </SelectItem>
                   ))}
                 </SelectContent>
