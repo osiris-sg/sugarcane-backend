@@ -59,6 +59,26 @@ export async function GET(request) {
       users.map((u) => [u.clerkId, `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.clerkId])
     );
 
+    // Get device drivers from DeviceDriver table for each device
+    const deviceIds = [...new Set(incidents.map((i) => i.deviceId).filter(Boolean))];
+    const deviceDrivers = await db.deviceDriver.findMany({
+      where: { deviceId: { in: deviceIds } },
+      include: {
+        user: { select: { firstName: true, lastName: true } },
+      },
+    });
+    // Map deviceId to list of driver names
+    const deviceDriverMap = new Map();
+    for (const dd of deviceDrivers) {
+      const name = `${dd.user?.firstName || ''} ${dd.user?.lastName || ''}`.trim();
+      if (!deviceDriverMap.has(dd.deviceId)) {
+        deviceDriverMap.set(dd.deviceId, []);
+      }
+      if (name) {
+        deviceDriverMap.get(dd.deviceId).push(name);
+      }
+    }
+
     // Format data for export
     const rows = incidents.map((incident) => {
       const startTime = new Date(incident.startTime);
@@ -90,7 +110,7 @@ export async function GET(request) {
         responseTimeMinutes: responseTimeMs ? Math.round(responseTimeMs / 60000) : '',
         resolutionTimeMinutes: resolutionTimeMs ? Math.round(resolutionTimeMs / 60000) : '',
         assignedOps: userMap.get(incident.assignedOpsId) || incident.assignedOpsId || '',
-        assignedDriver: userMap.get(incident.assignedDriverId) || incident.assignedDriverId || '',
+        assignedDriver: userMap.get(incident.assignedDriverId) || incident.assignedDriverId || deviceDriverMap.get(incident.deviceId)?.join(', ') || '',
         resolution: incident.resolution || '',
         resolutionCategory: incident.resolutionCategory || '',
       };
