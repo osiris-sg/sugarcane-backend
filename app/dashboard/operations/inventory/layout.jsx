@@ -24,17 +24,17 @@ import { Button } from "@/components/ui/button";
 const sidebarItems = [
   {
     title: "Stock",
-    href: "/dashboard/inventory/stock",
+    href: "/dashboard/operations/inventory/stock",
     icon: Package,
   },
   {
     title: "Storage",
-    href: "/dashboard/inventory/storage",
+    href: "/dashboard/operations/inventory/storage",
     icon: Warehouse,
   },
   {
     title: "Stock Prediction",
-    href: "/dashboard/inventory/prediction",
+    href: "/dashboard/operations/inventory/prediction",
     icon: TrendingUp,
   },
 ];
@@ -88,7 +88,7 @@ export default function InventoryLayout({ children }) {
     <div className="flex min-h-screen">
       {/* Mobile Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
-        <Link href="/dashboard" className="flex items-center gap-2">
+        <Link href="/dashboard/operations" className="flex items-center gap-2">
           <span className="text-lg font-bold text-primary">Inventory</span>
         </Link>
         <div className="flex items-center gap-1">
@@ -137,12 +137,12 @@ export default function InventoryLayout({ children }) {
         {/* Bottom Section */}
         <div className="absolute bottom-4 left-0 right-0 space-y-1 px-3">
           <Link
-            href="/dashboard"
+            href="/dashboard/operations"
             onClick={closeMobileMenu}
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <ChevronLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
+            <span>Back to Operations</span>
           </Link>
           <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
@@ -169,7 +169,7 @@ export default function InventoryLayout({ children }) {
         {/* Sidebar Header */}
         <div className="flex h-16 items-center justify-between border-b px-4">
           {!isCollapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2">
+            <Link href="/dashboard/operations" className="flex items-center gap-2">
               <span className="text-lg font-bold text-primary">Inventory</span>
             </Link>
           )}
@@ -197,14 +197,14 @@ export default function InventoryLayout({ children }) {
         {/* Bottom Section */}
         <div className="absolute bottom-4 left-0 right-0 space-y-1 px-3">
           <Link
-            href="/dashboard"
+            href="/dashboard/operations"
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
               isCollapsed && "justify-center"
             )}
           >
             <ChevronLeft className="h-4 w-4" />
-            {!isCollapsed && <span>Back to Dashboard</span>}
+            {!isCollapsed && <span>Back to Operations</span>}
           </Link>
           <div
             className={cn(

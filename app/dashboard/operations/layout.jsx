@@ -32,6 +32,7 @@ import {
   FileText,
   ClipboardList,
   Settings,
+  Package,
 } from "lucide-react";
 import { NotificationToggle } from "@/components/notification-toggle";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,11 @@ const adminSidebarItems = [
     title: "Overview",
     href: "/dashboard/operations",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Inventory",
+    href: "/dashboard/operations/inventory/stock",
+    icon: Package,
   },
   {
     title: "Issues",
