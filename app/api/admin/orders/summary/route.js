@@ -76,18 +76,13 @@ export async function GET(request) {
         dateTo = sgtToUTC(sgtYear, sgtMonth + 1, 1);
         break;
       case 'custom':
-        // Dates from frontend are in SGT (e.g., "2026-02-12")
-        // Convert to UTC for DB query
+        // Dates are expected as ISO strings with timezone already applied
+        // End date is exclusive (like old platform)
         if (startDate) {
-          // startDate "2026-02-12" means Feb 12 00:00:00 SGT
-          const startSGT = new Date(startDate);
-          dateFrom = new Date(startSGT.getTime() - SGT_OFFSET);
+          dateFrom = new Date(startDate);
         }
         if (endDate) {
-          // endDate "2026-02-12" means end of Feb 12 SGT (use start of next day for lt comparison)
-          const endSGT = new Date(endDate);
-          endSGT.setDate(endSGT.getDate() + 1); // Next day
-          dateTo = new Date(endSGT.getTime() - SGT_OFFSET);
+          dateTo = new Date(endDate);
         }
         break;
       default:
