@@ -307,6 +307,7 @@ export default function OperationsPage() {
                     <TableHead>Actions</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Stock</TableHead>
+                    <TableHead>Storage</TableHead>
                     <TableHead>Min Threshold</TableHead>
                     <TableHead>Temp (°C)</TableHead>
                     <TableHead>Last Seen</TableHead>
@@ -315,7 +316,7 @@ export default function OperationsPage() {
                 <TableBody>
                   {filteredDevices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                         No devices found
                       </TableCell>
                     </TableRow>
@@ -392,6 +393,13 @@ export default function OperationsPage() {
                             )}
                           </TableCell>
                           <TableCell>
+                            {device.storageQuantity !== null ? (
+                              <span className="text-sm">{device.storageQuantity}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <span className={`text-sm ${device.stockQuantity !== null && device.stockQuantity <= device.minStockThreshold ? "text-red-500 font-medium" : ""}`}>
                               {device.minStockThreshold}
                             </span>
@@ -461,7 +469,7 @@ export default function OperationsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-3 gap-2 text-xs">
                       <div>
                         <span className="text-muted-foreground">Stock: </span>
                         {device.stockQuantity !== null ? (
@@ -472,6 +480,10 @@ export default function OperationsPage() {
                             {device.cupStock}%
                           </span>
                         ) : "-"}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Storage: </span>
+                        {device.storageQuantity !== null ? device.storageQuantity : "-"}
                       </div>
                       <div>
                         <span className="text-muted-foreground">Temp: </span>
