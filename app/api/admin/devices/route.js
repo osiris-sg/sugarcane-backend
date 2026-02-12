@@ -114,13 +114,14 @@ export async function GET(request) {
       select: {
         deviceId: true,
         quantity: true,
+        updatedAt: true,
       },
     });
 
     // Create a map for quick lookup
     const storageMap = new Map();
     storageData.forEach((s) => {
-      storageMap.set(s.deviceId, s.quantity);
+      storageMap.set(s.deviceId, { quantity: s.quantity, updatedAt: s.updatedAt });
     });
 
     // Check if device is unresponsive (active but no temp report for 10 minutes)
@@ -130,7 +131,9 @@ export async function GET(request) {
     // Merge stock and storage data with devices and add unresponsive flag
     const devicesWithStock = devices.map((device) => {
       const stock = stockMap.get(device.deviceId);
-      const storageQuantity = storageMap.get(device.deviceId) ?? null;
+      const storage = storageMap.get(device.deviceId);
+      const storageQuantity = storage?.quantity ?? null;
+      const storageUpdatedAt = storage?.updatedAt ?? null;
 
       // Calculate if device is unresponsive
       let isUnresponsive = false;
@@ -167,6 +170,7 @@ export async function GET(request) {
         isUnresponsive,
         // Storage data
         storageQuantity,
+        storageUpdatedAt,
       };
     });
 
