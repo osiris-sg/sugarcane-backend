@@ -90,6 +90,9 @@ export default function StockPage() {
   // Filter devices
   const filteredDevices = devices
     .filter((d) => {
+      // Exclude unresponsive devices
+      if (d.isUnresponsive) return false;
+
       // Search filter
       if (searchText) {
         const search = searchText.toLowerCase();
@@ -130,8 +133,8 @@ export default function StockPage() {
     setCurrentPage(1);
   }, [searchText, groupFilter, stockFilter]);
 
-  // Summary stats
-  const devicesWithStock = devices.filter((d) => d.cupStock !== null);
+  // Summary stats (exclude unresponsive devices)
+  const devicesWithStock = devices.filter((d) => d.cupStock !== null && !d.isUnresponsive);
   const lowStockCount = devicesWithStock.filter((d) => d.cupStock < 25).length;
   const mediumStockCount = devicesWithStock.filter((d) => d.cupStock >= 25 && d.cupStock < 50).length;
   const highStockCount = devicesWithStock.filter((d) => d.cupStock >= 50).length;

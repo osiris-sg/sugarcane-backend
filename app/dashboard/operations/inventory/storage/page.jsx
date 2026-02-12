@@ -115,6 +115,9 @@ export default function StoragePage() {
   // Filter devices
   const filteredDevices = devices
     .filter((d) => {
+      // Exclude unresponsive devices
+      if (d.isUnresponsive) return false;
+
       // Search filter
       if (searchText) {
         const search = searchText.toLowerCase();
@@ -155,8 +158,8 @@ export default function StoragePage() {
     setCurrentPage(1);
   }, [searchText, groupFilter, staleFilter]);
 
-  // Summary stats
-  const devicesWithStorage = devices.filter((d) => d.storageQuantity !== null);
+  // Summary stats (exclude unresponsive devices)
+  const devicesWithStorage = devices.filter((d) => d.storageQuantity !== null && !d.isUnresponsive);
   const totalStorage = devicesWithStorage.reduce((sum, d) => sum + (d.storageQuantity || 0), 0);
   const staleCount = devicesWithStorage.filter((d) => isStorageStale(d.storageUpdatedAt)).length;
   const activeCount = devicesWithStorage.filter((d) => !isStorageStale(d.storageUpdatedAt)).length;
