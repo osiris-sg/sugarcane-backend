@@ -214,16 +214,26 @@ export async function GET(request) {
       baseStatsWhere.deviceId = { in: allowedDeviceIds };
     }
 
-    // Helper function to calculate proportional revenue
-    // Revenue = PayAmount × (DeliverCount / TotalCount)
-    // This accounts for partial deliveries in failed orders
+    // Helper function to calculate revenue
+    // Success orders: count full amount
+    // Failed orders with delivery: (amount / totalCount) * deliverCount
     const calculateRevenue = (orders) => {
       return orders.reduce((sum, order) => {
-        const deliverCount = order.deliverCount ?? order.quantity ?? 1;
+        const deliverCount = order.deliverCount ?? 0;
         const totalCount = order.totalCount ?? order.quantity ?? 1;
-        if (totalCount === 0) return sum;
-        const proportionalAmount = Math.round(order.amount * (deliverCount / totalCount));
-        return sum + proportionalAmount;
+        const isSuccess = order.isSuccess ?? true;
+
+        if (deliverCount === 0) return sum;
+
+        if (isSuccess) {
+          // Success: count full amount
+          return sum + (order.amount || 0);
+        } else {
+          // Failed but delivered: proportional amount
+          if (totalCount === 0) return sum;
+          const proportionalAmount = Math.round((order.amount || 0) * (deliverCount / totalCount));
+          return sum + proportionalAmount;
+        }
       }, 0);
     };
 
@@ -239,7 +249,7 @@ export async function GET(request) {
 
     const filteredOrders = await orderTable.findMany({
       where: filteredStatsWhere,
-      select: { amount: true, deliverCount: true, totalCount: true, quantity: true },
+      select: { amount: true, deliverCount: true, totalCount: true, quantity: true, isSuccess: true },
     });
     const filteredTotal = calculateRevenue(filteredOrders);
     const filteredCount = filteredOrders.length;
@@ -251,7 +261,7 @@ export async function GET(request) {
         deliverCount: { gt: 0 },
         payWay: { notIn: ["1000", "Free"] },
       },
-      select: { amount: true, deliverCount: true, totalCount: true, quantity: true },
+      select: { amount: true, deliverCount: true, totalCount: true, quantity: true, isSuccess: true },
     });
     const allTimeTotal = calculateRevenue(allTimeOrders);
     const allTimeCount = allTimeOrders.length;
@@ -264,7 +274,7 @@ export async function GET(request) {
         createdAt: { gte: startOfMonthSGT },
         payWay: { notIn: ["1000", "Free"] },
       },
-      select: { amount: true, deliverCount: true, totalCount: true, quantity: true },
+      select: { amount: true, deliverCount: true, totalCount: true, quantity: true, isSuccess: true },
     });
     const monthlyTotal = calculateRevenue(monthlyOrders);
     const monthlyCount = monthlyOrders.length;
