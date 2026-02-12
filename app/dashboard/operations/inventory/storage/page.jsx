@@ -56,7 +56,9 @@ function formatLastUpdated(dateString) {
 }
 
 // Check if storage is stale (not updated in STALE_DAYS days)
-function isStorageStale(dateString) {
+// If quantity is 0, don't flag as stale
+function isStorageStale(dateString, quantity) {
+  if (quantity === 0) return false;
   if (!dateString) return true;
   const date = new Date(dateString);
   const now = new Date();
@@ -135,7 +137,7 @@ export default function StoragePage() {
 
       // Stale filter
       if (staleFilter !== "all") {
-        const stale = isStorageStale(d.storageUpdatedAt);
+        const stale = isStorageStale(d.storageUpdatedAt, d.storageQuantity);
         if (staleFilter === "stale" && !stale) return false;
         if (staleFilter === "active" && stale) return false;
       }
@@ -161,8 +163,8 @@ export default function StoragePage() {
   // Summary stats (exclude unresponsive devices)
   const devicesWithStorage = devices.filter((d) => d.storageQuantity !== null && !d.isUnresponsive);
   const totalStorage = devicesWithStorage.reduce((sum, d) => sum + (d.storageQuantity || 0), 0);
-  const staleCount = devicesWithStorage.filter((d) => isStorageStale(d.storageUpdatedAt)).length;
-  const activeCount = devicesWithStorage.filter((d) => !isStorageStale(d.storageUpdatedAt)).length;
+  const staleCount = devicesWithStorage.filter((d) => isStorageStale(d.storageUpdatedAt, d.storageQuantity)).length;
+  const activeCount = devicesWithStorage.filter((d) => !isStorageStale(d.storageUpdatedAt, d.storageQuantity)).length;
 
   const hasFilters = searchText || groupFilter !== "all" || staleFilter !== "all";
 
@@ -328,7 +330,7 @@ export default function StoragePage() {
                   </TableRow>
                 ) : (
                   paginatedDevices.map((device) => {
-                    const stale = isStorageStale(device.storageUpdatedAt);
+                    const stale = isStorageStale(device.storageUpdatedAt, device.storageQuantity);
                     return (
                       <TableRow
                         key={device.deviceId}
@@ -398,7 +400,7 @@ export default function StoragePage() {
           ) : (
             <>
               {paginatedDevices.map((device) => {
-                const stale = isStorageStale(device.storageUpdatedAt);
+                const stale = isStorageStale(device.storageUpdatedAt, device.storageQuantity);
                 return (
                   <Card
                     key={device.deviceId}
