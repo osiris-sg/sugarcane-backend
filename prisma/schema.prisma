@@ -542,7 +542,7 @@ model Incident {
 
   // Status
   status      IncidentStatus @default(OPEN)
-  slaOutcome  SlaOutcome     @default(PENDING)
+  slaOutcome  SlaOutcome?    // null = no SLA (device has no assigned driver)
   penaltyFlag Boolean        @default(false)
 
   // Resolution
