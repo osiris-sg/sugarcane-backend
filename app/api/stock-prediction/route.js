@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { spawn } from 'child_process';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
@@ -220,53 +218,29 @@ export async function PATCH(request) {
 }
 
 /**
- * Run Python prediction script
+ * Call Python prediction API
  */
-function runPythonPrediction(perMachineData, predictDate = null) {
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.join(process.cwd(), 'ml', 'predict.py');
-    const modelPath = path.join(process.cwd(), 'ml', 'sales_prediction_model.joblib');
+async function runPythonPrediction(perMachineData, predictDate = null) {
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-    const python = spawn('python3', [scriptPath]);
-
-    let stdout = '';
-    let stderr = '';
-
-    python.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    python.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    python.on('close', (code) => {
-      if (code !== 0) {
-        console.error('[Python] stderr:', stderr);
-        reject(new Error(`Python script failed: ${stderr || 'Unknown error'}`));
-        return;
-      }
-
-      try {
-        const result = JSON.parse(stdout);
-        if (result.error) {
-          reject(new Error(result.error));
-        } else {
-          resolve(result);
-        }
-      } catch (e) {
-        reject(new Error(`Failed to parse Python output: ${stdout}`));
-      }
-    });
-
-    // Send input data to Python script
-    const input = JSON.stringify({
+  const response = await fetch(`${baseUrl}/api/predict`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
       historical_data: perMachineData,
-      model_path: modelPath,
       predict_date: predictDate,
-    });
-
-    python.stdin.write(input);
-    python.stdin.end();
+    }),
   });
+
+  const result = await response.json();
+
+  if (!result.success) {
+    throw new Error(result.error || 'Prediction failed');
+  }
+
+  return result;
 }
