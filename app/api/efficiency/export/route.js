@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// Format date to SGT string
+function formatToSGT(date) {
+  if (!date) return '';
+  return new Date(date).toLocaleString('en-SG', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
 // GET /api/efficiency/export - Export incidents data as CSV
 export async function GET(request) {
   try {
@@ -112,9 +127,9 @@ export async function GET(request) {
         faultCode: incident.faultCode || '',
         faultName: incident.faultName || '',
         timeBlock: incident.timeBlock || '',
-        startTime: startTime.toISOString(),
-        acknowledgedAt: acknowledgedAt?.toISOString() || '',
-        resolvedAt: resolvedAt?.toISOString() || '',
+        startTime: formatToSGT(startTime),
+        acknowledgedAt: formatToSGT(acknowledgedAt),
+        resolvedAt: formatToSGT(resolvedAt),
         responseTimeMinutes: responseTimeMs ? Math.round(responseTimeMs / 60000) : '',
         resolutionTimeMinutes: resolutionTimeMs ? Math.round(resolutionTimeMs / 60000) : '',
         assignedOps: userMap.get(incident.assignedOpsId) || incident.assignedOpsId || '',
