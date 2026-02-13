@@ -18,16 +18,16 @@ import {
 // 1 carton = 40 sugarcane
 const UNITS_PER_CARTON = 40;
 
-// Convert units to cartons (round up)
+// Convert units to cartons (1 decimal place)
 function toCartons(units) {
   if (!units && units !== 0) return null;
-  return Math.ceil(units / UNITS_PER_CARTON);
+  return Math.round((units / UNITS_PER_CARTON) * 10) / 10;
 }
 
 // Convert cartons to units
 function toUnits(cartons) {
   if (!cartons && cartons !== 0) return 0;
-  return cartons * UNITS_PER_CARTON;
+  return Math.round(cartons * UNITS_PER_CARTON);
 }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
