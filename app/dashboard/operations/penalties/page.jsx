@@ -14,6 +14,7 @@ import {
   XCircle,
   Clock,
   FileText,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,7 +93,9 @@ export default function PenaltiesPage() {
   const [appealDialogOpen, setAppealDialogOpen] = useState(false);
   const [selectedPenalty, setSelectedPenalty] = useState(null);
   const [appealNotes, setAppealNotes] = useState("");
+  const [adminRemarks, setAdminRemarks] = useState("");
   const [appealAction, setAppealAction] = useState("");
+  const [dialogMode, setDialogMode] = useState("submit"); // "submit" or "review"
 
   useEffect(() => {
     fetchPenalties();
@@ -127,29 +130,32 @@ export default function PenaltiesPage() {
     fetchPenalties();
   }
 
-  function openAppealDialog(penalty, action) {
+  function openAppealDialog(penalty, mode) {
     setSelectedPenalty(penalty);
     setAppealNotes(penalty.appealNotes || "");
-    setAppealAction(action);
+    setAdminRemarks("");
+    setAppealAction("");
+    setDialogMode(mode); // "submit" for submitting appeal, "review" for admin review
     setAppealDialogOpen(true);
   }
 
-  async function handleAppeal() {
+  async function handleAppeal(action = appealAction) {
     if (!selectedPenalty) return;
 
+    const currentAction = action || appealAction;
     setActionLoading(selectedPenalty.id);
     try {
       const res = await fetch(`/api/penalties/${selectedPenalty.id}/appeal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: appealAction,
-          appealNotes,
+          action: currentAction,
+          appealNotes: dialogMode === "submit" ? appealNotes : adminRemarks,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`Appeal ${appealAction === "submit" ? "submitted" : appealAction + "d"}`);
+        toast.success(`Appeal ${currentAction === "submit" ? "submitted" : currentAction + "d"}`);
         setAppealDialogOpen(false);
         fetchPenalties();
       } else {
@@ -322,26 +328,15 @@ export default function PenaltiesPage() {
                             </Button>
                           )}
                           {canApproveReject && penalty.appealStatus === "pending" && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-green-600"
-                                onClick={() => openAppealDialog(penalty, "approve")}
-                                disabled={actionLoading === penalty.id}
-                              >
-                                <CheckCircle className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-red-600"
-                                onClick={() => openAppealDialog(penalty, "reject")}
-                                disabled={actionLoading === penalty.id}
-                              >
-                                <XCircle className="h-3 w-3" />
-                              </Button>
-                            </>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openAppealDialog(penalty, "review")}
+                              disabled={actionLoading === penalty.id}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </Button>
                           )}
                         </div>
                       </TableCell>
@@ -426,28 +421,16 @@ export default function PenaltiesPage() {
                         </Button>
                       )}
                       {canApproveReject && penalty.appealStatus === "pending" && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 text-green-600"
-                            onClick={() => openAppealDialog(penalty, "approve")}
-                            disabled={actionLoading === penalty.id}
-                          >
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 text-red-600"
-                            onClick={() => openAppealDialog(penalty, "reject")}
-                            disabled={actionLoading === penalty.id}
-                          >
-                            <XCircle className="h-3 w-3 mr-1" />
-                            Reject
-                          </Button>
-                        </>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => openAppealDialog(penalty, "review")}
+                          disabled={actionLoading === penalty.id}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
                       )}
                     </div>
                   </CardContent>
@@ -469,61 +452,136 @@ export default function PenaltiesPage() {
 
       {/* Appeal Dialog */}
       <Dialog open={appealDialogOpen} onOpenChange={setAppealDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {appealAction === "submit" && "Submit Appeal"}
-              {appealAction === "approve" && "Approve Appeal"}
-              {appealAction === "reject" && "Reject Appeal"}
+              {dialogMode === "submit" ? "Submit Appeal" : "Review Appeal"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Device Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium mb-1">Device</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedPenalty?.incident?.deviceName || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-1">Device ID</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedPenalty?.incident?.deviceId || "-"}
+                </p>
+              </div>
+            </div>
+
+            {/* Incident Type */}
+            <div>
+              <p className="text-sm font-medium mb-1">Incident Type</p>
+              <Badge variant="outline">
+                {selectedPenalty?.incident?.type?.replace(/_/g, " ") || "-"}
+              </Badge>
+            </div>
+
+            {/* Penalty Reason */}
             <div>
               <p className="text-sm font-medium mb-1">Penalty Reason</p>
-              <p className="text-sm text-muted-foreground">{selectedPenalty?.reason}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium mb-1">Device</p>
-              <p className="text-sm text-muted-foreground">
-                {selectedPenalty?.incident?.deviceName || "-"}
+              <p className="text-sm text-muted-foreground bg-muted p-2 rounded">
+                {selectedPenalty?.reason}
               </p>
             </div>
+
+            {/* Driver Info */}
+            {selectedPenalty?.drivers && selectedPenalty.drivers.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-1">Driver(s)</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedPenalty.drivers.map((d) =>
+                    d.firstName && d.lastName ? `${d.firstName} ${d.lastName}` : d.username
+                  ).join(", ")}
+                </p>
+              </div>
+            )}
+
+            {/* Date */}
             <div>
-              <label className="text-sm font-medium">
-                {appealAction === "submit" ? "Appeal Reason" : "Notes"}
-              </label>
-              <Textarea
-                className="mt-1"
-                placeholder={
-                  appealAction === "submit"
-                    ? "Explain why this penalty should be appealed..."
-                    : "Add notes for this decision..."
-                }
-                value={appealNotes}
-                onChange={(e) => setAppealNotes(e.target.value)}
-              />
+              <p className="text-sm font-medium mb-1">Date</p>
+              <p className="text-sm text-muted-foreground">
+                {formatDateTime(selectedPenalty?.createdAt)}
+              </p>
             </div>
+
+            {/* Submit Mode: Appeal Reason Input */}
+            {dialogMode === "submit" && (
+              <div>
+                <label className="text-sm font-medium">Appeal Reason</label>
+                <Textarea
+                  className="mt-1"
+                  placeholder="Explain why this penalty should be appealed..."
+                  value={appealNotes}
+                  onChange={(e) => setAppealNotes(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Review Mode: Show Appeal Notes (read-only) and Remarks Input */}
+            {dialogMode === "review" && (
+              <>
+                <div>
+                  <p className="text-sm font-medium mb-1">Appeal Notes</p>
+                  <p className="text-sm text-muted-foreground bg-muted p-2 rounded">
+                    {selectedPenalty?.appealNotes || "No notes provided"}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Admin Remarks</label>
+                  <Textarea
+                    className="mt-1"
+                    placeholder="Add remarks for this decision (optional)..."
+                    value={adminRemarks}
+                    onChange={(e) => setAdminRemarks(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setAppealDialogOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleAppeal}
-              disabled={actionLoading || (appealAction === "submit" && !appealNotes)}
-              className={
-                appealAction === "reject"
-                  ? "bg-red-600 hover:bg-red-700"
-                  : appealAction === "approve"
-                  ? "bg-green-600 hover:bg-green-700"
-                  : ""
-              }
-            >
-              {actionLoading && <RefreshCw className="h-4 w-4 animate-spin mr-2" />}
-              {appealAction === "submit" && "Submit Appeal"}
-              {appealAction === "approve" && "Approve"}
-              {appealAction === "reject" && "Reject"}
-            </Button>
+            {dialogMode === "submit" && (
+              <Button
+                onClick={() => handleAppeal("submit")}
+                disabled={actionLoading || !appealNotes}
+              >
+                {actionLoading && <RefreshCw className="h-4 w-4 animate-spin mr-2" />}
+                Submit Appeal
+              </Button>
+            )}
+            {dialogMode === "review" && (
+              <>
+                <Button
+                  variant="outline"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  onClick={() => handleAppeal("reject")}
+                  disabled={actionLoading}
+                >
+                  {actionLoading && <RefreshCw className="h-4 w-4 animate-spin mr-2" />}
+                  <XCircle className="h-4 w-4 mr-1" />
+                  Reject
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => handleAppeal("approve")}
+                  disabled={actionLoading}
+                >
+                  {actionLoading && <RefreshCw className="h-4 w-4 animate-spin mr-2" />}
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  Approve
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -577,7 +577,8 @@ model Penalty {
   incidentId   String
   reason       String
   appealStatus String   @default("none") // none, pending, approved, rejected
-  appealNotes  String?
+  appealNotes  String?  // Notes from the person submitting the appeal
+  adminRemarks String?  // Remarks from admin when approving/rejecting
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   // Note: amount field to be added later when penalty amounts are defined

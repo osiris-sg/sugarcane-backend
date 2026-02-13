@@ -9,6 +9,7 @@ export async function POST(request, { params }) {
     const { id } = await params;
     const body = await request.json();
     const { appealNotes, action } = body;
+    // For approve/reject, appealNotes contains admin remarks
 
     // Get current user info for notification
     const { userId: clerkId } = await auth();
@@ -83,7 +84,7 @@ export async function POST(request, { params }) {
         }
         updateData = {
           appealStatus: 'approved',
-          appealNotes: appealNotes || penalty.appealNotes,
+          adminRemarks: appealNotes || null, // Store admin remarks separately
         };
 
         // Clear penalty flag on incident
@@ -103,7 +104,7 @@ export async function POST(request, { params }) {
         }
         updateData = {
           appealStatus: 'rejected',
-          appealNotes: appealNotes || penalty.appealNotes,
+          adminRemarks: appealNotes || null, // Store admin remarks separately
         };
         break;
 
