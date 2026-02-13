@@ -217,7 +217,7 @@ export default function StockPredictionPage() {
           <div>
             <h1 className="text-lg md:text-xl font-semibold">Stock Prediction</h1>
             <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
-              ML-powered sales forecasting (auto-runs daily at 23:59 SGT)
+              ML-powered sales forecasting (auto-runs daily at 22:30 SGT)
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
@@ -373,7 +373,7 @@ export default function StockPredictionPage() {
               )}
               {!prediction && !selectedPred && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  No prediction yet. Runs daily at 23:59 SGT.
+                  No prediction yet. Runs daily at 22:30 SGT.
                 </p>
               )}
             </CardContent>
