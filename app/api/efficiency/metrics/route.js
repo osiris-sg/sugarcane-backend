@@ -30,8 +30,17 @@ export async function GET(request) {
       dateFilter = { startTime: { gte: monthAgo } };
     }
 
-    // Build where clause
-    const where = { ...dateFilter };
+    // Get devices with assigned drivers (only these count for efficiency metrics)
+    const deviceDrivers = await db.deviceDriver.findMany({
+      select: { deviceId: true },
+    });
+    const devicesWithDrivers = [...new Set(deviceDrivers.map(dd => dd.deviceId))];
+
+    // Build where clause - only include incidents for devices with assigned drivers
+    const where = {
+      ...dateFilter,
+      deviceId: { in: devicesWithDrivers },
+    };
     if (incidentType) {
       where.type = incidentType;
     }
@@ -39,7 +48,7 @@ export async function GET(request) {
       where.assignedOpsId = assignedOpsId;
     }
 
-    // Get all incidents for the period
+    // Get all incidents for the period (only for devices with assigned drivers)
     const incidents = await db.incident.findMany({
       where,
     });
@@ -93,14 +102,24 @@ export async function GET(request) {
       };
     }
 
-    // Cleaning compliance metrics
+    // Cleaning compliance metrics (only for devices with assigned drivers)
     const sgTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
     const currentMonth = sgTime.getUTCMonth() + 1;
     const currentYear = sgTime.getUTCFullYear();
 
-    const devices = await db.device.findMany({ where: { isActive: true } });
+    // Only count active devices that have assigned drivers
+    const devices = await db.device.findMany({
+      where: {
+        isActive: true,
+        deviceId: { in: devicesWithDrivers },
+      },
+    });
     const cleaningLogs = await db.cleaningLog.findMany({
-      where: { month: currentMonth, year: currentYear },
+      where: {
+        month: currentMonth,
+        year: currentYear,
+        deviceId: { in: devicesWithDrivers },
+      },
     });
 
     const cleaningByDevice = new Map();

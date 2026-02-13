@@ -12,8 +12,16 @@ export async function GET(request) {
     const slaOutcome = searchParams.get('slaOutcome');
     const format = searchParams.get('format') || 'csv';
 
-    // Build where clause
-    const where = {};
+    // Get devices with assigned drivers (only these count for efficiency metrics)
+    const allDeviceDrivers = await db.deviceDriver.findMany({
+      select: { deviceId: true },
+    });
+    const devicesWithDrivers = [...new Set(allDeviceDrivers.map(dd => dd.deviceId))];
+
+    // Build where clause - only include incidents for devices with assigned drivers
+    const where = {
+      deviceId: { in: devicesWithDrivers },
+    };
 
     if (startDate || endDate) {
       where.startTime = {};
@@ -37,7 +45,7 @@ export async function GET(request) {
       where.slaOutcome = slaOutcome;
     }
 
-    // Get all incidents
+    // Get all incidents (only for devices with assigned drivers)
     const incidents = await db.incident.findMany({
       where,
       orderBy: { startTime: 'desc' },
