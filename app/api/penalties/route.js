@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
 
 // GET /api/penalties - Get penalties with filters
@@ -15,6 +16,102 @@ export async function GET(request) {
     const endDate = searchParams.get('endDate');
 
     const where = {};
+
+    // Role-based filtering
+    const { userId: clerkId } = await auth();
+    let allowedDeviceIds = null;
+
+    if (clerkId) {
+      const dbUser = await db.user.findUnique({
+        where: { clerkId },
+        select: {
+          id: true,
+          clerkId: true,
+          role: true,
+          roles: { select: { role: true } },
+          assignedDrivers: { select: { id: true } },
+        },
+      });
+
+      if (dbUser) {
+        const hasAdminRole = ['ADMIN', 'MANAGER'].includes(dbUser.role) ||
+          dbUser.roles?.some(r => ['ADMIN', 'MANAGER'].includes(r.role));
+        const hasOpsManagerRole = dbUser.role === 'OPS_MANAGER' ||
+          dbUser.roles?.some(r => r.role === 'OPS_MANAGER');
+        const hasDriverRole = dbUser.role === 'DRIVER' ||
+          dbUser.roles?.some(r => r.role === 'DRIVER');
+
+        // OPS_MANAGER: see penalties for their devices + devices of drivers they manage
+        // DRIVER: see only penalties for their assigned devices
+        if (!hasAdminRole && (hasOpsManagerRole || hasDriverRole)) {
+          let userIdsToCheck = [dbUser.id];
+
+          if (hasOpsManagerRole) {
+            const managedDriverIds = dbUser.assignedDrivers?.map(d => d.id) || [];
+            userIdsToCheck = [...userIdsToCheck, ...managedDriverIds];
+          }
+
+          // Get devices assigned to these users
+          const deviceDrivers = await db.deviceDriver.findMany({
+            where: { userId: { in: userIdsToCheck } },
+            select: { deviceId: true },
+          });
+
+          allowedDeviceIds = [...new Set(deviceDrivers.map(d => d.deviceId))];
+
+          // Fallback: also check legacy driverId field
+          if (allowedDeviceIds.length === 0) {
+            const legacyDevices = await db.device.findMany({
+              where: {
+                OR: [
+                  { driverId: { in: userIdsToCheck } },
+                  { driverId: dbUser.clerkId },
+                ],
+              },
+              select: { deviceId: true },
+            });
+            allowedDeviceIds = legacyDevices.map(d => d.deviceId);
+          }
+        }
+      }
+    }
+
+    // If user has restricted access, filter by allowed devices
+    if (allowedDeviceIds !== null) {
+      if (allowedDeviceIds.length === 0) {
+        // No assigned devices, return empty
+        return NextResponse.json({
+          success: true,
+          penalties: [],
+          count: 0,
+          total: 0,
+          offset,
+          limit,
+          hasMore: false,
+        });
+      }
+
+      // Get incidents for allowed devices
+      const allowedIncidents = await db.incident.findMany({
+        where: { deviceId: { in: allowedDeviceIds } },
+        select: { id: true },
+      });
+      const allowedIncidentIds = allowedIncidents.map(i => i.id);
+
+      if (allowedIncidentIds.length === 0) {
+        return NextResponse.json({
+          success: true,
+          penalties: [],
+          count: 0,
+          total: 0,
+          offset,
+          limit,
+          hasMore: false,
+        });
+      }
+
+      where.incidentId = { in: allowedIncidentIds };
+    }
 
     // Date range filter
     if (startDate || endDate) {

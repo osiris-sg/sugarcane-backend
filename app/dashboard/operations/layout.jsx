@@ -119,17 +119,23 @@ const opsManagerSidebarItems = [
   },
 ];
 
-// Sidebar items for drivers - only Incidents and No Sales
+// Sidebar items for drivers - Stock, Storage, Incidents, No Sales
 const driverSidebarItems = [
   {
-    title: "Incidents",
-    href: "/dashboard/operations/incidents",
-    icon: AlertCircle,
+    title: "Inventory",
+    icon: Package,
+    children: [
+      { title: "Stock", href: "/dashboard/operations/inventory/stock", icon: Package },
+      { title: "Storage", href: "/dashboard/operations/inventory/storage", icon: Warehouse },
+    ],
   },
   {
-    title: "No Sales",
-    href: "/dashboard/operations/no-sales",
-    icon: TrendingDown,
+    title: "Issues",
+    icon: CircleAlert,
+    children: [
+      { title: "Incidents", href: "/dashboard/operations/incidents", icon: AlertCircle },
+      { title: "No Sales", href: "/dashboard/operations/no-sales", icon: TrendingDown },
+    ],
   },
 ];
 
@@ -233,13 +239,18 @@ export default function OperationsLayout({ children }) {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // Redirect drivers to incidents if they're on a page they can't access
+  // Redirect drivers if they're on a page they can't access
   useEffect(() => {
     if (isLoaded && isDriver) {
-      const allowedPaths = ["/dashboard/operations/incidents", "/dashboard/operations/no-sales"];
+      const allowedPaths = [
+        "/dashboard/operations/inventory/stock",
+        "/dashboard/operations/inventory/storage",
+        "/dashboard/operations/incidents",
+        "/dashboard/operations/no-sales",
+      ];
       const isAllowed = allowedPaths.some(p => pathname.startsWith(p));
       if (!isAllowed) {
-        redirect("/dashboard/operations/incidents");
+        redirect("/dashboard/operations/inventory/stock");
       }
     }
   }, [isLoaded, isDriver, pathname]);

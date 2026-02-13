@@ -22,9 +22,9 @@ export default function DashboardPage() {
 
   // Role-based redirects
   if (isLoaded && !isOwnerOrAdmin) {
-    // Drivers go directly to operations/incidents
+    // Drivers go directly to operations/stock
     if (isDriver) {
-      redirect("/dashboard/operations/incidents");
+      redirect("/dashboard/operations/inventory/stock");
     }
     // Ops managers go to operations
     if (isOpsManager) {
