@@ -98,6 +98,18 @@ export async function GET(request) {
       };
     }
 
+    // Add latest prediction to map (might be for tomorrow, outside date range)
+    if (latestPrediction) {
+      const latestDateStr = latestPrediction.predictDate.toISOString().split('T')[0];
+      if (!predictionsMap[latestDateStr]) {
+        predictionsMap[latestDateStr] = {
+          totalPredicted: latestPrediction.totalPredicted,
+          totalActual: latestPrediction.totalActual,
+          stockLeft: latestPrediction.stockLeft,
+        };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       historicalData, // Aggregated daily for chart
