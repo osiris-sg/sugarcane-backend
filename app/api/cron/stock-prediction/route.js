@@ -31,16 +31,19 @@ export async function GET(request) {
     startDate.setHours(0, 0, 0, 0);
 
     // Fetch per-machine daily sales (SGT timezone)
+    // Day runs from 22:30 to 22:29 next day
+    // e.g., "Feb 13" = Feb 13 22:30 to Feb 14 22:29
+    // To map orders to correct date: DATE(timestamp_sgt - INTERVAL '22 hours 30 minutes')
     const salesByMachineDay = await db.$queryRaw`
       SELECT
         "deviceId" as device_id,
-        DATE("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore') as date,
+        DATE(("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore') - INTERVAL '22 hours 30 minutes') as date,
         SUM(COALESCE("deliverCount", "quantity")) as sold
       FROM "OrderImport"
       WHERE "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore' >= ${startDate}
         AND "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore' <= ${endDate}
         AND "isSuccess" = true
-      GROUP BY "deviceId", DATE("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore')
+      GROUP BY "deviceId", DATE(("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore') - INTERVAL '22 hours 30 minutes')
       ORDER BY "deviceId", date ASC
     `;
 

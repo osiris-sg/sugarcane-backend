@@ -81,9 +81,9 @@ export default function StockPredictionPage() {
         return {
           date: formatDate(day.date),
           fullDate: day.date,
-          sold: toCartons(day.sold),
-          predicted: toCartons(pred?.totalPredicted),
-          left: toCartons(pred?.stockLeft),
+          sold: day.sold,
+          predicted: pred ? pred.totalPredicted : null,
+          left: pred?.stockLeft || null,
         };
       });
 
@@ -95,8 +95,8 @@ export default function StockPredictionPage() {
             date: formatDate(latestPredDate),
             fullDate: latestPredDate,
             sold: null,
-            predicted: toCartons(data.latestPrediction.totalPredicted),
-            left: toCartons(data.latestPrediction.stockLeft),
+            predicted: data.latestPrediction.totalPredicted,
+            left: data.latestPrediction.stockLeft || null,
           });
         }
 
@@ -270,19 +270,19 @@ export default function StockPredictionPage() {
                   <Legend />
                   <Bar
                     dataKey="sold"
-                    name="Sold (cartons)"
+                    name="Sold"
                     fill="#3b82f6"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="predicted"
-                    name="Predicted (cartons)"
+                    name="Predicted"
                     fill="#f59e0b"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="left"
-                    name="Left (cartons)"
+                    name="Left"
                     fill="#22c55e"
                     radius={[4, 4, 0, 0]}
                   />
@@ -290,7 +290,7 @@ export default function StockPredictionPage() {
               </ResponsiveContainer>
             </div>
             <p className="text-xs text-muted-foreground mt-2 text-center">
-              Showing last 14 days of sales + next day prediction (1 carton = 40 sugarcane)
+              Showing last 14 days of sales + next day prediction
             </p>
           </CardContent>
         </Card>
@@ -302,6 +302,7 @@ export default function StockPredictionPage() {
               <Calendar className="h-5 w-5" />
               Update Stock Left
             </CardTitle>
+            <p className="text-xs text-muted-foreground">1 carton = 40 sugarcane</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">

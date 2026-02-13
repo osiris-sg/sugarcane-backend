@@ -26,7 +26,7 @@
     },
     {
       "path": "/api/cron/stock-prediction",
-      "schedule": "59 15 * * *"
+      "schedule": "30 14 * * *"
     }
   ]
 }
