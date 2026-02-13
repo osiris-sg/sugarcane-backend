@@ -115,9 +115,9 @@ export async function GET(request) {
 
       console.log(`[ZeroSales] Checking previous block: ${previousBlock.label} (${blockStartUTC.toISOString()} to ${blockEndUTC.toISOString()})`);
 
-      // Get all active devices (include location for notifications)
+      // Get all active devices with zero sales alert enabled (include location for notifications)
       const devices = await db.device.findMany({
-        where: { isActive: true },
+        where: { isActive: true, zeroSalesAlert: true },
         select: { deviceId: true, deviceName: true, location: true },
       });
 

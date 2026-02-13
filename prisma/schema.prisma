@@ -104,6 +104,7 @@ model Device {
   versionUpdatedAt  DateTime?      // When version was last reported
   fomoTid           String?        // FomoPay Terminal ID (falls back to "10000001" if not set)
   airwallexTid      String?        // Airwallex account identifier (for audit trail)
+  zeroSalesAlert    Boolean        @default(false) // Enable zero sales monitoring for this device
 
   @@index([deviceId])
   @@index([driverId])

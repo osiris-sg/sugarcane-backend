@@ -12,6 +12,7 @@ import {
   Package,
   RefreshCw,
   MapPin,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,26 @@ export default function OperationsPage() {
   function handleRefresh() {
     setRefreshing(true);
     fetchData();
+  }
+
+  // Toggle zero sales alert for a device
+  async function toggleZeroSalesAlert(deviceId, currentValue) {
+    try {
+      const res = await fetch(`/api/admin/devices/${deviceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zeroSalesAlert: !currentValue }),
+      });
+
+      if (res.ok) {
+        // Update local state
+        setDevices(prev => prev.map(d =>
+          d.deviceId === deviceId ? { ...d, zeroSalesAlert: !currentValue } : d
+        ));
+      }
+    } catch (error) {
+      console.error("Error toggling zero sales alert:", error);
+    }
   }
 
   // Calculate alert counts by priority
@@ -306,6 +327,7 @@ export default function OperationsPage() {
                     <TableHead>Location</TableHead>
                     <TableHead>Actions</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Zero Sales</TableHead>
                     <TableHead>Stock</TableHead>
                     <TableHead>Storage</TableHead>
                     <TableHead>Min Threshold</TableHead>
@@ -370,6 +392,20 @@ export default function OperationsPage() {
                                 </Badge>
                               )}
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <button
+                              onClick={() => toggleZeroSalesAlert(device.deviceId, device.zeroSalesAlert)}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                device.zeroSalesAlert ? "bg-green-500" : "bg-gray-300"
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  device.zeroSalesAlert ? "translate-x-6" : "translate-x-1"
+                                }`}
+                              />
+                            </button>
                           </TableCell>
                           <TableCell>
                             {device.stockQuantity !== null ? (
