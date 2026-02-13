@@ -13,6 +13,9 @@ import {
   RefreshCw,
   MapPin,
   BarChart3,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -57,6 +60,35 @@ export default function OperationsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState("asc");
+
+  // Handle column sorting
+  function handleSort(column) {
+    if (sortColumn === column) {
+      // Toggle direction or reset
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        setSortColumn(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  }
+
+  // Get sort icon for column header
+  function getSortIcon(column) {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    }
+    return sortDirection === "asc"
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  }
 
   useEffect(() => {
     fetchData();
@@ -140,11 +172,73 @@ export default function OperationsPage() {
         (d.deviceName && d.deviceName.toLowerCase().includes(filterText.toLowerCase())) ||
         (d.location && d.location.toLowerCase().includes(filterText.toLowerCase()))
     )
-    // Sort unresponsive devices to the top
+    // Apply sorting
     .sort((a, b) => {
-      if (a.isUnresponsive && !b.isUnresponsive) return -1;
-      if (!a.isUnresponsive && b.isUnresponsive) return 1;
-      return 0;
+      // If no sort column, sort unresponsive to top
+      if (!sortColumn) {
+        if (a.isUnresponsive && !b.isUnresponsive) return -1;
+        if (!a.isUnresponsive && b.isUnresponsive) return 1;
+        return 0;
+      }
+
+      let aVal, bVal;
+      switch (sortColumn) {
+        case "deviceId":
+          aVal = a.deviceId || "";
+          bVal = b.deviceId || "";
+          break;
+        case "deviceName":
+          aVal = a.deviceName || "";
+          bVal = b.deviceName || "";
+          break;
+        case "location":
+          aVal = a.location || "";
+          bVal = b.location || "";
+          break;
+        case "isActive":
+          aVal = a.isActive ? 1 : 0;
+          bVal = b.isActive ? 1 : 0;
+          break;
+        case "zeroSalesAlert":
+          aVal = a.zeroSalesAlert ? 1 : 0;
+          bVal = b.zeroSalesAlert ? 1 : 0;
+          break;
+        case "cupStock":
+          aVal = a.cupStock ?? -1;
+          bVal = b.cupStock ?? -1;
+          break;
+        case "storageQuantity":
+          aVal = a.storageQuantity ?? -1;
+          bVal = b.storageQuantity ?? -1;
+          break;
+        case "minStockThreshold":
+          aVal = a.minStockThreshold ?? 0;
+          bVal = b.minStockThreshold ?? 0;
+          break;
+        case "machineTemp":
+          aVal = a.machineTemp ?? -999;
+          bVal = b.machineTemp ?? -999;
+          break;
+        case "lastSeenAt":
+          aVal = a.lastSeenAt ? new Date(a.lastSeenAt).getTime() : 0;
+          bVal = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : 0;
+          break;
+        case "appVersion":
+          aVal = a.appVersion || "";
+          bVal = b.appVersion || "";
+          break;
+        default:
+          return 0;
+      }
+
+      // Compare
+      if (typeof aVal === "string") {
+        const cmp = aVal.localeCompare(bVal);
+        return sortDirection === "asc" ? cmp : -cmp;
+      } else {
+        const cmp = aVal - bVal;
+        return sortDirection === "asc" ? cmp : -cmp;
+      }
     });
 
   // Pagination
@@ -322,18 +416,40 @@ export default function OperationsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Device ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Location</TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("deviceId")}>
+                      <div className="flex items-center">Device ID{getSortIcon("deviceId")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("deviceName")}>
+                      <div className="flex items-center">Name{getSortIcon("deviceName")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("location")}>
+                      <div className="flex items-center">Location{getSortIcon("location")}</div>
+                    </TableHead>
                     <TableHead>Actions</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Zero Sales</TableHead>
-                    <TableHead>Stock</TableHead>
-                    <TableHead>Storage</TableHead>
-                    <TableHead>Min Threshold</TableHead>
-                    <TableHead>Temp (°C)</TableHead>
-                    <TableHead>Last Seen</TableHead>
-                    <TableHead>Version</TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("isActive")}>
+                      <div className="flex items-center">Status{getSortIcon("isActive")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("zeroSalesAlert")}>
+                      <div className="flex items-center">Zero Sales{getSortIcon("zeroSalesAlert")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("cupStock")}>
+                      <div className="flex items-center">Stock{getSortIcon("cupStock")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("storageQuantity")}>
+                      <div className="flex items-center">Storage{getSortIcon("storageQuantity")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("minStockThreshold")}>
+                      <div className="flex items-center">Min Threshold{getSortIcon("minStockThreshold")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("machineTemp")}>
+                      <div className="flex items-center">Temp (°C){getSortIcon("machineTemp")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("lastSeenAt")}>
+                      <div className="flex items-center">Last Seen{getSortIcon("lastSeenAt")}</div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("appVersion")}>
+                      <div className="flex items-center">Version{getSortIcon("appVersion")}</div>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
