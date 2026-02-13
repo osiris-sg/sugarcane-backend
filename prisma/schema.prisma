@@ -230,6 +230,20 @@ model StorageHistory {
   @@index([deviceId, createdAt])
 }
 
+model StockPrediction {
+  id              String   @id @default(cuid())
+  predictDate     DateTime @db.Date
+  totalPredicted  Int
+  totalActual     Int?
+  stockLeft       Int?
+  machines        Int
+  perMachineData  Json?
+  createdAt       DateTime @default(now())
+
+  @@unique([predictDate])
+  @@index([predictDate])
+}
+
 model Issue {
   id                  String      @id @default(cuid())
   deviceId            String

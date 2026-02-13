@@ -18,10 +18,22 @@ export async function POST(request) {
 
     console.log(`[OrderSync] Received ${orders.length} orders from device ${deviceId} (${deviceName})`);
 
+    // Check if device has appVersion 3.3.0 (should also sync to OrderImport)
+    const device = await db.device.findFirst({
+      where: { deviceId: String(deviceId) },
+      select: { appVersion: true },
+    });
+    const shouldSyncToOrderImport = device?.appVersion === '3.3.0';
+
+    if (shouldSyncToOrderImport) {
+      console.log(`[OrderSync] Device ${deviceId} has v3.3.0, will also sync to OrderImport`);
+    }
+
     const results = {
       synced: [],
       failed: [],
       total: orders.length,
+      orderImportSynced: 0,
     };
 
     // Process each order
@@ -124,6 +136,49 @@ export async function POST(request) {
             },
           });
           results.synced.push({ orderId: order.orderId, action: 'created' });
+
+          // For v3.3.0 devices, also insert into OrderImport
+          if (shouldSyncToOrderImport && orderTime) {
+            try {
+              // Check if already exists in OrderImport
+              const existingImport = await db.orderImport.findFirst({
+                where: {
+                  orderId: String(order.orderId),
+                  deviceId: String(deviceId),
+                },
+              });
+
+              if (!existingImport) {
+                // If not success, deliverCount = 0
+                const importDeliverCount = orderSuccess ? (order.deliverCount || order.totalCount || 1) : 0;
+
+                // Divide amounts by 100 (Order table stores in cents*100, OrderImport stores in cents)
+                const importAmount = Math.round((order.payAmount || order.totalAmount || 0) / 100);
+                const importPayAmount = order.payAmount ? Math.round(order.payAmount / 100) : null;
+                const importRefundAmount = order.refundAmount ? Math.round(order.refundAmount / 100) : null;
+
+                await db.orderImport.create({
+                  data: {
+                    orderId: String(order.orderId),
+                    deviceId: String(deviceId),
+                    deviceName: deviceName || 'Unknown',
+                    amount: importAmount,
+                    quantity: order.totalCount || 1,
+                    payWay: order.payWay ? String(order.payWay) : null,
+                    isSuccess: orderSuccess,
+                    createdAt: orderTime, // Use orderTime as createdAt
+                    deliverCount: importDeliverCount,
+                    payAmount: importPayAmount,
+                    refundAmount: importRefundAmount,
+                    totalCount: order.totalCount,
+                  },
+                });
+                results.orderImportSynced++;
+              }
+            } catch (importError) {
+              console.error(`[OrderSync] Failed to sync to OrderImport:`, importError.message);
+            }
+          }
         }
       } catch (orderError) {
         console.error(`[OrderSync] Failed to sync order ${order.orderId}:`, orderError.message);
@@ -131,7 +186,7 @@ export async function POST(request) {
       }
     }
 
-    console.log(`[OrderSync] Synced ${results.synced.length}/${results.total} orders, ${results.failed.length} failed`);
+    console.log(`[OrderSync] Synced ${results.synced.length}/${results.total} orders, ${results.failed.length} failed${results.orderImportSynced > 0 ? `, ${results.orderImportSynced} to OrderImport` : ''}`);
 
     return NextResponse.json({
       success: true,
