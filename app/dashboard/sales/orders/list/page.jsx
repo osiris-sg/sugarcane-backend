@@ -86,6 +86,13 @@ function formatCurrency(cents) {
 function getPaymentMethod(payWay) {
   const payWayMap = {
     "2": { label: "Cashless", icon: "card" },
+    "3": { label: "Alipay", icon: "qr" },
+    "4": { label: "WeChat Pay", icon: "qr" },
+    "10": { label: "Apple Pay", icon: "card" },
+    "17": { label: "PayNow", icon: "qr" },
+    "25": { label: "Google Pay", icon: "card" },
+    "31": { label: "Samsung Pay", icon: "card" },
+    "35": { label: "GrabPay", icon: "qr" },
     "1000": { label: "Free", icon: "free" },
   };
 
