@@ -333,12 +333,13 @@ export default function OperationsPage() {
                     <TableHead>Min Threshold</TableHead>
                     <TableHead>Temp (°C)</TableHead>
                     <TableHead>Last Seen</TableHead>
+                    <TableHead>Version</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredDevices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                         No devices found
                       </TableCell>
                     </TableRow>
@@ -451,6 +452,9 @@ export default function OperationsPage() {
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {formatLastSeen(device.lastSeenAt)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {device.appVersion || "-"}
                           </TableCell>
                         </TableRow>
                       );
