@@ -98,6 +98,27 @@ const adminSidebarItems = [
   },
 ];
 
+// Sidebar items for ops managers - limited access
+const opsManagerSidebarItems = [
+  {
+    title: "Inventory",
+    icon: Package,
+    children: [
+      { title: "Stock", href: "/dashboard/operations/inventory/stock", icon: Package },
+      { title: "Storage", href: "/dashboard/operations/inventory/storage", icon: Warehouse },
+    ],
+  },
+  {
+    title: "Issues",
+    icon: CircleAlert,
+    children: [
+      { title: "Incidents", href: "/dashboard/operations/incidents", icon: AlertCircle },
+      { title: "No Sales", href: "/dashboard/operations/no-sales", icon: TrendingDown },
+      { title: "Penalties", href: "/dashboard/operations/penalties", icon: Ban },
+    ],
+  },
+];
+
 // Sidebar items for drivers - only Incidents and No Sales
 const driverSidebarItems = [
   {
@@ -198,8 +219,14 @@ export default function OperationsLayout({ children }) {
   const canAccessOps = isAdmin || isDriver || isOpsManager;
 
   // Get sidebar items based on role
-  // Drivers only see incidents and no-sales, ops managers and admins see everything
-  const sidebarItems = isDriver ? driverSidebarItems : adminSidebarItems;
+  // Drivers: incidents and no-sales only
+  // Ops managers: no Reports or Setup sections
+  // Admins: everything
+  const sidebarItems = isDriver
+    ? driverSidebarItems
+    : isOpsManager
+      ? opsManagerSidebarItems
+      : adminSidebarItems;
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -216,6 +243,23 @@ export default function OperationsLayout({ children }) {
       }
     }
   }, [isLoaded, isDriver, pathname]);
+
+  // Redirect ops managers if they're on a page they can't access
+  useEffect(() => {
+    if (isLoaded && isOpsManager) {
+      const allowedPaths = [
+        "/dashboard/operations/inventory/stock",
+        "/dashboard/operations/inventory/storage",
+        "/dashboard/operations/incidents",
+        "/dashboard/operations/no-sales",
+        "/dashboard/operations/penalties",
+      ];
+      const isAllowed = allowedPaths.some(p => pathname.startsWith(p));
+      if (!isAllowed) {
+        redirect("/dashboard/operations/inventory/stock");
+      }
+    }
+  }, [isLoaded, isOpsManager, pathname]);
 
   // Redirect users who can't access operations
   if (isLoaded && !canAccessOps) {
