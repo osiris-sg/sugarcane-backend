@@ -12,7 +12,23 @@ import {
   Calculator,
   Calendar,
   Save,
+  Box,
 } from "lucide-react";
+
+// 1 carton = 40 sugarcane
+const UNITS_PER_CARTON = 40;
+
+// Convert units to cartons (round up)
+function toCartons(units) {
+  if (!units && units !== 0) return null;
+  return Math.ceil(units / UNITS_PER_CARTON);
+}
+
+// Convert cartons to units
+function toUnits(cartons) {
+  if (!cartons && cartons !== 0) return 0;
+  return cartons * UNITS_PER_CARTON;
+}
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,9 +81,9 @@ export default function StockPredictionPage() {
         return {
           date: formatDate(day.date),
           fullDate: day.date,
-          sold: day.sold,
-          predicted: pred ? pred.totalPredicted : null,
-          left: pred?.stockLeft || null,
+          sold: toCartons(day.sold),
+          predicted: toCartons(pred?.totalPredicted),
+          left: toCartons(pred?.stockLeft),
         };
       });
 
@@ -79,8 +95,8 @@ export default function StockPredictionPage() {
             date: formatDate(latestPredDate),
             fullDate: latestPredDate,
             sold: null,
-            predicted: data.latestPrediction.totalPredicted,
-            left: data.latestPrediction.stockLeft || null,
+            predicted: toCartons(data.latestPrediction.totalPredicted),
+            left: toCartons(data.latestPrediction.stockLeft),
           });
         }
 
@@ -94,7 +110,9 @@ export default function StockPredictionPage() {
         // Set default selected date to latest prediction
         if (!selectedDate) {
           setSelectedDate(latestPredDate);
-          setStockLeftInput(data.latestPrediction.stockLeft?.toString() || "");
+          // Convert stockLeft to cartons for the input
+          const stockLeftCartons = toCartons(data.latestPrediction.stockLeft);
+          setStockLeftInput(stockLeftCartons?.toString() || "");
         }
       }
 
@@ -121,10 +139,11 @@ export default function StockPredictionPage() {
     setSelectedDate(date);
     setSaveMessage(null);
 
-    // Load existing stock left for this date
+    // Load existing stock left for this date (converted to cartons)
     const pred = predictionsMap[date];
     if (pred) {
-      setStockLeftInput(pred.stockLeft?.toString() || "");
+      const stockLeftCartons = toCartons(pred.stockLeft);
+      setStockLeftInput(stockLeftCartons?.toString() || "");
     } else {
       setStockLeftInput("");
     }
@@ -133,7 +152,7 @@ export default function StockPredictionPage() {
   // Save stock left for selected date
   async function handleSaveStockLeft() {
     if (!selectedDate || stockLeftInput === "") {
-      setSaveMessage({ type: "error", text: "Please select a date and enter stock left" });
+      setSaveMessage({ type: "error", text: "Please select a date and enter cartons left" });
       return;
     }
 
@@ -141,12 +160,16 @@ export default function StockPredictionPage() {
       setSaving(true);
       setSaveMessage(null);
 
+      // Convert cartons to units before saving
+      const cartonsInput = parseInt(stockLeftInput, 10);
+      const unitsToSave = toUnits(cartonsInput);
+
       const res = await fetch("/api/stock-prediction", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: selectedDate,
-          stockLeft: parseInt(stockLeftInput, 10),
+          stockLeft: unitsToSave,
         }),
       });
 
@@ -171,11 +194,12 @@ export default function StockPredictionPage() {
   // Get available dates from predictions (dates that have predictions)
   const availableDates = Object.keys(predictionsMap).sort();
 
-  // Calculate buy amount based on selected date
+  // Calculate buy amount based on selected date (all in cartons)
   const selectedPred = predictionsMap[selectedDate];
-  const leftValue = parseInt(stockLeftInput) || 0;
-  const predictedValue = selectedPred?.totalPredicted || prediction?.value || 0;
-  const buyAmount = Math.max(0, predictedValue - leftValue);
+  const leftCartons = parseInt(stockLeftInput) || 0;
+  const predictedUnits = selectedPred?.totalPredicted || prediction?.value || 0;
+  const predictedCartons = toCartons(predictedUnits);
+  const buyCartons = Math.max(0, predictedCartons - leftCartons);
 
   if (loading) {
     return (
@@ -246,19 +270,19 @@ export default function StockPredictionPage() {
                   <Legend />
                   <Bar
                     dataKey="sold"
-                    name="Sold"
+                    name="Sold (cartons)"
                     fill="#3b82f6"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="predicted"
-                    name="Predicted"
+                    name="Predicted (cartons)"
                     fill="#f59e0b"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="left"
-                    name="Left"
+                    name="Left (cartons)"
                     fill="#22c55e"
                     radius={[4, 4, 0, 0]}
                   />
@@ -266,7 +290,7 @@ export default function StockPredictionPage() {
               </ResponsiveContainer>
             </div>
             <p className="text-xs text-muted-foreground mt-2 text-center">
-              Showing last 14 days of sales + next day prediction
+              Showing last 14 days of sales + next day prediction (1 carton = 40 sugarcane)
             </p>
           </CardContent>
         </Card>
@@ -293,12 +317,12 @@ export default function StockPredictionPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Stock Left</label>
+                <label className="text-sm font-medium">Cartons Left</label>
                 <Input
                   type="number"
                   value={stockLeftInput}
                   onChange={(e) => setStockLeftInput(e.target.value)}
-                  placeholder="Enter stock left"
+                  placeholder="Enter cartons"
                   className="w-32"
                   min="0"
                 />
@@ -333,7 +357,8 @@ export default function StockPredictionPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-amber-600">
-                {predictedValue || "-"}
+                {predictedCartons || "-"}
+                <span className="text-lg font-normal text-muted-foreground ml-1">cartons</span>
               </div>
               {selectedDate && selectedPred && (
                 <div className="text-xs text-muted-foreground mt-1">
@@ -357,22 +382,23 @@ export default function StockPredictionPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Package className="h-4 w-4 text-green-500" />
-                Stock Left
+                <Box className="h-4 w-4 text-green-500" />
+                Cartons Left
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-600">
-                {leftValue || "-"}
+                {leftCartons || "-"}
+                <span className="text-lg font-normal text-muted-foreground ml-1">cartons</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {selectedDate ? `For ${formatDate(selectedDate)}` : "Select a date below"}
+                {selectedDate ? `For ${formatDate(selectedDate)}` : "Select a date above"}
               </p>
             </CardContent>
           </Card>
 
           {/* Buy Card */}
-          <Card className={buyAmount > 0 ? "border-blue-200 bg-blue-50" : ""}>
+          <Card className={buyCartons > 0 ? "border-blue-200 bg-blue-50" : ""}>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <ShoppingCart className="h-4 w-4 text-blue-500" />
@@ -381,16 +407,15 @@ export default function StockPredictionPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Calculator className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">=</span>
-                <span className={`text-3xl font-bold ${buyAmount > 0 ? "text-blue-600" : "text-gray-400"}`}>
-                  {selectedPred || prediction ? buyAmount : "-"}
+                <span className={`text-3xl font-bold ${buyCartons > 0 ? "text-blue-600" : "text-gray-400"}`}>
+                  {selectedPred || prediction ? buyCartons : "-"}
                 </span>
+                <span className="text-lg font-normal text-muted-foreground">cartons</span>
               </div>
               {(selectedPred || prediction) && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  {buyAmount > 0
-                    ? `Need ${buyAmount} more units (${predictedValue} - ${leftValue})`
+                  {buyCartons > 0
+                    ? `Need ${buyCartons} more cartons (${predictedCartons} - ${leftCartons})`
                     : "Stock is sufficient for predicted demand"}
                 </p>
               )}
