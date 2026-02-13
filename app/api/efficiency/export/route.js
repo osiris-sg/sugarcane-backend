@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-// Format date to SGT string
+// Format date to SGT string (YYYY-MM-DD HH:mm:ss format, no commas)
 function formatToSGT(date) {
   if (!date) return '';
-  return new Date(date).toLocaleString('en-SG', {
+  const d = new Date(date);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Singapore',
     year: 'numeric',
     month: '2-digit',
@@ -14,6 +15,9 @@ function formatToSGT(date) {
     second: '2-digit',
     hour12: false,
   });
+  const parts = formatter.formatToParts(d);
+  const get = (type) => parts.find(p => p.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
 // GET /api/efficiency/export - Export incidents data as CSV
