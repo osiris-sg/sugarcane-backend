@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
+import { sendPushNotificationToAdmins } from '@/lib/push-notifications';
 
 // POST /api/penalties/[id]/appeal - Submit or update an appeal
 export async function POST(request, { params }) {
@@ -8,9 +10,28 @@ export async function POST(request, { params }) {
     const body = await request.json();
     const { appealNotes, action } = body;
 
+    // Get current user info for notification
+    const { userId: clerkId } = await auth();
+    let currentUser = null;
+    if (clerkId) {
+      currentUser = await db.user.findUnique({
+        where: { clerkId },
+        select: { firstName: true, lastName: true, username: true },
+      });
+    }
+
     const penalty = await db.penalty.findUnique({
       where: { id },
     });
+
+    // Get incident details for notification
+    let incident = null;
+    if (penalty?.incidentId) {
+      incident = await db.incident.findUnique({
+        where: { id: penalty.incidentId },
+        select: { deviceName: true, deviceId: true, type: true },
+      });
+    }
 
     if (!penalty) {
       return NextResponse.json(
@@ -34,6 +55,22 @@ export async function POST(request, { params }) {
           appealStatus: 'pending',
           appealNotes: appealNotes || '',
         };
+
+        // Send notification to admins about the new appeal
+        const userName = currentUser
+          ? (currentUser.firstName && currentUser.lastName
+              ? `${currentUser.firstName} ${currentUser.lastName}`
+              : currentUser.username || 'A user')
+          : 'A user';
+        const deviceName = incident?.deviceName || 'Unknown device';
+
+        await sendPushNotificationToAdmins({
+          title: '📝 New Penalty Appeal',
+          body: `${userName} submitted an appeal for ${deviceName}`,
+          url: '/dashboard/operations/penalties?appealStatus=pending',
+          tag: `appeal-${id}`,
+          data: { penaltyId: id, type: 'appeal_submitted' },
+        });
         break;
 
       case 'approve':

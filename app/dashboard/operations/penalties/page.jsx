@@ -76,6 +76,8 @@ export default function PenaltiesPage() {
   const { user } = useUser();
   const role = user?.publicMetadata?.role || "franchisee";
   const isAdmin = role === "owner" || role === "admin";
+  const isOpsManager = role === "ops_manager";
+  const canApproveReject = isAdmin; // Only admins can approve/reject appeals
 
   const [penalties, setPenalties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -319,7 +321,7 @@ export default function PenaltiesPage() {
                               Appeal
                             </Button>
                           )}
-                          {isAdmin && penalty.appealStatus === "pending" && (
+                          {canApproveReject && penalty.appealStatus === "pending" && (
                             <>
                               <Button
                                 size="sm"
@@ -423,7 +425,7 @@ export default function PenaltiesPage() {
                           Appeal
                         </Button>
                       )}
-                      {isAdmin && penalty.appealStatus === "pending" && (
+                      {canApproveReject && penalty.appealStatus === "pending" && (
                         <>
                           <Button
                             size="sm"
