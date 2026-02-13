@@ -23,13 +23,13 @@ export async function GET(request) {
     startDate.setHours(0, 0, 0, 0);
 
     // Fetch historical sales from OrderImport per machine per day (successful only)
-    // Day runs from 22:30 to 22:29 next day (SGT)
-    // e.g., "Feb 13" = Feb 13 22:30 to Feb 14 22:29
-    // To map orders to correct date: DATE(timestamp_sgt - INTERVAL '22 hours 30 minutes')
+    // Day runs from 22:30 prev day to 22:29 current day (SGT)
+    // e.g., "Feb 13" = Feb 12 22:30 to Feb 13 22:29
+    // Formula: DATE(timestamp_sgt - INTERVAL '22 hours 30 minutes') + 1 day
     const salesByMachineDay = await db.$queryRaw`
       SELECT
         "deviceId" as device_id,
-        DATE(("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore') - INTERVAL '22 hours 30 minutes') as date,
+        DATE(("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore') - INTERVAL '22 hours 30 minutes') + INTERVAL '1 day' as date,
         SUM(COALESCE("deliverCount", "quantity")) as sold
       FROM "OrderImport"
       WHERE "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore' >= ${startDate}
@@ -40,9 +40,10 @@ export async function GET(request) {
     `;
 
     // Also get aggregated daily totals for chart (SGT timezone, 22:30-22:29 day boundary)
+    // "Feb 13" = sales from Feb 12 22:30 to Feb 13 22:29
     const salesByDay = await db.$queryRaw`
       SELECT
-        DATE(("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore') - INTERVAL '22 hours 30 minutes') as date,
+        DATE(("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore') - INTERVAL '22 hours 30 minutes') + INTERVAL '1 day' as date,
         SUM(COALESCE("deliverCount", "quantity")) as sold
       FROM "OrderImport"
       WHERE "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Singapore' >= ${startDate}
