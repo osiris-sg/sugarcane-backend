@@ -59,6 +59,13 @@ export async function GET(request) {
     });
     const deviceLocationMap = new Map(devices.map(d => [d.deviceId, d.location]));
 
+    // Get driver assignments - SLA/penalties only apply to devices with assigned drivers
+    const deviceDrivers = await db.deviceDriver.findMany({
+      where: { deviceId: { in: deviceIds } },
+      select: { deviceId: true },
+    });
+    const devicesWithDrivers = new Set(deviceDrivers.map(dd => dd.deviceId));
+
     let newAlerts = 0;
     let resolved = 0;
     let immediateBreaches = 0;
@@ -72,6 +79,9 @@ export async function GET(request) {
 
       // === CASE 1: OUT OF STOCK - Immediate SLA breach ===
       if (isOutOfStock) {
+        // Check if device has an assigned driver (SLA/penalties only apply to assigned devices)
+        const hasDriver = devicesWithDrivers.has(stock.deviceId);
+
         // Check for existing open incident
         const existingIncident = await db.incident.findFirst({
           where: {
@@ -82,28 +92,31 @@ export async function GET(request) {
         });
 
         if (!existingIncident) {
-          // No existing incident - create new OUT_OF_STOCK with immediate breach
+          // No existing incident - create new OUT_OF_STOCK
+          // Only immediate breach/penalty for devices WITH assigned drivers
           const incident = await db.incident.create({
             data: {
               type: 'OUT_OF_STOCK',
               deviceId: stock.deviceId,
               deviceName: stock.deviceName,
               startTime: now,
-              slaDeadline: now, // Already breached
+              slaDeadline: hasDriver ? now : null, // Only set SLA for assigned devices
               status: 'OPEN',
-              slaOutcome: 'SLA_BREACHED',
-              penaltyFlag: true,
+              slaOutcome: hasDriver ? 'SLA_BREACHED' : 'PENDING',
+              penaltyFlag: hasDriver,
               stockQuantity: 0,
             }
           });
 
-          // Create penalty record
-          await db.penalty.create({
-            data: {
-              incidentId: incident.id,
-              reason: 'Out of stock - immediate SLA breach',
-            }
-          });
+          // Create penalty record ONLY for devices with assigned drivers
+          if (hasDriver) {
+            await db.penalty.create({
+              data: {
+                incidentId: incident.id,
+                reason: 'Out of stock - immediate SLA breach',
+              }
+            });
+          }
 
           // Update stock record
           await db.stock.update({
@@ -136,20 +149,21 @@ export async function GET(request) {
           immediateBreaches++;
           console.log(`[StockAlert] OUT OF STOCK: ${displayName} - Created incident with immediate breach`);
         } else if (existingIncident.type === 'LOW_STOCK') {
-          // Upgrade LOW_STOCK to OUT_OF_STOCK with immediate breach
+          // Upgrade LOW_STOCK to OUT_OF_STOCK
+          // Only immediate breach/penalty for devices WITH assigned drivers
           await db.incident.update({
             where: { id: existingIncident.id },
             data: {
               type: 'OUT_OF_STOCK',
-              slaDeadline: now,
-              slaOutcome: 'SLA_BREACHED',
-              penaltyFlag: true,
+              slaDeadline: hasDriver ? now : null,
+              slaOutcome: hasDriver ? 'SLA_BREACHED' : 'PENDING',
+              penaltyFlag: hasDriver,
               stockQuantity: 0,
             }
           });
 
-          // Create penalty record if not already breached
-          if (existingIncident.slaOutcome !== 'SLA_BREACHED') {
+          // Create penalty record ONLY for devices with assigned drivers and not already breached
+          if (hasDriver && existingIncident.slaOutcome !== 'SLA_BREACHED') {
             await db.penalty.create({
               data: {
                 incidentId: existingIncident.id,
@@ -200,7 +214,9 @@ export async function GET(request) {
         });
 
         if (!existingIncident) {
-          const slaDeadline = new Date(now.getTime() + SLA_HOURS * 60 * 60 * 1000);
+          // Check if device has an assigned driver (SLA only applies to assigned devices)
+          const hasDriver = devicesWithDrivers.has(stock.deviceId);
+          const slaDeadline = hasDriver ? new Date(now.getTime() + SLA_HOURS * 60 * 60 * 1000) : null;
 
           const incident = await db.incident.create({
             data: {
@@ -210,7 +226,7 @@ export async function GET(request) {
               startTime: now,
               slaDeadline,
               status: 'OPEN',
-              slaOutcome: 'PENDING',
+              slaOutcome: hasDriver ? 'PENDING' : null,
               stockQuantity: stock.quantity,
             }
           });
@@ -254,7 +270,16 @@ export async function GET(request) {
         });
 
         for (const incident of openIncidents) {
-          const wasWithinSla = incident.slaOutcome !== 'SLA_BREACHED';
+          // Determine final SLA outcome:
+          // - If already breached, keep it
+          // - If no SLA was set (null), keep it null
+          // - Otherwise, mark as within SLA
+          let finalSlaOutcome = incident.slaOutcome;
+          if (incident.slaOutcome === 'PENDING') {
+            finalSlaOutcome = 'WITHIN_SLA';
+          }
+          // If slaOutcome is null (no driver), keep it null
+          // If slaOutcome is 'SLA_BREACHED', keep it
 
           await db.incident.update({
             where: { id: incident.id },
@@ -262,7 +287,7 @@ export async function GET(request) {
               status: 'RESOLVED',
               resolvedAt: now,
               resolution: 'Auto-resolved: Stock replenished',
-              slaOutcome: wasWithinSla ? 'WITHIN_SLA' : 'SLA_BREACHED',
+              slaOutcome: finalSlaOutcome,
             }
           });
 

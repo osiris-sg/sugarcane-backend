@@ -92,7 +92,16 @@ export async function POST(request) {
 
     const now = new Date();
     const SLA_HOURS = 3;
-    const slaDeadline = new Date(now.getTime() + SLA_HOURS * 60 * 60 * 1000);
+
+    // Check if device has an assigned driver (SLA only applies to assigned devices)
+    const deviceDriver = await db.deviceDriver.findFirst({
+      where: { deviceId },
+      select: { id: true },
+    });
+    const hasDriver = !!deviceDriver;
+
+    // Only set SLA deadline for devices with assigned drivers
+    const slaDeadline = hasDriver ? new Date(now.getTime() + SLA_HOURS * 60 * 60 * 1000) : null;
 
     // Create the issue (legacy table)
     const issue = await db.issue.create({
@@ -111,6 +120,7 @@ export async function POST(request) {
     });
 
     // Also create in Incident table (new unified system)
+    // SLA only applies to devices with assigned drivers
     const incident = await db.incident.create({
       data: {
         type: 'ERROR_NOTIFICATION',
@@ -122,7 +132,7 @@ export async function POST(request) {
         startTime: now,
         slaDeadline,
         status: 'OPEN',
-        slaOutcome: 'PENDING',
+        slaOutcome: hasDriver ? 'PENDING' : null,
       }
     });
 

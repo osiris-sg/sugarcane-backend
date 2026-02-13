@@ -260,6 +260,13 @@ export async function GET(request) {
           where: { deviceId: entry.deviceId },
         });
 
+        // Check if device has an assigned driver (SLA only applies to assigned devices)
+        const deviceDriver = await db.deviceDriver.findFirst({
+          where: { deviceId: entry.deviceId },
+          select: { id: true },
+        });
+        const hasDriver = !!deviceDriver;
+
         const incident = await db.incident.create({
           data: {
             type: 'ZERO_SALES',
@@ -267,7 +274,7 @@ export async function GET(request) {
             deviceName: entry.deviceName,
             startTime: new Date(entry.startedAt),
             status: 'OPEN',
-            slaOutcome: 'PENDING',
+            slaOutcome: hasDriver ? 'PENDING' : null,
             timeBlock: entry.timeBlock,
             stockQuantity: stock?.quantity || 0,
           },
