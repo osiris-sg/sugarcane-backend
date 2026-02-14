@@ -175,25 +175,36 @@ ${resolution === 'unresolved' ? '📢 Issue escalated to manager. Machine set to
           acknowledgedAt: now,
         };
       } else if (action === 'resolve') {
-        // Check if within SLA
-        const wasWithinSla = matchingIncident.slaDeadline && now <= new Date(matchingIncident.slaDeadline);
+        // Check if device has assigned driver (only devices with drivers have SLA/penalties)
+        const deviceDriver = await db.deviceDriver.findFirst({
+          where: { deviceId: matchingIncident.deviceId },
+          select: { id: true },
+        });
+        const hasDriver = !!deviceDriver;
+
+        // Check if within SLA (only if device has driver)
+        const wasWithinSla = hasDriver && matchingIncident.slaDeadline && now <= new Date(matchingIncident.slaDeadline);
 
         incidentUpdate = {
           status: 'RESOLVED',
           resolvedAt: now,
           resolution: resolution === 'resolved' ? 'Resolved by staff' : 'Marked unresolved by staff',
-          slaOutcome: wasWithinSla ? 'WITHIN_SLA' : 'SLA_BREACHED',
         };
 
-        // Create penalty if SLA breached and not already flagged
-        if (!wasWithinSla && !matchingIncident.penaltyFlag) {
-          await db.penalty.create({
-            data: {
-              incidentId: matchingIncident.id,
-              reason: 'SLA breached - resolved after 3 hour deadline',
-            }
-          });
-          incidentUpdate.penaltyFlag = true;
+        // Only set SLA outcome if device has driver
+        if (hasDriver && matchingIncident.slaDeadline) {
+          incidentUpdate.slaOutcome = wasWithinSla ? 'WITHIN_SLA' : 'SLA_BREACHED';
+
+          // Create penalty if SLA breached and not already flagged
+          if (!wasWithinSla && !matchingIncident.penaltyFlag) {
+            await db.penalty.create({
+              data: {
+                incidentId: matchingIncident.id,
+                reason: 'SLA breached - resolved after 3 hour deadline',
+              }
+            });
+            incidentUpdate.penaltyFlag = true;
+          }
         }
       }
 

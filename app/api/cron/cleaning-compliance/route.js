@@ -42,14 +42,26 @@ export async function GET(request) {
   }
 
   try {
-    // Get all devices
+    // Get devices with assigned drivers (only these are subject to cleaning compliance)
+    const deviceDrivers = await db.deviceDriver.findMany({
+      select: { deviceId: true },
+    });
+    const devicesWithDrivers = [...new Set(deviceDrivers.map(dd => dd.deviceId))];
+
+    // Get all active devices that have assigned drivers
     const devices = await db.device.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        deviceId: { in: devicesWithDrivers },
+      },
     });
 
     let compliant = 0;
     let nonCompliant = 0;
+    let skippedNoDriver = 0;
     const nonCompliantDevices = [];
+
+    console.log(`[CleaningCompliance] Checking ${devices.length} devices with assigned drivers`);
 
     for (const device of devices) {
       const displayName = device.location || device.deviceName;
@@ -147,13 +159,13 @@ export async function GET(request) {
       });
     }
 
-    console.log(`[CleaningCompliance] Completed. Compliant: ${compliant}, Non-compliant: ${nonCompliant}`);
+    console.log(`[CleaningCompliance] Completed. Compliant: ${compliant}, Non-compliant: ${nonCompliant}, Devices with drivers: ${devices.length}`);
 
     return NextResponse.json({
       success: true,
       month: currentMonth,
       year: currentYear,
-      totalDevices: devices.length,
+      totalDevicesWithDrivers: devices.length,
       compliant,
       nonCompliant,
       nonCompliantDevices,

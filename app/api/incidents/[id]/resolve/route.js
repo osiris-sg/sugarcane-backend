@@ -36,8 +36,15 @@ export async function POST(request, { params }) {
       resolutionCategory,
     };
 
-    // Determine SLA outcome if still pending
-    if (incident.slaOutcome === 'PENDING' && incident.slaDeadline) {
+    // Check if device has assigned driver (only devices with drivers have SLA/penalties)
+    const deviceDriver = await db.deviceDriver.findFirst({
+      where: { deviceId: incident.deviceId },
+      select: { id: true },
+    });
+    const hasDriver = !!deviceDriver;
+
+    // Determine SLA outcome if still pending and device has driver
+    if (hasDriver && incident.slaOutcome === 'PENDING' && incident.slaDeadline) {
       const deadline = new Date(incident.slaDeadline);
       updateData.slaOutcome = now <= deadline ? 'WITHIN_SLA' : 'SLA_BREACHED';
 

@@ -76,6 +76,13 @@ export async function PATCH(request, { params }) {
     const now = new Date();
     const updateData = {};
 
+    // Check if device has assigned driver (only devices with drivers have SLA/penalties)
+    const deviceDriver = await db.deviceDriver.findFirst({
+      where: { deviceId: incident.deviceId },
+      select: { id: true },
+    });
+    const hasDriver = !!deviceDriver;
+
     // Handle status transitions
     if (status && status !== incident.status) {
       updateData.status = status;
@@ -98,8 +105,8 @@ export async function PATCH(request, { params }) {
           updateData.resolution = resolution || 'Resolved';
           updateData.resolutionCategory = resolutionCategory;
 
-          // Determine SLA outcome if still pending
-          if (incident.slaOutcome === 'PENDING' && incident.slaDeadline) {
+          // Determine SLA outcome if still pending and device has driver
+          if (hasDriver && incident.slaOutcome === 'PENDING' && incident.slaDeadline) {
             const deadline = new Date(incident.slaDeadline);
             updateData.slaOutcome = now <= deadline ? 'WITHIN_SLA' : 'SLA_BREACHED';
 
