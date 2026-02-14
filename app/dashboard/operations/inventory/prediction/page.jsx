@@ -18,10 +18,10 @@ import {
 // 1 carton = 40 sugarcane
 const UNITS_PER_CARTON = 40;
 
-// Convert units to cartons (1 decimal place)
+// Convert units to cartons (whole number)
 function toCartons(units) {
   if (!units && units !== 0) return null;
-  return Math.round((units / UNITS_PER_CARTON) * 10) / 10;
+  return Math.round(units / UNITS_PER_CARTON);
 }
 
 // Convert cartons to units
