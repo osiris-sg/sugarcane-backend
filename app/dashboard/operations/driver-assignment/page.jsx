@@ -352,7 +352,7 @@ export default function DriverAssignmentPage() {
                                     <Monitor className="h-4 w-4 text-muted-foreground" />
                                     <div>
                                       <p className="font-medium">
-                                        {device.deviceName}
+                                        {device.location || device.deviceName}
                                       </p>
                                       <p className="text-xs text-muted-foreground">
                                         ID: {device.deviceId}
@@ -421,11 +421,10 @@ export default function DriverAssignmentPage() {
                               <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                               <div>
                                 <p className="font-medium text-sm">
-                                  {device.deviceName}
+                                  {device.location || device.deviceName}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {device.deviceId} •{" "}
-                                  {device.location || "No location"}
+                                  ID: {device.deviceId}
                                 </p>
                               </div>
                             </div>
@@ -509,9 +508,9 @@ export default function DriverAssignmentPage() {
                       }}
                     >
                       <div>
-                        <p className="font-medium">{device.deviceName}</p>
+                        <p className="font-medium">{device.location || device.deviceName}</p>
                         <p className="text-xs text-muted-foreground">
-                          {device.deviceId} • {device.location || "No location"}
+                          ID: {device.deviceId}
                         </p>
                       </div>
                       <Plus className="h-4 w-4 text-muted-foreground" />
@@ -529,9 +528,9 @@ export default function DriverAssignmentPage() {
             <div className="flex items-center gap-3 rounded-lg border-2 border-primary bg-background p-3 shadow-lg">
               <Monitor className="h-4 w-4 text-primary" />
               <div>
-                <p className="font-medium text-sm">{activeDevice.deviceName}</p>
+                <p className="font-medium text-sm">{activeDevice.location || activeDevice.deviceName}</p>
                 <p className="text-xs text-muted-foreground">
-                  {activeDevice.deviceId}
+                  ID: {activeDevice.deviceId}
                 </p>
               </div>
             </div>
