@@ -132,25 +132,75 @@ export async function POST(request) {
   }
 }
 
-// GET /api/maintenance/login - Get recent logins (optional, for dashboard)
+// GET /api/maintenance/login - Get logins with pagination and filters
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const deviceId = searchParams.get('deviceId');
+    const deviceIds = searchParams.get('deviceIds'); // Comma-separated list
+    const loginType = searchParams.get('loginType');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const search = searchParams.get('search');
+    const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const where = deviceId ? { deviceId } : {};
+    // Build where clause
+    const where = {};
 
+    // Device filter (single or multiple)
+    if (deviceIds) {
+      where.deviceId = { in: deviceIds.split(',') };
+    } else if (deviceId) {
+      where.deviceId = deviceId;
+    }
+
+    // Login type filter
+    if (loginType && loginType !== 'all') {
+      where.loginType = loginType;
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.createdAt.lt = new Date(endDate);
+      }
+    }
+
+    // Search filter (device name, device ID, user name)
+    if (search) {
+      where.OR = [
+        { deviceName: { contains: search, mode: 'insensitive' } },
+        { deviceId: { contains: search, mode: 'insensitive' } },
+        { userName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Get total count for pagination
+    const totalCount = await db.maintenanceLogin.count({ where });
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Get paginated logins
     const logins = await db.maintenanceLogin.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
       take: limit,
     });
 
     return NextResponse.json({
       success: true,
       logins,
-      count: logins.length,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+      },
     });
 
   } catch (error) {

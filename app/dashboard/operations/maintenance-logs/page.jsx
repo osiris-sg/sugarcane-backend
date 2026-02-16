@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Wrench,
   MessageSquare,
@@ -17,6 +17,10 @@ import {
   Truck,
   Shield,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,6 +80,36 @@ function formatDuration(ms) {
     return `${hours}h ${minutes}m`;
   }
   return `${minutes}m ${seconds}s`;
+}
+
+// Get date range for filter
+function getDateRange(filter) {
+  const now = new Date();
+  const sgNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Singapore" }));
+
+  switch (filter) {
+    case "today": {
+      const start = new Date(sgNow);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(sgNow);
+      end.setHours(23, 59, 59, 999);
+      return { startDate: start.toISOString(), endDate: end.toISOString() };
+    }
+    case "week": {
+      const start = new Date(sgNow);
+      start.setDate(start.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+      return { startDate: start.toISOString(), endDate: now.toISOString() };
+    }
+    case "month": {
+      const start = new Date(sgNow);
+      start.setDate(start.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+      return { startDate: start.toISOString(), endDate: now.toISOString() };
+    }
+    default:
+      return { startDate: null, endDate: null };
+  }
 }
 
 // Activity type badge
@@ -146,6 +180,30 @@ function StatusBadge({ status }) {
   );
 }
 
+// Date filter buttons component
+function DateFilterButtons({ value, onChange, className = "" }) {
+  return (
+    <div className={`flex gap-1 ${className}`}>
+      {[
+        { value: "all", label: "All" },
+        { value: "today", label: "Today" },
+        { value: "week", label: "Week" },
+        { value: "month", label: "Month" },
+      ].map((option) => (
+        <Button
+          key={option.value}
+          variant={value === option.value ? "default" : "outline"}
+          size="sm"
+          className="h-7 text-xs px-2"
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 export default function MaintenanceLogsPage() {
   const [activities, setActivities] = useState([]);
   const [logins, setLogins] = useState([]);
@@ -154,44 +212,183 @@ export default function MaintenanceLogsPage() {
   const [activeTab, setActiveTab] = useState("logins");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Pagination state for logins
+  const [loginPage, setLoginPage] = useState(1);
+  const [loginTotalPages, setLoginTotalPages] = useState(1);
+  const [loginTotalCount, setLoginTotalCount] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreLogins, setHasMoreLogins] = useState(true);
+  const PAGE_SIZE = 50;
+
+  // Pull to refresh state
+  const [isPulling, setIsPulling] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const containerRef = useRef(null);
+  const touchStartY = useRef(0);
+  const scrollStartY = useRef(0);
+
+  // Infinite scroll observer
+  const observerRef = useRef(null);
+  const loadMoreRef = useRef(null);
+
   // Filters
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deviceFilter, setDeviceFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
   const [loginTypeFilter, setLoginTypeFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
 
+  // Check if mobile
+  const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
-    fetchData();
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  async function fetchData() {
+  // Fetch logins with pagination
+  const fetchLogins = useCallback(async (page = 1, append = false) => {
     try {
-      const [activityRes, loginRes] = await Promise.all([
-        fetch("/api/maintenance/activity"),
-        fetch("/api/maintenance/login?limit=200"),
-      ]);
+      if (page === 1) setLoading(true);
+      else setLoadingMore(true);
 
-      const activityData = await activityRes.json();
-      const loginData = await loginRes.json();
+      const params = new URLSearchParams();
+      params.set("page", page.toString());
+      params.set("limit", PAGE_SIZE.toString());
 
-      if (activityData.activities) {
-        setActivities(activityData.activities);
+      if (loginTypeFilter !== "all") {
+        params.set("loginType", loginTypeFilter);
       }
-      if (loginData.logins) {
-        setLogins(loginData.logins);
+      if (searchText) {
+        params.set("search", searchText);
+      }
+      if (dateFilter !== "all") {
+        const { startDate, endDate } = getDateRange(dateFilter);
+        if (startDate) params.set("startDate", startDate);
+        if (endDate) params.set("endDate", endDate);
+      }
+
+      const res = await fetch(`/api/maintenance/login?${params.toString()}`);
+      const data = await res.json();
+
+      if (data.success) {
+        if (append) {
+          setLogins((prev) => [...prev, ...data.logins]);
+        } else {
+          setLogins(data.logins);
+        }
+        setLoginPage(data.pagination.page);
+        setLoginTotalPages(data.pagination.totalPages);
+        setLoginTotalCount(data.pagination.totalCount);
+        setHasMoreLogins(data.pagination.page < data.pagination.totalPages);
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching logins:", error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setRefreshing(false);
     }
-  }
+  }, [loginTypeFilter, searchText, dateFilter]);
+
+  // Fetch activities
+  const fetchActivities = useCallback(async () => {
+    try {
+      const res = await fetch("/api/maintenance/activity");
+      const data = await res.json();
+      if (data.activities) {
+        setActivities(data.activities);
+      }
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+    }
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchLogins(1);
+    fetchActivities();
+  }, []);
+
+  // Refetch logins when filters change
+  useEffect(() => {
+    setLoginPage(1);
+    fetchLogins(1);
+  }, [loginTypeFilter, dateFilter]);
+
+  // Debounced search
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (searchText !== undefined) {
+        setLoginPage(1);
+        fetchLogins(1);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchText]);
+
+  // Infinite scroll setup for mobile
+  useEffect(() => {
+    if (!isMobile || activeTab !== "logins") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreLogins && !loadingMore && !loading) {
+          fetchLogins(loginPage + 1, true);
+        }
+      },
+      { threshold: 0.1, rootMargin: "100px" }
+    );
+
+    observerRef.current = observer;
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [isMobile, activeTab, hasMoreLogins, loadingMore, loading, loginPage, fetchLogins]);
+
+  // Pull to refresh handlers
+  const handleTouchStart = (e) => {
+    if (!isMobile || activeTab !== "logins") return;
+    const container = containerRef.current;
+    if (container && container.scrollTop === 0) {
+      touchStartY.current = e.touches[0].clientY;
+      scrollStartY.current = container.scrollTop;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isMobile || activeTab !== "logins" || touchStartY.current === 0) return;
+    const container = containerRef.current;
+    if (container && container.scrollTop === 0) {
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - touchStartY.current;
+      if (diff > 0) {
+        setIsPulling(true);
+        setPullDistance(Math.min(diff * 0.5, 80));
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (isPulling && pullDistance > 60) {
+      setRefreshing(true);
+      fetchLogins(1);
+    }
+    setIsPulling(false);
+    setPullDistance(0);
+    touchStartY.current = 0;
+  };
 
   function handleRefresh() {
     setRefreshing(true);
-    fetchData();
+    setLoginPage(1);
+    fetchLogins(1);
+    fetchActivities();
   }
 
   function clearFilters() {
@@ -200,23 +397,20 @@ export default function MaintenanceLogsPage() {
     setDeviceFilter("all");
     setSearchText("");
     setLoginTypeFilter("all");
+    setDateFilter("all");
   }
 
-  // Filter activities
+  // Filter activities (client-side)
   const filteredActivities = activities.filter((activity) => {
-    // Type filter
     if (typeFilter !== "all" && activity.activityType !== typeFilter) {
       return false;
     }
-    // Status filter
     if (statusFilter !== "all" && activity.status !== statusFilter) {
       return false;
     }
-    // Device filter
     if (deviceFilter !== "all" && activity.deviceId !== deviceFilter) {
       return false;
     }
-    // Search text
     if (searchText) {
       const search = searchText.toLowerCase();
       return (
@@ -241,42 +435,27 @@ export default function MaintenanceLogsPage() {
     unresolved: activities.filter((a) => a.status === "unresolved").length,
   };
 
-  // Count logins by type
-  const loginTypeCounts = {
-    driver: logins.filter((l) => l.loginType === "driver").length,
-    maintenance: logins.filter((l) => l.loginType === "maintenance").length,
-    admin: logins.filter((l) => l.loginType === "admin").length,
+  // Get unique devices from activities
+  const uniqueDevices = [
+    ...new Map(
+      activities.map((a) => [a.deviceId, { id: a.deviceId, name: a.deviceName }])
+    ).values(),
+  ];
+
+  // Desktop pagination handlers
+  const handlePrevPage = () => {
+    if (loginPage > 1) {
+      fetchLogins(loginPage - 1);
+    }
   };
 
-  // Filter logins
-  const filteredLogins = logins.filter((login) => {
-    if (loginTypeFilter !== "all" && login.loginType !== loginTypeFilter) {
-      return false;
+  const handleNextPage = () => {
+    if (loginPage < loginTotalPages) {
+      fetchLogins(loginPage + 1);
     }
-    if (deviceFilter !== "all" && login.deviceId !== deviceFilter) {
-      return false;
-    }
-    if (searchText) {
-      const search = searchText.toLowerCase();
-      return (
-        login.deviceName?.toLowerCase().includes(search) ||
-        login.deviceId?.toLowerCase().includes(search) ||
-        login.userName?.toLowerCase().includes(search)
-      );
-    }
-    return true;
-  });
+  };
 
-  // Get unique devices from activities AND logins
-  const allDevices = [
-    ...activities.map((a) => ({ id: a.deviceId, name: a.deviceName })),
-    ...logins.map((l) => ({ id: l.deviceId, name: l.deviceName })),
-  ];
-  const uniqueDevices = [
-    ...new Map(allDevices.map((d) => [d.id, d])).values(),
-  ];
-
-  if (loading) {
+  if (loading && logins.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -318,7 +497,7 @@ export default function MaintenanceLogsPage() {
               <LogIn className="h-3.5 w-3.5 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Login History</span>
               <span className="sm:hidden">Logins</span>
-              <span className="hidden md:inline">({logins.length})</span>
+              <span className="hidden md:inline">({loginTotalCount})</span>
             </TabsTrigger>
             <TabsTrigger value="activities" className="gap-1 md:gap-2 text-xs md:text-sm">
               <Wrench className="h-3.5 w-3.5 md:h-4 md:w-4" />
@@ -329,67 +508,6 @@ export default function MaintenanceLogsPage() {
 
           {/* Login History Tab */}
           <TabsContent value="logins">
-            {/* Login Summary Cards */}
-            <div className="mb-4 md:mb-6 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-              <Card
-                className={`cursor-pointer transition-colors ${loginTypeFilter === "driver" ? "ring-2 ring-orange-500" : ""}`}
-                onClick={() => setLoginTypeFilter(loginTypeFilter === "driver" ? "all" : "driver")}
-              >
-                <CardContent className="flex flex-col md:flex-row items-center justify-between p-3 md:p-4 gap-1 md:gap-3">
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-orange-100">
-                      <Truck className="h-4 w-4 md:h-5 md:w-5 text-orange-600" />
-                    </div>
-                    <span className="font-medium text-xs md:text-sm">Driver</span>
-                  </div>
-                  <span className="text-xl md:text-2xl font-bold">{loginTypeCounts.driver}</span>
-                </CardContent>
-              </Card>
-
-              <Card
-                className={`cursor-pointer transition-colors ${loginTypeFilter === "maintenance" ? "ring-2 ring-blue-500" : ""}`}
-                onClick={() => setLoginTypeFilter(loginTypeFilter === "maintenance" ? "all" : "maintenance")}
-              >
-                <CardContent className="flex flex-col md:flex-row items-center justify-between p-3 md:p-4 gap-1 md:gap-3">
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-blue-100">
-                      <Wrench className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
-                    </div>
-                    <span className="font-medium text-xs md:text-sm hidden sm:inline">Maintenance</span>
-                    <span className="font-medium text-xs md:text-sm sm:hidden">Maint.</span>
-                  </div>
-                  <span className="text-xl md:text-2xl font-bold">{loginTypeCounts.maintenance}</span>
-                </CardContent>
-              </Card>
-
-              <Card
-                className={`cursor-pointer transition-colors ${loginTypeFilter === "admin" ? "ring-2 ring-purple-500" : ""}`}
-                onClick={() => setLoginTypeFilter(loginTypeFilter === "admin" ? "all" : "admin")}
-              >
-                <CardContent className="flex flex-col md:flex-row items-center justify-between p-3 md:p-4 gap-1 md:gap-3">
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-purple-100">
-                      <Shield className="h-4 w-4 md:h-5 md:w-5 text-purple-600" />
-                    </div>
-                    <span className="font-medium text-xs md:text-sm">Admin</span>
-                  </div>
-                  <span className="text-xl md:text-2xl font-bold">{loginTypeCounts.admin}</span>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="flex flex-col md:flex-row items-center justify-between p-3 md:p-4 gap-1 md:gap-3">
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-gray-100">
-                      <LogIn className="h-4 w-4 md:h-5 md:w-5 text-gray-600" />
-                    </div>
-                    <span className="font-medium text-xs md:text-sm">Total</span>
-                  </div>
-                  <span className="text-xl md:text-2xl font-bold">{logins.length}</span>
-                </CardContent>
-              </Card>
-            </div>
-
             {/* Desktop Filters */}
             <Card className="mb-4 md:mb-6 hidden md:block">
               <CardHeader className="pb-3 px-4 md:px-6">
@@ -419,21 +537,12 @@ export default function MaintenanceLogsPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={deviceFilter} onValueChange={setDeviceFilter}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Device" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Devices</SelectItem>
-                      {uniqueDevices.map((device) => (
-                        <SelectItem key={device.id} value={device.id}>
-                          {device.name || device.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <DateFilterButtons value={dateFilter} onChange={setDateFilter} />
+                  </div>
 
-                  {(loginTypeFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                  {(loginTypeFilter !== "all" || dateFilter !== "all" || searchText) && (
                     <Button variant="ghost" size="sm" onClick={clearFilters}>
                       <X className="mr-1 h-4 w-4" />
                       Clear
@@ -441,7 +550,7 @@ export default function MaintenanceLogsPage() {
                   )}
 
                   <span className="ml-auto text-sm text-muted-foreground">
-                    {filteredLogins.length} of {logins.length} logins
+                    {loginTotalCount} logins
                   </span>
                 </div>
               </CardContent>
@@ -455,7 +564,7 @@ export default function MaintenanceLogsPage() {
                     <span className="flex items-center gap-2">
                       <Filter className="h-4 w-4" />
                       Filters
-                      {(loginTypeFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                      {(loginTypeFilter !== "all" || dateFilter !== "all" || searchText) && (
                         <Badge variant="secondary" className="text-xs">Active</Badge>
                       )}
                     </span>
@@ -468,9 +577,9 @@ export default function MaintenanceLogsPage() {
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                   />
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between">
                     <Select value={loginTypeFilter} onValueChange={setLoginTypeFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-32">
                         <SelectValue placeholder="Type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -480,29 +589,17 @@ export default function MaintenanceLogsPage() {
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={deviceFilter} onValueChange={setDeviceFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Device" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Devices</SelectItem>
-                        {uniqueDevices.map((device) => (
-                          <SelectItem key={device.id} value={device.id}>
-                            {device.name || device.id}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <DateFilterButtons value={dateFilter} onChange={setDateFilter} />
                   </div>
                   <div className="flex items-center justify-between">
-                    {(loginTypeFilter !== "all" || deviceFilter !== "all" || searchText) && (
+                    {(loginTypeFilter !== "all" || dateFilter !== "all" || searchText) && (
                       <Button variant="ghost" size="sm" onClick={clearFilters}>
                         <X className="mr-1 h-4 w-4" />
                         Clear
                       </Button>
                     )}
                     <span className="text-xs text-muted-foreground ml-auto">
-                      {filteredLogins.length} of {logins.length} logins
+                      {loginTotalCount} logins
                     </span>
                   </div>
                 </CollapsibleContent>
@@ -523,14 +620,14 @@ export default function MaintenanceLogsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredLogins.length === 0 ? (
+                    {logins.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                           No login records found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredLogins.map((login) => (
+                      logins.map((login) => (
                         <TableRow key={login.id}>
                           <TableCell>
                             <div>
@@ -559,38 +656,105 @@ export default function MaintenanceLogsPage() {
                   </TableBody>
                 </Table>
               </CardContent>
+
+              {/* Desktop Pagination */}
+              {loginTotalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    Page {loginPage} of {loginTotalPages}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePrevPage}
+                      disabled={loginPage === 1 || loading}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNextPage}
+                      disabled={loginPage === loginTotalPages || loading}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
 
-            {/* Logins Cards - Mobile */}
-            <div className="md:hidden space-y-3">
-              {filteredLogins.length === 0 ? (
+            {/* Logins Cards - Mobile with infinite scroll */}
+            <div
+              ref={containerRef}
+              className="md:hidden space-y-3"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {/* Pull to refresh indicator */}
+              {isPulling && (
+                <div
+                  className="flex items-center justify-center transition-all"
+                  style={{ height: pullDistance }}
+                >
+                  <RefreshCw
+                    className={`h-5 w-5 text-muted-foreground ${pullDistance > 60 ? "text-primary" : ""}`}
+                    style={{ transform: `rotate(${pullDistance * 3}deg)` }}
+                  />
+                </div>
+              )}
+
+              {refreshing && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              )}
+
+              {logins.length === 0 ? (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
                     No login records found
                   </CardContent>
                 </Card>
               ) : (
-                filteredLogins.map((login) => (
-                  <Card key={login.id}>
-                    <CardContent className="p-3 space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{login.deviceName}</p>
-                          <p className="text-xs text-muted-foreground">{login.deviceId}</p>
+                <>
+                  {logins.map((login) => (
+                    <Card key={login.id}>
+                      <CardContent className="p-3 space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-medium text-sm">{login.deviceName}</p>
+                            <p className="text-xs text-muted-foreground">{login.deviceId}</p>
+                          </div>
+                          <LoginTypeBadge type={login.loginType} />
                         </div>
-                        <LoginTypeBadge type={login.loginType} />
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1">
-                          <User className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="font-medium">{login.userName}</span>
-                          {login.pin && <span className="font-mono text-muted-foreground">({login.pin})</span>}
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="font-medium">{login.userName}</span>
+                            {login.pin && <span className="font-mono text-muted-foreground">({login.pin})</span>}
+                          </div>
+                          <span className="text-muted-foreground">{formatDateTime(login.createdAt)}</span>
                         </div>
-                        <span className="text-muted-foreground">{formatDateTime(login.createdAt)}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {/* Infinite scroll trigger */}
+                  <div ref={loadMoreRef} className="py-4 flex items-center justify-center">
+                    {loadingMore ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    ) : hasMoreLogins ? (
+                      <span className="text-xs text-muted-foreground">Scroll for more</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No more records</span>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </TabsContent>
