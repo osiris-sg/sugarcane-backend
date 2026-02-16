@@ -1,6 +1,7 @@
-pandas>=2.0.0
-numpy>=1.24.0
-scikit-learn>=1.3.0
-psycopg2-binary>=2.9.0
-joblib>=1.3.0
-apscheduler>=3.10.0
+# RPi-compatible versions (Python 3.9 ARM)
+pandas==1.5.3
+numpy==1.24.4
+scikit-learn==1.3.2
+psycopg2-binary==2.9.9
+joblib==1.3.2
+apscheduler==3.10.4
