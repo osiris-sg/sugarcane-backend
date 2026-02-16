@@ -19,11 +19,13 @@ export async function POST(request) {
     console.log(`[OrderSync] Received ${orders.length} orders from device ${deviceId} (${deviceName})`);
 
     // Check if device has appVersion 3.3.0 (should also sync to OrderImport)
+    // Exception: device 852379 always syncs to OrderImport regardless of version
+    const ORDERIMPORT_EXCEPTION_DEVICES = ['852379'];
     const device = await db.device.findFirst({
       where: { deviceId: String(deviceId) },
       select: { appVersion: true },
     });
-    const shouldSyncToOrderImport = device?.appVersion === '3.3.0';
+    const shouldSyncToOrderImport = device?.appVersion === '3.3.0' || ORDERIMPORT_EXCEPTION_DEVICES.includes(String(deviceId));
 
     if (shouldSyncToOrderImport) {
       console.log(`[OrderSync] Device ${deviceId} has v3.3.0, will also sync to OrderImport`);
