@@ -15,3 +15,4 @@ node_modules/
 
 # ML model files
 scripts/*.joblib
+rpi/.env
