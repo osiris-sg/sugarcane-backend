@@ -37,12 +37,13 @@ download() {
     log_info "Downloading requirements.txt..."
     curl -fsSL "$BASE_URL/requirements.txt" -o "$SCRIPT_DIR/requirements.txt"
 
-    # Download model files
-    log_info "Downloading sales_model.joblib..."
-    curl -fsSL "$BASE_URL/sales_model.joblib" -o "$SCRIPT_DIR/sales_model.joblib"
+    # Download training script and data
+    log_info "Downloading train_model.py..."
+    curl -fsSL "$BASE_URL/train_model.py" -o "$SCRIPT_DIR/train_model.py"
+    chmod +x "$SCRIPT_DIR/train_model.py"
 
-    log_info "Downloading encoder.joblib..."
-    curl -fsSL "$BASE_URL/encoder.joblib" -o "$SCRIPT_DIR/encoder.joblib"
+    log_info "Downloading training_data.csv (10MB, may take a moment)..."
+    curl -fsSL "$BASE_URL/training_data.csv" -o "$SCRIPT_DIR/training_data.csv"
 
     # Create .env template if not exists
     if [ ! -f "$SCRIPT_DIR/.env" ]; then
@@ -93,6 +94,25 @@ install() {
     echo "  ./setup.sh service  # Install as systemd service"
 }
 
+train() {
+    log_info "Training model from local data..."
+
+    if [ ! -d "$SCRIPT_DIR/venv" ]; then
+        log_error "Virtual environment not found. Run: ./setup.sh install"
+        exit 1
+    fi
+
+    if [ ! -f "$SCRIPT_DIR/training_data.csv" ]; then
+        log_error "Training data not found. Run: ./setup.sh download"
+        exit 1
+    fi
+
+    source "$SCRIPT_DIR/venv/bin/activate"
+    python "$SCRIPT_DIR/train_model.py"
+
+    log_info "Training complete! Model files created."
+}
+
 run() {
     log_info "Running prediction..."
 
@@ -104,6 +124,12 @@ run() {
     if [ ! -d "$SCRIPT_DIR/venv" ]; then
         log_error "Virtual environment not found. Run: ./setup.sh install"
         exit 1
+    fi
+
+    # Check for model files
+    if [ ! -f "$SCRIPT_DIR/sales_model.joblib" ]; then
+        log_warn "Model not found. Training from local data first..."
+        train
     fi
 
     source "$SCRIPT_DIR/venv/bin/activate"
@@ -211,6 +237,7 @@ usage() {
     echo "Commands:"
     echo "  download   Download all files from GitHub"
     echo "  install    Create venv and install dependencies"
+    echo "  train      Train model from local data (training_data.csv)"
     echo "  run        Run prediction once"
     echo "  daemon     Run as daemon (scheduler at 22:30)"
     echo "  service    Install as systemd timer service"
@@ -221,6 +248,7 @@ usage() {
     echo "  ./setup.sh download"
     echo "  nano .env"
     echo "  ./setup.sh install"
+    echo "  ./setup.sh train"
     echo "  ./setup.sh run"
 }
 
@@ -228,6 +256,7 @@ usage() {
 case "${1:-}" in
     download) download ;;
     install) install ;;
+    train) train ;;
     run) run ;;
     daemon) daemon ;;
     service) service ;;
