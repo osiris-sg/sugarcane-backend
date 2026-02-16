@@ -417,13 +417,119 @@ def run_daemon():
         logger.info("Daemon stopped.")
 
 
+def test_prediction(test_date_str):
+    """Test prediction accuracy for a specific date."""
+    from datetime import datetime
+
+    test_date = datetime.strptime(test_date_str, '%Y-%m-%d').date()
+
+    logger.info(f"Testing prediction for {test_date}")
+    logger.info(f"Will use data up to {test_date - timedelta(days=1)} to predict {test_date}")
+    logger.info("-" * 50)
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Fetch orders up to the day BEFORE test_date (for prediction input)
+        # We need 30 days of data ending the day before
+        end_date = datetime.combine(test_date - timedelta(days=1), datetime.max.time())
+        start_date = datetime.combine(test_date - timedelta(days=31), datetime.min.time())
+
+        query = """
+            SELECT
+                "orderId",
+                "deviceId" as machine_sn,
+                "deviceName",
+                "createdAt" as log_datetime,
+                "isSuccess" as operation_outcome,
+                "payWay" as payment_mode,
+                "payAmount" as transaction_amount,
+                "quantity" as order_amt,
+                "deliverCount" as num_dispensed,
+                "refundAmount" as refund_amount
+            FROM "Order"
+            WHERE "createdAt" >= %s AND "createdAt" <= %s
+            ORDER BY "createdAt" ASC
+        """
+        cur.execute(query, (start_date, end_date))
+        rows = cur.fetchall()
+        orders_df = pd.DataFrame(rows)
+        logger.info(f"Fetched {len(orders_df)} orders for training period")
+
+        if orders_df.empty:
+            logger.error("No orders found for training period")
+            return False
+
+        # Format orders
+        orders_df = format_orders(orders_df)
+
+        # Aggregate daily
+        df_agg = aggregate_daily(orders_df)
+        logger.info(f"Aggregated to {len(df_agg)} days")
+
+        # Create features
+        df_features = create_features(df_agg)
+
+        # Load model
+        model, encoder = load_model()
+        if model is None:
+            logger.error("Model not found. Run: ./setup.sh train")
+            return False
+
+        # Generate prediction
+        prediction_row = generate_predictions(df_features, model, encoder)
+        predicted_sales = prediction_row['predicted_sales'].iloc[0]
+
+        # Now fetch ACTUAL sales for test_date
+        # Day window: 22:30 prev day to 22:29 current day (SGT)
+        # In UTC: 14:30 prev day to 14:29 current day
+        actual_start = datetime.combine(test_date - timedelta(days=1), datetime.min.time()) + timedelta(hours=14, minutes=30)
+        actual_end = datetime.combine(test_date, datetime.min.time()) + timedelta(hours=14, minutes=29)
+
+        query = """
+            SELECT SUM("deliverCount") as actual_sales
+            FROM "Order"
+            WHERE "createdAt" >= %s AND "createdAt" <= %s
+            AND "isSuccess" = true
+        """
+        cur.execute(query, (actual_start, actual_end))
+        result = cur.fetchone()
+        actual_sales = float(result['actual_sales']) if result['actual_sales'] else 0
+
+        cur.close()
+        conn.close()
+
+        # Calculate accuracy
+        error = abs(predicted_sales - actual_sales)
+        error_pct = (error / actual_sales * 100) if actual_sales > 0 else 0
+
+        logger.info("-" * 50)
+        logger.info(f"PREDICTION TEST RESULTS FOR {test_date}")
+        logger.info("-" * 50)
+        logger.info(f"  Predicted: {predicted_sales:.1f}")
+        logger.info(f"  Actual:    {actual_sales:.1f}")
+        logger.info(f"  Error:     {error:.1f} ({error_pct:.1f}%)")
+        logger.info("-" * 50)
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Test failed: {e}", exc_info=True)
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description='Sales Prediction for Raspberry Pi')
     parser.add_argument('--daemon', action='store_true', help='Run as daemon with scheduler')
+    parser.add_argument('--test', type=str, help='Test prediction for a specific date (YYYY-MM-DD)')
     args = parser.parse_args()
 
     if args.daemon:
         run_daemon()
+    elif args.test:
+        success = test_prediction(args.test)
+        sys.exit(0 if success else 1)
     else:
         success = run_prediction()
         sys.exit(0 if success else 1)

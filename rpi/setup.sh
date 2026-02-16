@@ -138,6 +138,35 @@ run() {
     python "$SCRIPT_DIR/sales_prediction.py"
 }
 
+test_date() {
+    if [ -z "$2" ]; then
+        log_error "Please provide a date: ./setup.sh test 2026-02-11"
+        exit 1
+    fi
+
+    log_info "Testing prediction for $2..."
+
+    if [ ! -f "$SCRIPT_DIR/.env" ]; then
+        log_error ".env file not found. Run: nano .env"
+        exit 1
+    fi
+
+    if [ ! -d "$SCRIPT_DIR/venv" ]; then
+        log_error "Virtual environment not found. Run: ./setup.sh install"
+        exit 1
+    fi
+
+    if [ ! -f "$SCRIPT_DIR/sales_model.joblib" ]; then
+        log_warn "Model not found. Training from local data first..."
+        train
+    fi
+
+    source "$SCRIPT_DIR/venv/bin/activate"
+    export $(cat "$SCRIPT_DIR/.env" | grep -v '^#' | xargs)
+
+    python "$SCRIPT_DIR/sales_prediction.py" --test "$2"
+}
+
 daemon() {
     log_info "Starting daemon mode (22:30 SGT daily)..."
 
@@ -235,20 +264,22 @@ usage() {
     echo "Usage: ./setup.sh <command>"
     echo ""
     echo "Commands:"
-    echo "  download   Download all files from GitHub"
-    echo "  install    Create venv and install dependencies"
-    echo "  train      Train model from local data (training_data.csv)"
-    echo "  run        Run prediction once"
-    echo "  daemon     Run as daemon (scheduler at 22:30)"
-    echo "  service    Install as systemd timer service"
-    echo "  logs       Tail the prediction log"
-    echo "  status     Show current status"
+    echo "  download      Download all files from GitHub"
+    echo "  install       Create venv and install dependencies"
+    echo "  train         Train model from local data (training_data.csv)"
+    echo "  test <date>   Test prediction accuracy for a date (e.g. 2026-02-11)"
+    echo "  run           Run prediction once"
+    echo "  daemon        Run as daemon (scheduler at 22:30)"
+    echo "  service       Install as systemd timer service"
+    echo "  logs          Tail the prediction log"
+    echo "  status        Show current status"
     echo ""
     echo "Quick start:"
     echo "  ./setup.sh download"
     echo "  nano .env"
     echo "  ./setup.sh install"
     echo "  ./setup.sh train"
+    echo "  ./setup.sh test 2026-02-11"
     echo "  ./setup.sh run"
 }
 
@@ -257,6 +288,7 @@ case "${1:-}" in
     download) download ;;
     install) install ;;
     train) train ;;
+    test) test_date "$@" ;;
     run) run ;;
     daemon) daemon ;;
     service) service ;;
