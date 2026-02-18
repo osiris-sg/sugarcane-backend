@@ -31,6 +31,9 @@ export function ServiceWorkerRegister() {
           registration.scope
         );
 
+        // Check for updates immediately
+        registration.update();
+
         // Listen for updates
         registration.addEventListener("updatefound", () => {
           const newWorker = registration.installing;
@@ -40,10 +43,21 @@ export function ServiceWorkerRegister() {
                 newWorker.state === "installed" &&
                 navigator.serviceWorker.controller
               ) {
-                console.log("[SW] New service worker installed and ready");
+                console.log("[SW] New service worker installed, reloading...");
+                // Tell the new service worker to take control
+                newWorker.postMessage({ type: "SKIP_WAITING" });
               }
             });
           }
+        });
+
+        // Reload when new service worker takes over
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (refreshing) return;
+          refreshing = true;
+          console.log("[SW] Controller changed, refreshing page...");
+          window.location.reload();
         });
       } catch (error) {
         console.error("[SW] Service worker registration failed:", error);

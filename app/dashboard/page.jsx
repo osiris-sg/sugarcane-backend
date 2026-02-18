@@ -80,8 +80,8 @@ export default function DashboardPage() {
 
         {/* Management Boxes */}
         <div className="mx-auto grid max-w-3xl gap-6 md:grid-cols-2">
-          {/* Operations - Owner only */}
-          {isOwnerOrAdmin && (
+          {/* Operations - Admin only */}
+          {isAdmin && (
             <ManagementBox
               title="Operations"
               description="Manage devices, stock levels, and maintenance alerts."
@@ -96,14 +96,14 @@ export default function DashboardPage() {
             description="View sales data, revenue analytics, and customer insights."
             href="/dashboard/sales"
             icon={TrendingUp}
-            className={!isOwnerOrAdmin ? "md:col-span-2 max-w-md mx-auto" : ""}
+            className={!isAdmin ? "md:col-span-2 max-w-md mx-auto" : ""}
           />
         </div>
 
         {/* Role indicator for dev purposes */}
         <div className="mt-12 text-center">
           <p className="text-xs text-muted-foreground">
-            Logged in as: <span className="font-medium">{role}</span>
+            Logged in as: <span className="font-medium">{roles?.[0] || "User"}</span>
           </p>
         </div>
       </main>

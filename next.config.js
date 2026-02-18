@@ -53,14 +53,15 @@ const withPWA = require('next-pwa')({
         },
       },
     },
-    // JavaScript assets - cache for 1 day
+    // JavaScript assets - NetworkFirst for fresh code
     {
       urlPattern: /\.(?:js)$/i,
-      handler: 'StaleWhileRevalidate',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'static-js-assets',
+        networkTimeoutSeconds: 5,
         expiration: {
-          maxEntries: 32,
+          maxEntries: 64,
           maxAgeSeconds: 60 * 60 * 24, // 1 day
         },
       },
