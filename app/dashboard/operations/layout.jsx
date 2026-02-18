@@ -224,39 +224,31 @@ export default function OperationsLayout({ children }) {
   const canAccessOps = isAdmin || isDriver || isOpsManager;
 
   // Get sidebar items based on role
-  // Drivers: incidents and no-sales only
-  // Ops managers: no Reports or Setup sections
   // Admins: everything
-  const sidebarItems = isDriver
-    ? driverSidebarItems
+  // Ops managers: no Reports or Setup sections (but includes Penalties)
+  // Drivers: incidents and no-sales only
+  // Note: Check isAdmin first, then isOpsManager, then isDriver (higher privilege first)
+  const sidebarItems = isAdmin
+    ? adminSidebarItems
     : isOpsManager
       ? opsManagerSidebarItems
-      : adminSidebarItems;
+      : driverSidebarItems;
 
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // Redirect drivers if they're on a page they can't access
+  // Redirect non-admin users if they're on a page they can't access
+  // Check higher privilege first: admin > ops manager > driver
   useEffect(() => {
-    if (isLoaded && isDriver) {
-      const allowedPaths = [
-        "/dashboard/operations/inventory/stock",
-        "/dashboard/operations/inventory/storage",
-        "/dashboard/operations/incidents",
-        "/dashboard/operations/no-sales",
-      ];
-      const isAllowed = allowedPaths.some(p => pathname.startsWith(p));
-      if (!isAllowed) {
-        redirect("/dashboard/operations/inventory/stock");
-      }
-    }
-  }, [isLoaded, isDriver, pathname]);
+    if (!isLoaded) return;
 
-  // Redirect ops managers if they're on a page they can't access
-  useEffect(() => {
-    if (isLoaded && isOpsManager) {
+    // Admins can access everything
+    if (isAdmin) return;
+
+    // Ops managers: can access stock, storage, incidents, no-sales, penalties
+    if (isOpsManager) {
       const allowedPaths = [
         "/dashboard/operations/inventory/stock",
         "/dashboard/operations/inventory/storage",
@@ -268,8 +260,23 @@ export default function OperationsLayout({ children }) {
       if (!isAllowed) {
         redirect("/dashboard/operations/inventory/stock");
       }
+      return;
     }
-  }, [isLoaded, isOpsManager, pathname]);
+
+    // Drivers: can only access stock, storage, incidents, no-sales
+    if (isDriver) {
+      const allowedPaths = [
+        "/dashboard/operations/inventory/stock",
+        "/dashboard/operations/inventory/storage",
+        "/dashboard/operations/incidents",
+        "/dashboard/operations/no-sales",
+      ];
+      const isAllowed = allowedPaths.some(p => pathname.startsWith(p));
+      if (!isAllowed) {
+        redirect("/dashboard/operations/inventory/stock");
+      }
+    }
+  }, [isLoaded, isAdmin, isOpsManager, isDriver, pathname]);
 
   // Redirect users who can't access operations
   if (isLoaded && !canAccessOps) {
