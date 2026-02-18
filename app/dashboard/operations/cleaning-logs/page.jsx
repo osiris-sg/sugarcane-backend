@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { toast } from "sonner";
 import {
   Sparkles,
@@ -77,9 +77,7 @@ function ComplianceBadge({ isCompliant, count }) {
 }
 
 export default function CleaningLogsPage() {
-  const { user } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const { isAdmin } = useUserRoles();
 
   const [compliance, setCompliance] = useState(null);
   const [logs, setLogs] = useState([]);

@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { toast } from "sonner";
 import {
   TrendingDown,
@@ -74,9 +74,7 @@ function StageBadge({ stage, startedAt }) {
 }
 
 export default function NoSalesPage() {
-  const { user } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const { isAdmin } = useUserRoles();
 
   const [stagingEntries, setStagingEntries] = useState([]);
   const [zeroSalesIncidents, setZeroSalesIncidents] = useState([]);

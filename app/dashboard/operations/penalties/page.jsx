@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { toast } from "sonner";
 import {
   Ban,
@@ -75,9 +76,7 @@ function AppealStatusBadge({ status }) {
 
 export default function PenaltiesPage() {
   const { user } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
-  const isOpsManager = role === "ops_manager";
+  const { isAdmin, isOpsManager } = useUserRoles();
   const canApproveReject = isAdmin; // Only admins can approve/reject appeals
 
   const [penalties, setPenalties] = useState([]);

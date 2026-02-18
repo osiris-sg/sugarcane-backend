@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -151,8 +152,7 @@ function TypeBadge({ type }) {
 
 export default function IncidentsPage() {
   const { user } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const { isAdmin } = useUserRoles();
 
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);

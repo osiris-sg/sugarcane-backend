@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useUser, useClerk } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { Settings, TrendingUp, Globe, LogOut } from "lucide-react";
@@ -11,17 +12,14 @@ import { ManagementBox } from "@/components/dashboard/management-box";
 import { NavHeader } from "@/components/layout/nav-header";
 
 export default function DashboardPage() {
-  const { user, isLoaded } = useUser();
+  const { isLoaded } = useUser();
   const { signOut } = useClerk();
 
-  // Get role from user metadata (default to franchisee)
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isOwnerOrAdmin = role === "owner" || role === "admin";
-  const isDriver = role === "driver";
-  const isOpsManager = role === "opsmanager" || role === "ops_manager";
+  // Get role from database via useUserRoles hook
+  const { isAdmin, isDriver, isOpsManager, roles, isLoaded: rolesLoaded } = useUserRoles();
 
   // Role-based redirects
-  if (isLoaded && !isOwnerOrAdmin) {
+  if (isLoaded && rolesLoaded && !isAdmin) {
     // Drivers go directly to operations/stock
     if (isDriver) {
       redirect("/dashboard/operations/inventory/stock");
@@ -31,7 +29,8 @@ export default function DashboardPage() {
       redirect("/dashboard/operations");
     }
     // ADMINOPS goes to equipment page
-    if (role === "adminops") {
+    const roleLower = (roles?.[0] || "")?.toLowerCase();
+    if (roleLower === "adminops") {
       redirect("/dashboard/sales/equipment");
     }
     // Everyone else (franchisee, finance, etc.) goes to sales

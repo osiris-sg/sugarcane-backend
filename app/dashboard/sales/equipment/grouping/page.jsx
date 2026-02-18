@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import {
   DndContext,
   DragOverlay,
@@ -81,9 +82,8 @@ function DroppableGroup({ group, children, isOver }) {
 }
 
 export default function DeviceGroupingPage() {
-  const { user, isLoaded } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin" || role === "finance";
+  const { isLoaded } = useUser();
+  const { isAdmin, isLoaded: rolesLoaded } = useUserRoles();
 
   const [groups, setGroups] = useState([]);
   const [devices, setDevices] = useState([]);
@@ -109,7 +109,7 @@ export default function DeviceGroupingPage() {
   );
 
   // Redirect non-admins
-  if (isLoaded && !isAdmin) {
+  if (isLoaded && rolesLoaded && !isAdmin) {
     redirect("/dashboard/sales");
   }
 

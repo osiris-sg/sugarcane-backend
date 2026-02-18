@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { toast } from "sonner";
 import {
   BarChart3,
@@ -29,9 +30,8 @@ import {
 import { Progress } from "@/components/ui/progress";
 
 export default function EfficiencyPage() {
-  const { user, isLoaded } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const { isLoaded } = useUser();
+  const { isAdmin } = useUserRoles();
 
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);

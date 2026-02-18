@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { BarChart3, Calendar, Filter, Download, ChevronDown, ChevronRight, Users, Monitor, X } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,10 +33,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function OrderSummaryPage() {
-  const { user } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const roleLower = role?.toLowerCase();
-  const isAdmin = roleLower === "owner" || roleLower === "admin";
+  const { isAdmin, roles } = useUserRoles();
+  const roleLower = (roles?.[0] || "franchisee")?.toLowerCase();
   const isPartnerships = roleLower === "partnerships";
   const isFranchisee = roleLower === "franchisee";
   const hideGroupInfo = isPartnerships || isFranchisee;

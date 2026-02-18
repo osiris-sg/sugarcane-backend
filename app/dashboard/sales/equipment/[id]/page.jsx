@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 export default function EditDevicePage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin" || role === "finance";
+  const { isAdmin } = useUserRoles();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

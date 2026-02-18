@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser, useClerk, UserButton } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -216,12 +217,10 @@ export default function OperationsLayout({ children }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded: isClerkLoaded } = useUser();
   const { signOut } = useClerk();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
-  const isDriver = role === "driver";
-  const isOpsManager = role === "opsmanager" || role === "ops_manager";
+  const { isAdmin, isDriver, isOpsManager, isLoaded: isRolesLoaded } = useUserRoles();
+  const isLoaded = isClerkLoaded && isRolesLoaded;
   const canAccessOps = isAdmin || isDriver || isOpsManager;
 
   // Get sidebar items based on role

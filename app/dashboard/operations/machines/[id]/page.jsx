@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -24,9 +24,7 @@ import { Badge } from "@/components/ui/badge";
 export default function MachineEditPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const { isAdmin } = useUserRoles();
 
   const [device, setDevice] = useState(null);
   const [stock, setStock] = useState(null);

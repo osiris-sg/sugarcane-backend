@@ -2,6 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { Shield, Crown, User, Check, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,12 +43,11 @@ const roles = [
 ];
 
 export default function RolesPage() {
-  const { user, isLoaded } = useUser();
+  const { isLoaded } = useUser();
 
   // Redirect non-admins
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin" || role === "finance";
-  if (isLoaded && !isAdmin) {
+  const { isAdmin, isLoaded: rolesLoaded } = useUserRoles();
+  if (isLoaded && rolesLoaded && !isAdmin) {
     redirect("/dashboard/sales");
   }
 

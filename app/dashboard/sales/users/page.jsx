@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { toast } from "sonner";
 import {
   Users,
@@ -59,7 +60,7 @@ import {
 import { Label } from "@/components/ui/label";
 
 export default function UsersPage() {
-  const { user, isLoaded } = useUser();
+  const { isLoaded } = useUser();
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,9 +74,8 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState(null); // null = all, "owner", "franchisee", "opsmanager", "driver"
 
   // Redirect non-admins
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin" || role === "finance";
-  if (isLoaded && !isAdmin) {
+  const { isAdmin, isLoaded: rolesLoaded } = useUserRoles();
+  if (isLoaded && rolesLoaded && !isAdmin) {
     redirect("/dashboard/sales");
   }
 

@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import {
   DndContext,
   DragOverlay,
@@ -78,9 +79,8 @@ function DroppableDriver({ driver, children, isOver }) {
 }
 
 export default function DriverAssignmentPage() {
-  const { user, isLoaded } = useUser();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin";
+  const { isLoaded } = useUser();
+  const { isAdmin, isLoaded: rolesLoaded } = useUserRoles();
 
   const [drivers, setDrivers] = useState([]);
   const [unassignedDevices, setUnassignedDevices] = useState([]);
@@ -103,7 +103,7 @@ export default function DriverAssignmentPage() {
   );
 
   // Redirect non-admins
-  if (isLoaded && !isAdmin) {
+  if (isLoaded && rolesLoaded && !isAdmin) {
     redirect("/dashboard/operations");
   }
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { toast } from "sonner";
 import { UserPlus, Lock, User, Crown, ArrowLeft, Briefcase, Truck, KeyRound, AtSign, Users, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -74,9 +75,8 @@ export default function AddUserPage() {
   }
 
   // Redirect non-admins
-  const userRole = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = userRole === "owner" || userRole === "admin";
-  if (isLoaded && !isAdmin) {
+  const { isAdmin, isLoaded: rolesLoaded } = useUserRoles();
+  if (isLoaded && rolesLoaded && !isAdmin) {
     redirect("/dashboard/operations");
   }
 

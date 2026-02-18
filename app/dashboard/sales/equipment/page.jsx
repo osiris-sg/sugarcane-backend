@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { useRouter } from "next/navigation";
 import { Search, Plus, History, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,10 +29,8 @@ import { TablePagination, usePagination } from "@/components/ui/table-pagination
 const ITEMS_PER_PAGE = 20;
 
 export default function DeviceListPage() {
-  const { user } = useUser();
   const router = useRouter();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const isAdmin = role === "owner" || role === "admin" || role === "finance";
+  const { isAdmin } = useUserRoles();
 
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser, useClerk, UserButton } from "@clerk/nextjs";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import {
   LayoutDashboard,
   Monitor,
@@ -225,19 +226,18 @@ export default function SalesLayout({ children }) {
   const { user } = useUser();
   const { signOut } = useClerk();
   const pathname = usePathname();
-  const role = user?.publicMetadata?.role || "franchisee";
-  const roleLower = role?.toLowerCase();
-  const isAdmin = roleLower === "owner" || roleLower === "admin";
+  const { roles, isAdmin: isAdminFromDb } = useUserRoles();
+
+  // Check roles from database
+  const isAdmin = isAdminFromDb || roles.includes('ADMIN') || roles.includes('MANAGER');
+  const isPartnerships = roles.includes('PARTNERSHIPS');
+  const isFinance = roles.includes('FINANCE');
+  const isAdminOps = roles.includes('ADMINOPS');
 
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
-
-  // Use different sidebar items based on role
-  const isPartnerships = roleLower === "partnerships";
-  const isFinance = roleLower === "finance";
-  const isAdminOps = roleLower === "adminops";
   const filteredItems = isPartnerships
     ? sidebarItemsPartnerships
     : isFinance
