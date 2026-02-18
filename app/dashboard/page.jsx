@@ -12,7 +12,7 @@ import { ManagementBox } from "@/components/dashboard/management-box";
 import { NavHeader } from "@/components/layout/nav-header";
 
 export default function DashboardPage() {
-  const { isLoaded } = useUser();
+  const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
 
   // Get role from database via useUserRoles hook
