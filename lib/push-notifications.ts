@@ -381,14 +381,23 @@ export async function sendIncidentNotification(
         return { success: true, sent: totalSent, failed: totalFailed };
       }
 
-      // 1. Notify all assigned drivers
+      // Track who we've already notified to avoid duplicates
+      const notifiedClerkIds = new Set<string>();
+
+      // Get clerkIds of all drivers directly assigned to this device
+      const assignedDriverClerkIds = new Set(assignedDrivers.map((d) => d.clerkId));
+
+      // 1. Notify all assigned drivers (with fault details)
       for (const driver of assignedDrivers) {
-        const result = await sendPushNotification(driver.clerkId, driverPayload);
-        totalSent += result.sent;
-        totalFailed += result.failed;
+        if (!notifiedClerkIds.has(driver.clerkId)) {
+          const result = await sendPushNotification(driver.clerkId, driverPayload);
+          totalSent += result.sent;
+          totalFailed += result.failed;
+          notifiedClerkIds.add(driver.clerkId);
+        }
       }
 
-      // 2. Find and notify all unique ops managers (who manage these drivers)
+      // 2. Find and notify ops managers (who manage these drivers but aren't assigned directly)
       const driverIds = assignedDrivers.map((d) => d.id);
       const opsManagerAssignments = await db.opsManagerDriver.findMany({
         where: { driverId: { in: driverIds } },
@@ -407,7 +416,13 @@ export async function sendIncidentNotification(
         }
       }
 
+      let opsManagersNotified = 0;
       for (const opsManager of Array.from(uniqueOpsManagers.values())) {
+        // Skip if already notified (they were a driver directly assigned to this device)
+        if (notifiedClerkIds.has(opsManager.clerkId)) {
+          continue;
+        }
+        // Ops manager not directly assigned - send ops manager notification with driver attribution
         const opsPayload: NotificationPayload = {
           ...driverPayload,
           title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
@@ -416,8 +431,10 @@ export async function sendIncidentNotification(
         const result = await sendPushNotification(opsManager.clerkId, opsPayload);
         totalSent += result.sent;
         totalFailed += result.failed;
+        notifiedClerkIds.add(opsManager.clerkId);
+        opsManagersNotified++;
       }
-      console.log(`[Push] Sent ${type} notification to ${uniqueOpsManagers.size} ops manager(s)`);
+      console.log(`[Push] Sent ${type} notification to ${opsManagersNotified} ops manager(s)`);
 
       // 3. Notify all admins with attribution
       const admins = await db.user.findMany({
@@ -428,7 +445,12 @@ export async function sendIncidentNotification(
         select: { clerkId: true },
       });
 
+      let adminsNotified = 0;
       for (const admin of admins) {
+        // Skip if already notified as driver or ops manager
+        if (notifiedClerkIds.has(admin.clerkId)) {
+          continue;
+        }
         const adminPayload: NotificationPayload = {
           ...driverPayload,
           title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
@@ -437,9 +459,11 @@ export async function sendIncidentNotification(
         const result = await sendPushNotification(admin.clerkId, adminPayload);
         totalSent += result.sent;
         totalFailed += result.failed;
+        notifiedClerkIds.add(admin.clerkId);
+        adminsNotified++;
       }
 
-      console.log(`[Push] Sent ${type} notification to ${admins.length} admins`);
+      console.log(`[Push] Sent ${type} notification to ${adminsNotified} admins`);
     }
 
     // For post_breach_reminder: Notify all drivers + their ops managers (NO admin - they only get notified once at breach)
