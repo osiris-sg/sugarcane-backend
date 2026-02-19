@@ -144,6 +144,7 @@ function TypeBadge({ type }) {
   const labels = {
     ERROR_NOTIFICATION: "Device Error",
     OUT_OF_STOCK: "Out of Stock",
+    LOW_STOCK: "Low Stock",
     ZERO_SALES: "Zero Sales",
     CLEANING_COMPLIANCE: "Cleaning",
     MANUAL_ERROR: "Manual",
@@ -637,6 +638,7 @@ export default function IncidentsPage() {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="ERROR_NOTIFICATION">Device Error</SelectItem>
                   <SelectItem value="OUT_OF_STOCK">Out of Stock</SelectItem>
+                  <SelectItem value="LOW_STOCK">Low Stock</SelectItem>
                   <SelectItem value="ZERO_SALES">Zero Sales</SelectItem>
                   <SelectItem value="CLEANING_COMPLIANCE">Cleaning</SelectItem>
                 </SelectContent>
