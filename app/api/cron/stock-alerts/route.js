@@ -202,7 +202,7 @@ export async function GET(request) {
         // If existingIncident.type === 'OUT_OF_STOCK', do nothing (already handled)
       }
 
-      // === CASE 2: Low stock (but not out) - Create incident with 3h SLA ===
+      // === CASE 2: Low stock (but not out) - Create alert notification only (NO SLA) ===
       else if (isLowStock && !stock.isLowStock && !isOutOfStock) {
         // Check for existing open incident (either LOW_STOCK or OUT_OF_STOCK)
         const existingIncident = await db.incident.findFirst({
@@ -214,19 +214,17 @@ export async function GET(request) {
         });
 
         if (!existingIncident) {
-          // Check if device has an assigned driver (SLA only applies to assigned devices)
-          const hasDriver = devicesWithDrivers.has(stock.deviceId);
-          const slaDeadline = hasDriver ? new Date(now.getTime() + SLA_HOURS * 60 * 60 * 1000) : null;
-
+          // LOW_STOCK is just an alert - NO SLA, NO penalty
+          // Breach only happens when stock reaches 0 (OUT_OF_STOCK)
           const incident = await db.incident.create({
             data: {
               type: 'LOW_STOCK',
               deviceId: stock.deviceId,
               deviceName: stock.deviceName,
               startTime: now,
-              slaDeadline,
+              slaDeadline: null, // No SLA for low stock
               status: 'OPEN',
-              slaOutcome: hasDriver ? 'PENDING' : null,
+              slaOutcome: null, // No SLA tracking
               stockQuantity: stock.quantity,
             }
           });
