@@ -100,22 +100,22 @@ export async function GET(request) {
         });
 
         // Create penalty record for critical incident types
+        const issueDescription = incident.faultName || incident.faultCode || incident.type.replace(/_/g, ' ');
         if (shouldCreatePenalty) {
           await db.penalty.create({
             data: {
               incidentId: incident.id,
-              reason: `SLA breach - ${incident.type} not resolved within ${SLA_HOURS} hours`,
+              reason: `${issueDescription} not resolved within ${SLA_HOURS} hours`,
             },
           });
         }
 
         // Send breach notification (escalates to admin + ops manager)
-        const breachIssueDescription = incident.faultName || incident.faultCode || incident.type.replace(/_/g, ' ');
         await sendIncidentNotification({
           type: 'breach',
           incident,
           title: '🔴 SLA BREACHED',
-          body: `${displayName}: ${breachIssueDescription} - exceeded ${SLA_HOURS}h SLA`,
+          body: `${displayName}: ${issueDescription} - exceeded ${SLA_HOURS}h SLA`,
         });
 
         // Note: Telegram notifications for SLA removed - PWA push handles real-time alerts

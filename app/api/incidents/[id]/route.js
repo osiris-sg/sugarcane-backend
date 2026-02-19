@@ -114,10 +114,11 @@ export async function PATCH(request, { params }) {
               updateData.penaltyFlag = true;
 
               // Create penalty record
+              const issueDesc = incident.faultName || incident.faultCode || incident.type.replace(/_/g, ' ');
               await db.penalty.create({
                 data: {
                   incidentId: id,
-                  reason: `SLA breach - ${incident.type} resolved after deadline`,
+                  reason: `${issueDesc} resolved after deadline`,
                 },
               });
             }

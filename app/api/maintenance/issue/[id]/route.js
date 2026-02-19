@@ -197,10 +197,11 @@ ${resolution === 'unresolved' ? '📢 Issue escalated to manager. Machine set to
 
           // Create penalty if SLA breached and not already flagged
           if (!wasWithinSla && !matchingIncident.penaltyFlag) {
+            const issueDesc = matchingIncident.faultName || matchingIncident.faultCode || matchingIncident.type?.replace(/_/g, ' ') || 'Issue';
             await db.penalty.create({
               data: {
                 incidentId: matchingIncident.id,
-                reason: 'SLA breached - resolved after 3 hour deadline',
+                reason: `${issueDesc} resolved after deadline`,
               }
             });
             incidentUpdate.penaltyFlag = true;
