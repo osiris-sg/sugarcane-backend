@@ -7,100 +7,28 @@ import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import {
-  DndContext,
-  DragOverlay,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { useDraggable, useDroppable } from "@dnd-kit/core";
-import {
   Truck,
-  Plus,
   Monitor,
-  ChevronDown,
-  ChevronRight,
-  GripVertical,
-  X,
   Search,
   User,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-
-// Draggable device component
-function DraggableDevice({ device, children }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: device.id,
-    data: { device },
-  });
-
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        opacity: isDragging ? 0.5 : 1,
-        cursor: "grab",
-      }
-    : { cursor: "grab" };
-
-  return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      {children}
-    </div>
-  );
-}
-
-// Droppable driver component
-function DroppableDriver({ driver, children, isOver }) {
-  const { setNodeRef } = useDroppable({
-    id: driver.id,
-    data: { driver },
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`transition-all duration-200 ${
-        isOver ? "ring-2 ring-primary ring-offset-2 rounded-lg" : ""
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 
 export default function DriverAssignmentPage() {
   const { isLoaded } = useUser();
   const { isAdmin, isLoaded: rolesLoaded } = useUserRoles();
 
   const [drivers, setDrivers] = useState([]);
-  const [unassignedDevices, setUnassignedDevices] = useState([]);
+  const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expandedDrivers, setExpandedDrivers] = useState({});
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [selectedDriver, setSelectedDriver] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dialogSearchTerm, setDialogSearchTerm] = useState("");
-  const [activeId, setActiveId] = useState(null);
-  const [overId, setOverId] = useState(null);
-
-  // Drag and drop sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
-  );
+  const [savingDevices, setSavingDevices] = useState({});
 
   // Redirect non-admins
   if (isLoaded && rolesLoaded && !isAdmin) {
@@ -119,81 +47,79 @@ export default function DriverAssignmentPage() {
 
       if (data.success) {
         setDrivers(data.drivers || []);
-        setUnassignedDevices(data.unassignedDevices || []);
-        // Expand all drivers by default
-        const expanded = {};
-        data.drivers?.forEach((d) => (expanded[d.id] = true));
-        setExpandedDrivers(expanded);
+        // Get all devices with their assigned drivers
+        const devicesRes = await fetch("/api/admin/devices");
+        const devicesData = await devicesRes.json();
+        if (devicesData.success) {
+          // Merge driver assignment info into devices
+          const allDevices = devicesData.devices || [];
+          // Create a map of device assignments from drivers data
+          const deviceDriverMap = {};
+          data.drivers?.forEach((driver) => {
+            driver.devices?.forEach((device) => {
+              if (!deviceDriverMap[device.deviceId]) {
+                deviceDriverMap[device.deviceId] = [];
+              }
+              deviceDriverMap[device.deviceId].push(driver.id);
+            });
+          });
+
+          // Add assigned drivers to each device
+          const devicesWithDrivers = allDevices.map((device) => ({
+            ...device,
+            assignedDriverIds: deviceDriverMap[device.deviceId] || [],
+          }));
+          setDevices(devicesWithDrivers);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleDriver = (driverId) => {
-    setExpandedDrivers((prev) => ({
-      ...prev,
-      [driverId]: !prev[driverId],
-    }));
-  };
+  const toggleDriverAssignment = async (deviceId, driverId, isCurrentlyAssigned) => {
+    setSavingDevices((prev) => ({ ...prev, [deviceId + driverId]: true }));
 
-  const assignDeviceToDriver = async (deviceId, driverId) => {
     try {
       const res = await fetch("/api/admin/driver-assignment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId, driverId }),
+        body: JSON.stringify({
+          deviceId,
+          driverId,
+          action: isCurrentlyAssigned ? "unassign" : "assign",
+        }),
       });
       const data = await res.json();
+
       if (data.success) {
-        fetchData();
+        // Update local state
+        setDevices((prev) =>
+          prev.map((device) => {
+            if (device.deviceId === deviceId) {
+              const newDriverIds = isCurrentlyAssigned
+                ? device.assignedDriverIds.filter((id) => id !== driverId)
+                : [...device.assignedDriverIds, driverId];
+              return { ...device, assignedDriverIds: newDriverIds };
+            }
+            return device;
+          })
+        );
+      } else {
+        toast.error(data.error || "Failed to update assignment");
       }
     } catch (error) {
-      console.error("Error assigning device:", error);
+      console.error("Error updating assignment:", error);
+      toast.error("Failed to update assignment");
+    } finally {
+      setSavingDevices((prev) => ({ ...prev, [deviceId + driverId]: false }));
     }
   };
 
-  const removeDeviceFromDriver = async (deviceId) => {
-    await assignDeviceToDriver(deviceId, null);
-  };
-
-  // Drag and drop handlers
-  const handleDragStart = (event) => {
-    setActiveId(event.active.id);
-  };
-
-  const handleDragOver = (event) => {
-    setOverId(event.over?.id || null);
-  };
-
-  const handleDragEnd = async (event) => {
-    const { active, over } = event;
-    setActiveId(null);
-    setOverId(null);
-
-    if (!over) return;
-
-    const device = active.data.current?.device;
-    const driverId = over.id;
-
-    if (!device) return;
-
-    // Check if dropped on a valid driver
-    const targetDriver = drivers.find((d) => d.id === driverId);
-    if (!targetDriver) return;
-
-    await assignDeviceToDriver(device.deviceId, driverId);
-  };
-
-  const activeDevice = activeId
-    ? [...unassignedDevices, ...drivers.flatMap((d) => d.devices || [])].find(
-        (d) => d.id === activeId
-      )
-    : null;
-
-  const filteredUnassignedDevices = unassignedDevices.filter((d) => {
+  const filteredDevices = devices.filter((d) => {
     const search = searchTerm.toLowerCase();
     return (
       d.deviceId?.toLowerCase().includes(search) ||
@@ -202,14 +128,9 @@ export default function DriverAssignmentPage() {
     );
   });
 
-  const filteredDialogDevices = unassignedDevices.filter((d) => {
-    const search = dialogSearchTerm.toLowerCase();
-    return (
-      d.deviceId?.toLowerCase().includes(search) ||
-      d.deviceName?.toLowerCase().includes(search) ||
-      d.location?.toLowerCase().includes(search)
-    );
-  });
+  // Group devices by whether they have assignments
+  const assignedDevices = filteredDevices.filter((d) => d.assignedDriverIds.length > 0);
+  const unassignedDevices = filteredDevices.filter((d) => d.assignedDriverIds.length === 0);
 
   if (loading) {
     return (
@@ -220,323 +141,177 @@ export default function DriverAssignmentPage() {
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-30 border-b bg-background">
-          <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
-            <div>
-              <h1 className="text-lg md:text-xl font-semibold">Driver Assignment</h1>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                {drivers.length} drivers, {unassignedDevices.length} unassigned
-                <span className="hidden sm:inline">{unassignedDevices.length > 0 && " - Drag devices to assign"}</span>
-              </p>
-            </div>
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-30 border-b bg-background">
+        <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
+          <div>
+            <h1 className="text-lg md:text-xl font-semibold">Driver Assignment</h1>
+            <p className="text-xs md:text-sm text-muted-foreground">
+              {drivers.length} drivers, {devices.length} devices ({unassignedDevices.length} unassigned)
+            </p>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <main className="p-4 md:p-6">
-          <div className="grid gap-4 md:gap-6 lg:grid-cols-[1fr_350px]">
-            {/* Drivers List */}
-            <div className="space-y-3 md:space-y-4 order-2 lg:order-1">
-              <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
-                <Truck className="h-4 w-4 md:h-5 md:w-5" />
-                Drivers
-                {activeId && (
-                  <Badge variant="outline" className="ml-2 animate-pulse text-xs">
-                    Drop here to assign
-                  </Badge>
-                )}
-              </h2>
-
-              {drivers.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center text-muted-foreground">
-                    <Truck className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                    <p>No drivers found</p>
-                    <p className="text-sm">
-                      Add users with the "driver" role in User Management
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                drivers.map((driver) => (
-                  <DroppableDriver
-                    key={driver.id}
-                    driver={driver}
-                    isOver={overId === driver.id}
-                  >
-                    <Card
-                      className={`transition-all duration-200 ${
-                        overId === driver.id
-                          ? "border-primary bg-primary/5"
-                          : ""
-                      }`}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <button
-                            onClick={() => toggleDriver(driver.id)}
-                            className="flex items-center gap-2 hover:text-primary transition-colors"
-                          >
-                            {expandedDrivers[driver.id] ? (
-                              <ChevronDown className="h-5 w-5" />
-                            ) : (
-                              <ChevronRight className="h-5 w-5" />
-                            )}
-                            <div className="flex items-center gap-3">
-                              {driver.imageUrl ? (
-                                <img
-                                  src={driver.imageUrl}
-                                  alt=""
-                                  className="h-8 w-8 rounded-full"
-                                />
-                              ) : (
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100">
-                                  <User className="h-4 w-4 text-orange-600" />
-                                </div>
-                              )}
-                              <div className="text-left">
-                                <CardTitle className="text-base">
-                                  {driver.firstName} {driver.lastName}
-                                </CardTitle>
-                                <p className="text-xs text-muted-foreground font-normal">
-                                  {driver.email}
-                                </p>
-                              </div>
-                            </div>
-                            <Badge variant="secondary" className="ml-2">
-                              {driver.devices?.length || 0} devices
-                            </Badge>
-                          </button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedDriver(driver);
-                              setAssignDialogOpen(true);
-                            }}
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Device
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      {expandedDrivers[driver.id] && (
-                        <CardContent>
-                          {driver.devices?.length === 0 ? (
-                            <p
-                              className={`text-sm text-muted-foreground py-4 text-center ${
-                                overId === driver.id
-                                  ? "text-primary font-medium"
-                                  : ""
-                              }`}
-                            >
-                              {overId === driver.id
-                                ? "Drop device here!"
-                                : "No devices assigned"}
-                            </p>
-                          ) : (
-                            <div className="space-y-2">
-                              {driver.devices?.map((device) => (
-                                <div
-                                  key={device.id}
-                                  className="flex items-center justify-between rounded-lg border p-3 bg-muted/30"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <Monitor className="h-4 w-4 text-muted-foreground" />
-                                    <div>
-                                      <p className="font-medium">
-                                        {device.location || device.deviceName}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        ID: {device.deviceId}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-muted-foreground hover:text-destructive"
-                                    onClick={() =>
-                                      removeDeviceFromDriver(device.deviceId)
-                                    }
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      )}
-                    </Card>
-                  </DroppableDriver>
-                ))
-              )}
-            </div>
-
-            {/* Unassigned Devices */}
-            <div className="space-y-3 md:space-y-4 order-1 lg:order-2">
-              <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
-                <Monitor className="h-4 w-4 md:h-5 md:w-5" />
-                Unassigned Devices
-              </h2>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search devices..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              <Card>
-                <CardContent className="p-2">
-                  {filteredUnassignedDevices.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-8 text-center">
-                      {unassignedDevices.length === 0
-                        ? "All devices are assigned to drivers"
-                        : "No devices match your search"}
-                    </p>
+      <main className="p-4 md:p-6">
+        {/* Driver Legend */}
+        <Card className="mb-4">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Truck className="h-4 w-4" />
+              Drivers
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex flex-wrap gap-2">
+              {drivers.map((driver) => (
+                <div
+                  key={driver.id}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm"
+                >
+                  {driver.imageUrl ? (
+                    <img
+                      src={driver.imageUrl}
+                      alt=""
+                      className="h-5 w-5 rounded-full"
+                    />
                   ) : (
-                    <div className="space-y-1 max-h-[300px] md:max-h-[500px] overflow-y-auto">
-                      {filteredUnassignedDevices.map((device) => (
-                        <DraggableDevice key={device.id} device={device}>
-                          <div
-                            className={`flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors ${
-                              activeId === device.id
-                                ? "border-primary bg-primary/10"
-                                : ""
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {device.location || device.deviceName}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  ID: {device.deviceId}
-                                </p>
-                              </div>
-                            </div>
-                            {drivers.length > 0 && (
-                              <select
-                                className="text-sm border rounded px-2 py-1 bg-background"
-                                defaultValue=""
-                                onClick={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onChange={(e) => {
-                                  if (e.target.value) {
-                                    assignDeviceToDriver(
-                                      device.deviceId,
-                                      e.target.value
-                                    );
-                                    e.target.value = "";
-                                  }
-                                }}
-                              >
-                                <option value="">Assign to...</option>
-                                {drivers.map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.firstName} {d.lastName}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
-                        </DraggableDevice>
-                      ))}
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-100">
+                      <User className="h-3 w-3 text-orange-600" />
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                  <span>{driver.firstName} {driver.lastName}</span>
+                </div>
+              ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search devices..."
+            className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Devices List */}
+        <div className="space-y-6">
+          {/* Unassigned Devices Section */}
+          {unassignedDevices.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-destructive mb-3 flex items-center gap-2">
+                <Monitor className="h-4 w-4" />
+                Unassigned Devices ({unassignedDevices.length})
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {unassignedDevices.map((device) => (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    drivers={drivers}
+                    savingDevices={savingDevices}
+                    onToggle={toggleDriverAssignment}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Assigned Devices Section */}
+          {assignedDevices.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                <Monitor className="h-4 w-4" />
+                Assigned Devices ({assignedDevices.length})
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {assignedDevices.map((device) => (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    drivers={drivers}
+                    savingDevices={savingDevices}
+                    onToggle={toggleDriverAssignment}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function DeviceCard({ device, drivers, savingDevices, onToggle }) {
+  return (
+    <Card className={device.assignedDriverIds.length === 0 ? "border-destructive/50" : ""}>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="text-sm font-medium">
+              {device.location || device.deviceName}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              ID: {device.deviceId}
+            </p>
           </div>
-        </main>
+          <Badge variant={device.assignedDriverIds.length > 0 ? "secondary" : "destructive"}>
+            {device.assignedDriverIds.length} driver{device.assignedDriverIds.length !== 1 ? "s" : ""}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-2">
+        <div className="space-y-2">
+          {drivers.map((driver) => {
+            const isAssigned = device.assignedDriverIds.includes(driver.id);
+            const isSaving = savingDevices[device.deviceId + driver.id];
 
-        {/* Assign Device Dialog */}
-        <Dialog
-          open={assignDialogOpen}
-          onOpenChange={(open) => {
-            setAssignDialogOpen(open);
-            if (!open) setDialogSearchTerm("");
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                Add Device to {selectedDriver?.firstName} {selectedDriver?.lastName}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search devices..."
-                  className="pl-10"
-                  value={dialogSearchTerm}
-                  onChange={(e) => setDialogSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {unassignedDevices.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No unassigned devices available
-                  </p>
-                ) : filteredDialogDevices.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No devices match your search
-                  </p>
+            return (
+              <label
+                key={driver.id}
+                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                  isAssigned ? "bg-primary/10" : "hover:bg-muted"
+                }`}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  filteredDialogDevices.map((device) => (
-                    <div
-                      key={device.id}
-                      className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => {
-                        assignDeviceToDriver(device.deviceId, selectedDriver?.id);
-                        setAssignDialogOpen(false);
-                        setDialogSearchTerm("");
-                      }}
-                    >
-                      <div>
-                        <p className="font-medium">{device.location || device.deviceName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          ID: {device.deviceId}
-                        </p>
-                      </div>
-                      <Plus className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  ))
+                  <Checkbox
+                    checked={isAssigned}
+                    onCheckedChange={() =>
+                      onToggle(device.deviceId, driver.id, isAssigned)
+                    }
+                  />
                 )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Drag Overlay */}
-        <DragOverlay>
-          {activeDevice ? (
-            <div className="flex items-center gap-3 rounded-lg border-2 border-primary bg-background p-3 shadow-lg">
-              <Monitor className="h-4 w-4 text-primary" />
-              <div>
-                <p className="font-medium text-sm">{activeDevice.location || activeDevice.deviceName}</p>
-                <p className="text-xs text-muted-foreground">
-                  ID: {activeDevice.deviceId}
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </div>
-    </DndContext>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {driver.imageUrl ? (
+                    <img
+                      src={driver.imageUrl}
+                      alt=""
+                      className="h-6 w-6 rounded-full flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 flex-shrink-0">
+                      <User className="h-3 w-3 text-orange-600" />
+                    </div>
+                  )}
+                  <span className="text-sm truncate">
+                    {driver.firstName} {driver.lastName}
+                  </span>
+                </div>
+                {isAssigned && (
+                  <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                )}
+              </label>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
