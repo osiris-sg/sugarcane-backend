@@ -53,9 +53,9 @@ export default function AddUserPage() {
       const res = await fetch("/api/admin/users");
       const data = await res.json();
       if (data.success) {
-        // Filter to only drivers (and exclude those already assigned to an ops manager)
+        // Filter to only drivers - with many-to-many, any driver can be assigned to multiple ops managers
         const drivers = data.users.filter(
-          (u) => ["driver", "DRIVER"].includes(u.role) && !u.opsManagerId
+          (u) => ["driver", "DRIVER"].includes(u.role) || u.roles?.some(r => r.role === "DRIVER")
         );
         setAvailableDrivers(drivers);
       }
