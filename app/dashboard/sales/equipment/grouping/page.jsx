@@ -7,30 +7,20 @@ import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import {
-  DndContext,
-  DragOverlay,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { useDraggable, useDroppable } from "@dnd-kit/core";
-import {
   Layers,
   Plus,
   Trash2,
   Monitor,
-  ChevronDown,
-  ChevronRight,
-  GripVertical,
-  X,
   Search,
   Users,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -39,47 +29,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-
-// Draggable device component
-function DraggableDevice({ device, children }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: device.id,
-    data: { device },
-  });
-
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        opacity: isDragging ? 0.5 : 1,
-        cursor: "grab",
-      }
-    : { cursor: "grab" };
-
-  return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      {children}
-    </div>
-  );
-}
-
-// Droppable group component
-function DroppableGroup({ group, children, isOver }) {
-  const { setNodeRef } = useDroppable({
-    id: group.id,
-    data: { group },
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`transition-all duration-200 ${
-        isOver ? "ring-2 ring-primary ring-offset-2 rounded-lg" : ""
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
+import { toast } from "sonner";
 
 export default function DeviceGroupingPage() {
   const { isLoaded } = useUser();
@@ -88,25 +38,10 @@ export default function DeviceGroupingPage() {
   const [groups, setGroups] = useState([]);
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expandedGroups, setExpandedGroups] = useState({});
+  const [searchTerm, setSearchTerm] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [dialogSearchTerm, setDialogSearchTerm] = useState("");
-  const [groupSearchTerm, setGroupSearchTerm] = useState("");
-  const [activeId, setActiveId] = useState(null);
-  const [overId, setOverId] = useState(null);
-
-  // Drag and drop sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // 8px movement before drag starts
-      },
-    })
-  );
+  const [savingDevices, setSavingDevices] = useState({});
 
   // Redirect non-admins
   if (isLoaded && rolesLoaded && !isAdmin) {
@@ -128,31 +63,26 @@ export default function DeviceGroupingPage() {
       const devicesData = await devicesRes.json();
 
       if (groupsData.groups) {
-        // Sort groups by device count (highest first)
-        const sortedGroups = [...groupsData.groups].sort(
-          (a, b) => (b.deviceCount || 0) - (a.deviceCount || 0)
+        // Sort groups by name
+        const sortedGroups = [...groupsData.groups].sort((a, b) =>
+          a.name.localeCompare(b.name)
         );
         setGroups(sortedGroups);
-        // Expand all groups by default
-        const expanded = {};
-        sortedGroups.forEach((g) => (expanded[g.id] = true));
-        setExpandedGroups(expanded);
       }
       if (devicesData.devices) {
-        setDevices(devicesData.devices);
+        // Add assignedGroupIds to each device
+        const devicesWithGroups = devicesData.devices.map((device) => ({
+          ...device,
+          assignedGroupIds: device.allGroups?.map((g) => g.id) || [],
+        }));
+        setDevices(devicesWithGroups);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
-  };
-
-  const toggleGroup = (groupId) => {
-    setExpandedGroups((prev) => ({
-      ...prev,
-      [groupId]: !prev[groupId],
-    }));
   };
 
   const createGroup = async () => {
@@ -168,17 +98,19 @@ export default function DeviceGroupingPage() {
       if (data.success) {
         setNewGroupName("");
         setCreateDialogOpen(false);
+        toast.success("Group created");
         fetchData();
       } else {
-        alert(data.error || "Error creating group");
+        toast.error(data.error || "Error creating group");
       }
     } catch (error) {
       console.error("Error creating group:", error);
+      toast.error("Failed to create group");
     }
   };
 
-  const deleteGroup = async (groupId) => {
-    if (!confirm("Are you sure? Devices in this group will be unassigned.")) {
+  const deleteGroup = async (groupId, groupName) => {
+    if (!confirm(`Delete "${groupName}"? Devices will be unassigned from this group.`)) {
       return;
     }
 
@@ -188,92 +120,59 @@ export default function DeviceGroupingPage() {
       });
       const data = await res.json();
       if (data.success) {
+        toast.success("Group deleted");
         fetchData();
       }
     } catch (error) {
       console.error("Error deleting group:", error);
+      toast.error("Failed to delete group");
     }
   };
 
-  const assignDeviceToGroup = async (deviceId, groupId) => {
-    try {
-      const device = devices.find((d) => d.id === deviceId);
-      if (!device) return;
+  const toggleGroupAssignment = async (deviceId, groupId, isCurrentlyAssigned) => {
+    const device = devices.find((d) => d.id === deviceId);
+    if (!device) return;
 
+    setSavingDevices((prev) => ({ ...prev, [deviceId + groupId]: true }));
+
+    try {
       const res = await fetch("/api/admin/devices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           deviceId: device.deviceId,
-          groupId: groupId,
+          ...(isCurrentlyAssigned
+            ? { removeFromGroupId: groupId }
+            : { groupId: groupId }),
         }),
       });
       const data = await res.json();
+
       if (data.success) {
-        fetchData();
+        // Update local state
+        setDevices((prev) =>
+          prev.map((d) => {
+            if (d.id === deviceId) {
+              const newGroupIds = isCurrentlyAssigned
+                ? d.assignedGroupIds.filter((id) => id !== groupId)
+                : [...d.assignedGroupIds, groupId];
+              return { ...d, assignedGroupIds: newGroupIds };
+            }
+            return d;
+          })
+        );
+      } else {
+        toast.error(data.error || "Failed to update assignment");
       }
     } catch (error) {
-      console.error("Error assigning device:", error);
+      console.error("Error updating assignment:", error);
+      toast.error("Failed to update assignment");
+    } finally {
+      setSavingDevices((prev) => ({ ...prev, [deviceId + groupId]: false }));
     }
   };
 
-  const removeDeviceFromGroup = async (deviceId, groupId) => {
-    try {
-      const device = devices.find((d) => d.id === deviceId);
-      if (!device) return;
-
-      const res = await fetch("/api/admin/devices", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deviceId: device.deviceId,
-          removeFromGroupId: groupId,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Error removing device from group:", error);
-    }
-  };
-
-  // Show all devices (many-to-many allows same device in multiple groups)
-  const allDevices = devices;
-
-  // Drag and drop handlers
-  const handleDragStart = (event) => {
-    setActiveId(event.active.id);
-  };
-
-  const handleDragOver = (event) => {
-    setOverId(event.over?.id || null);
-  };
-
-  const handleDragEnd = async (event) => {
-    const { active, over } = event;
-    setActiveId(null);
-    setOverId(null);
-
-    if (!over) return;
-
-    const deviceId = active.id;
-    const groupId = over.id;
-
-    // Check if dropped on a valid group
-    const targetGroup = groups.find((g) => g.id === groupId);
-    if (!targetGroup) return;
-
-    // Assign device to group
-    await assignDeviceToGroup(deviceId, groupId);
-  };
-
-  const activeDevice = activeId
-    ? devices.find((d) => d.id === activeId)
-    : null;
-
-  const filteredDevices = allDevices.filter((d) => {
+  const filteredDevices = devices.filter((d) => {
     const search = searchTerm.toLowerCase();
     return (
       d.deviceId?.toLowerCase().includes(search) ||
@@ -282,33 +181,9 @@ export default function DeviceGroupingPage() {
     );
   });
 
-  // Filter devices for dialog - exclude devices already in the selected group
-  const filteredDialogDevices = allDevices.filter((d) => {
-    const search = dialogSearchTerm.toLowerCase();
-    const matchesSearch =
-      d.deviceId?.toLowerCase().includes(search) ||
-      d.deviceName?.toLowerCase().includes(search) ||
-      d.location?.toLowerCase().includes(search);
-
-    // Exclude devices already in the selected group
-    const alreadyInGroup = selectedGroup && d.allGroups?.some(g => g.id === selectedGroup.id);
-
-    return matchesSearch && !alreadyInGroup;
-  });
-
-  const filteredGroups = groups.filter((g) => {
-    const search = groupSearchTerm.toLowerCase();
-    if (!search) return true;
-    // Search by group name or by devices in the group
-    const nameMatch = g.name?.toLowerCase().includes(search);
-    const deviceMatch = g.devices?.some(
-      (d) =>
-        d.deviceId?.toLowerCase().includes(search) ||
-        d.deviceName?.toLowerCase().includes(search) ||
-        d.location?.toLowerCase().includes(search)
-    );
-    return nameMatch || deviceMatch;
-  });
+  // Group devices by whether they have assignments
+  const assignedDevices = filteredDevices.filter((d) => d.assignedGroupIds.length > 0);
+  const unassignedDevices = filteredDevices.filter((d) => d.assignedGroupIds.length === 0);
 
   if (loading) {
     return (
@@ -319,19 +194,13 @@ export default function DeviceGroupingPage() {
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-4 md:px-6">
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-30 border-b bg-background">
+        <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
           <div>
             <h1 className="text-lg md:text-xl font-semibold">Device Grouping</h1>
             <p className="text-xs md:text-sm text-muted-foreground">
-              {groups.length} groups, {devices.length} devices
+              {groups.length} groups, {devices.length} devices ({unassignedDevices.length} unassigned)
             </p>
           </div>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -362,314 +231,177 @@ export default function DeviceGroupingPage() {
               </div>
             </DialogContent>
           </Dialog>
-        </header>
+        </div>
+      </header>
 
-        <main className="p-4 md:p-6">
-          <div className="grid gap-4 md:gap-6 lg:grid-cols-[1fr_350px]">
-            {/* Groups List */}
-            <div className="space-y-4 order-2 lg:order-1">
-              <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
-                <Users className="h-4 w-4 md:h-5 md:w-5" />
-                Franchisee Groups
-                {activeId && (
-                  <Badge variant="outline" className="ml-2 animate-pulse text-xs">
-                    Drop here
-                  </Badge>
-                )}
-              </h2>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search groups..."
-                  className="pl-10"
-                  value={groupSearchTerm}
-                  onChange={(e) => setGroupSearchTerm(e.target.value)}
-                />
-              </div>
-
-              {groups.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center text-muted-foreground">
-                    <Layers className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                    <p>No groups created yet</p>
-                    <p className="text-sm">Click "New Group" to create one</p>
-                  </CardContent>
-                </Card>
-              ) : filteredGroups.length === 0 ? (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    <Search className="mx-auto h-8 w-8 mb-2 opacity-50" />
-                    <p className="text-sm">No groups match your search</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                filteredGroups.map((group) => (
-                  <DroppableGroup
+      <main className="p-4 md:p-6">
+        {/* Groups Legend */}
+        <Card className="mb-4">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Franchisee Groups
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {groups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No groups yet. Click "New Group" to create one.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {groups.map((group) => (
+                  <div
                     key={group.id}
-                    group={group}
-                    isOver={overId === group.id}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm group"
                   >
-                    <Card
-                      className={`transition-all duration-200 ${
-                        overId === group.id
-                          ? "border-primary bg-primary/5"
-                          : ""
-                      }`}
+                    <Layers className="h-4 w-4 text-muted-foreground" />
+                    <span>{group.name}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {group.deviceCount || 0}
+                    </Badge>
+                    <button
+                      onClick={() => deleteGroup(group.id, group.name)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                     >
-                      <CardHeader className="pb-2 px-3 md:px-6">
-                        <div className="flex items-center justify-between">
-                          <button
-                            onClick={() => toggleGroup(group.id)}
-                            className="flex items-center gap-1.5 md:gap-2 hover:text-primary transition-colors"
-                          >
-                            {expandedGroups[group.id] ? (
-                              <ChevronDown className="h-4 w-4 md:h-5 md:w-5" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
-                            )}
-                            <CardTitle className="text-sm md:text-base">{group.name}</CardTitle>
-                            <Badge variant="secondary" className="text-xs">{group.deviceCount}</Badge>
-                          </button>
-                          <div className="flex items-center gap-1 md:gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-2 md:px-3"
-                              onClick={() => {
-                                setSelectedGroup(group);
-                                setAssignDialogOpen(true);
-                              }}
-                            >
-                              <Plus className="h-4 w-4 md:mr-1" />
-                              <span className="hidden md:inline">Add Device</span>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => deleteGroup(group.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      {expandedGroups[group.id] && (
-                        <CardContent className="px-3 md:px-6">
-                          {group.devices?.length === 0 ? (
-                            <p className={`text-xs md:text-sm text-muted-foreground py-4 text-center ${
-                              overId === group.id ? "text-primary font-medium" : ""
-                            }`}>
-                              {overId === group.id
-                                ? "Drop device here!"
-                                : "No devices in this group"}
-                            </p>
-                          ) : (
-                            <div className="space-y-2">
-                              {group.devices?.map((device) => (
-                                <div
-                                  key={device.id}
-                                  className="flex items-center justify-between rounded-lg border p-2 md:p-3 bg-muted/30"
-                                >
-                                  <div className="flex items-center gap-2 md:gap-3">
-                                    <Monitor className="h-4 w-4 text-muted-foreground hidden md:block" />
-                                    <div>
-                                      <p className="font-medium text-sm">{device.deviceName}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {device.location || device.deviceId}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                    onClick={() => removeDeviceFromGroup(device.id, group.id)}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      )}
-                    </Card>
-                  </DroppableGroup>
-                ))
-              )}
-          </div>
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* All Devices */}
-            <div className="space-y-4 order-1 lg:order-2">
-              <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
-                <Monitor className="h-4 w-4 md:h-5 md:w-5" />
-                All Devices
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search devices..."
+            className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Devices List */}
+        <div className="space-y-6">
+          {/* Unassigned Devices Section */}
+          {unassignedDevices.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-destructive mb-3 flex items-center gap-2">
+                <Monitor className="h-4 w-4" />
+                Unassigned Devices ({unassignedDevices.length})
               </h2>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search devices..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {unassignedDevices.map((device) => (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    groups={groups}
+                    savingDevices={savingDevices}
+                    onToggle={toggleGroupAssignment}
+                  />
+                ))}
               </div>
-
-              <Card>
-                <CardContent className="p-2">
-                  {filteredDevices.length === 0 ? (
-                    <p className="text-xs md:text-sm text-muted-foreground py-6 md:py-8 text-center">
-                      {allDevices.length === 0
-                        ? "No devices found"
-                        : "No devices match your search"}
-                    </p>
-                  ) : (
-                    <div className="space-y-1 max-h-[300px] md:max-h-[500px] overflow-y-auto">
-                      {filteredDevices.map((device) => (
-                        <DraggableDevice key={device.id} device={device}>
-                          <div
-                            className={`flex items-center justify-between rounded-lg border p-2 md:p-3 hover:bg-muted/50 transition-colors ${
-                              activeId === device.id ? "border-primary bg-primary/10" : ""
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 md:gap-3">
-                              <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab hidden lg:block" />
-                              <div>
-                                <p className="font-medium text-sm">{device.deviceName}</p>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  <p className="text-xs text-muted-foreground">
-                                    {device.location || device.deviceId}
-                                  </p>
-                                  {device.allGroups?.length > 0 && (
-                                    <span className="text-xs text-muted-foreground">•</span>
-                                  )}
-                                  {device.allGroups?.map((g) => (
-                                    <Badge key={g.id} variant="secondary" className="text-[10px] px-1 py-0">
-                                      {g.name}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                            {groups.length > 0 && (
-                              <select
-                                className="text-xs md:text-sm border rounded px-1.5 md:px-2 py-1 bg-background"
-                                defaultValue=""
-                                onClick={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onChange={(e) => {
-                                  if (e.target.value) {
-                                    assignDeviceToGroup(device.id, e.target.value);
-                                    e.target.value = "";
-                                  }
-                                }}
-                              >
-                                <option value="">Add to...</option>
-                                {groups
-                                  .filter((g) => !device.allGroups?.some((dg) => dg.id === g.id))
-                                  .map((g) => (
-                                    <option key={g.id} value={g.id}>
-                                      {g.name}
-                                    </option>
-                                  ))}
-                              </select>
-                            )}
-                          </div>
-                        </DraggableDevice>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
             </div>
+          )}
+
+          {/* Assigned Devices Section */}
+          {assignedDevices.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                <Monitor className="h-4 w-4" />
+                Assigned Devices ({assignedDevices.length})
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {assignedDevices.map((device) => (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    groups={groups}
+                    savingDevices={savingDevices}
+                    onToggle={toggleGroupAssignment}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* No devices message */}
+          {filteredDevices.length === 0 && (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <Monitor className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                <p>No devices found</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function DeviceCard({ device, groups, savingDevices, onToggle }) {
+  return (
+    <Card className={device.assignedGroupIds.length === 0 ? "border-destructive/50" : ""}>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="text-sm font-medium">
+              {device.location || device.deviceName}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              ID: {device.deviceId}
+            </p>
           </div>
-        </main>
+          <Badge variant={device.assignedGroupIds.length > 0 ? "secondary" : "destructive"}>
+            {device.assignedGroupIds.length} group{device.assignedGroupIds.length !== 1 ? "s" : ""}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-2">
+        {groups.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-2">
+            No groups available
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {groups.map((group) => {
+              const isAssigned = device.assignedGroupIds.includes(group.id);
+              const isSaving = savingDevices[device.id + group.id];
 
-      {/* Assign Device Dialog */}
-        <Dialog
-          open={assignDialogOpen}
-          onOpenChange={(open) => {
-            setAssignDialogOpen(open);
-            if (!open) setDialogSearchTerm("");
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Device to {selectedGroup?.name}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search devices..."
-                  className="pl-10"
-                  value={dialogSearchTerm}
-                  onChange={(e) => setDialogSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {filteredDialogDevices.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    {dialogSearchTerm
-                      ? "No devices match your search"
-                      : "All devices are already in this group"}
-                  </p>
-                ) : (
-                  filteredDialogDevices.map((device) => (
-                    <div
-                      key={device.id}
-                      className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => {
-                        assignDeviceToGroup(device.id, selectedGroup?.id);
-                        setAssignDialogOpen(false);
-                        setDialogSearchTerm("");
-                      }}
-                    >
-                      <div>
-                        <p className="font-medium">{device.deviceName}</p>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <p className="text-xs text-muted-foreground">
-                            {device.deviceId} • {device.location || "No location"}
-                          </p>
-                          {device.allGroups?.length > 0 && (
-                            <>
-                              <span className="text-xs text-muted-foreground">•</span>
-                              {device.allGroups.map((g) => (
-                                <Badge key={g.id} variant="outline" className="text-[10px] px-1 py-0">
-                                  {g.name}
-                                </Badge>
-                              ))}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <Plus className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Drag Overlay - Shows device being dragged */}
-        <DragOverlay>
-          {activeDevice ? (
-            <div className="flex items-center gap-3 rounded-lg border-2 border-primary bg-background p-3 shadow-lg">
-              <Monitor className="h-4 w-4 text-primary" />
-              <div>
-                <p className="font-medium text-sm">{activeDevice.deviceName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {activeDevice.deviceId}
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </div>
-    </DndContext>
+              return (
+                <label
+                  key={group.id}
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                    isAssigned ? "bg-primary/10" : "hover:bg-muted"
+                  }`}
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Checkbox
+                      checked={isAssigned}
+                      onCheckedChange={() =>
+                        onToggle(device.id, group.id, isAssigned)
+                      }
+                    />
+                  )}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Layers className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm truncate">{group.name}</span>
+                  </div>
+                  {isAssigned && (
+                    <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
