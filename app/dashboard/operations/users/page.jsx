@@ -133,7 +133,6 @@ export default function UsersPage() {
     try {
       // Get all drivers - with many-to-many, any driver can be assigned to multiple ops managers
       const drivers = users.filter((u) => hasRole(u, ["driver", "DRIVER"]));
-      console.log("[Debug] Total users:", users.length, "Drivers found:", drivers.length, drivers.map(d => d.firstName));
       setAvailableDrivers(drivers);
     } catch (error) {
       console.error("Error fetching drivers:", error);

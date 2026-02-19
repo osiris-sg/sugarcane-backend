@@ -17,7 +17,7 @@ export async function GET() {
           clerkId: true,
           role: true,
           roles: { select: { role: true } },
-          assignedDrivers: { select: { id: true } },
+          managedDrivers: { select: { driver: { select: { id: true } } } },
         },
       });
 
@@ -37,7 +37,7 @@ export async function GET() {
 
         // If ops manager, also include managed drivers
         if (hasOpsManagerRole) {
-          const managedDriverIds = dbUser.assignedDrivers?.map(d => d.id) || [];
+          const managedDriverIds = dbUser.managedDrivers?.map(md => md.driver.id) || [];
           userIdsToCheck = [...userIdsToCheck, ...managedDriverIds];
         }
 
