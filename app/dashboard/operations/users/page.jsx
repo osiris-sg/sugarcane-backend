@@ -131,12 +131,8 @@ export default function UsersPage() {
   async function fetchAvailableDrivers(targetUser) {
     setLoadingDrivers(true);
     try {
-      // Get all drivers - include those assigned to the current ops manager
-      const drivers = users.filter(
-        (u) =>
-          hasRole(u, ["driver", "DRIVER"]) &&
-          (!u.opsManagerId || u.opsManager?.id === targetUser?.id)
-      );
+      // Get all drivers - with many-to-many, any driver can be assigned to multiple ops managers
+      const drivers = users.filter((u) => hasRole(u, ["driver", "DRIVER"]));
       setAvailableDrivers(drivers);
     } catch (error) {
       console.error("Error fetching drivers:", error);

@@ -36,30 +36,45 @@ export async function GET(request, { params }) {
       },
       include: {
         group: true,
-        assignedDrivers: {
-          select: {
-            id: true,
-            clerkId: true,
-            firstName: true,
-            lastName: true,
-            username: true,
+        managedDrivers: {
+          include: {
+            driver: {
+              select: {
+                id: true,
+                clerkId: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
           },
         },
-        opsManager: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            username: true,
+        assignedOpsManagers: {
+          include: {
+            opsManager: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
           },
         },
       },
     });
 
     if (dbUser) {
+      // Transform for frontend compatibility
+      const transformedUser = {
+        ...dbUser,
+        assignedDrivers: dbUser.managedDrivers?.map(md => md.driver) || [],
+        opsManagers: dbUser.assignedOpsManagers?.map(ao => ao.opsManager) || [],
+      };
+
       return NextResponse.json({
         success: true,
-        user: dbUser,
+        user: transformedUser,
       });
     }
 
@@ -142,14 +157,6 @@ export async function PATCH(request, { params }) {
     if (isActive !== undefined) dbUpdateData.isActive = isActive;
     if (finalGroupId !== undefined) dbUpdateData.groupId = finalGroupId || null;
 
-    // Handle assigned drivers for ops managers
-    if (assignedDriverIds !== undefined) {
-      // Set the assigned drivers - this replaces any existing assignments
-      dbUpdateData.assignedDrivers = {
-        set: assignedDriverIds.map(id => ({ id })),
-      };
-    }
-
     let updatedUser;
     if (dbUser) {
       updatedUser = await db.user.update({
@@ -157,22 +164,72 @@ export async function PATCH(request, { params }) {
         data: dbUpdateData,
         include: {
           group: true,
-          assignedDrivers: {
-            select: {
-              id: true,
-              clerkId: true,
-              firstName: true,
-              lastName: true,
-              username: true,
+          managedDrivers: {
+            include: {
+              driver: {
+                select: {
+                  id: true,
+                  clerkId: true,
+                  firstName: true,
+                  lastName: true,
+                  username: true,
+                },
+              },
             },
           },
         },
       });
+
+      // Handle assigned drivers for ops managers using join table
+      if (assignedDriverIds !== undefined) {
+        // Delete existing assignments
+        await db.opsManagerDriver.deleteMany({
+          where: { opsManagerId: dbUser.id },
+        });
+
+        // Create new assignments
+        if (assignedDriverIds.length > 0) {
+          await db.opsManagerDriver.createMany({
+            data: assignedDriverIds.map(driverId => ({
+              opsManagerId: dbUser.id,
+              driverId,
+            })),
+            skipDuplicates: true,
+          });
+        }
+
+        // Refetch to get updated assignments
+        updatedUser = await db.user.findUnique({
+          where: { id: dbUser.id },
+          include: {
+            group: true,
+            managedDrivers: {
+              include: {
+                driver: {
+                  select: {
+                    id: true,
+                    clerkId: true,
+                    firstName: true,
+                    lastName: true,
+                    username: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
     }
+
+    // Transform for frontend compatibility
+    const transformedUser = updatedUser ? {
+      ...updatedUser,
+      assignedDrivers: updatedUser.managedDrivers?.map(md => md.driver) || [],
+    } : { clerkId, ...dbUpdateData };
 
     return NextResponse.json({
       success: true,
-      user: updatedUser || { clerkId, ...dbUpdateData },
+      user: transformedUser,
     });
   } catch (error) {
     console.error('Error updating user:', error);

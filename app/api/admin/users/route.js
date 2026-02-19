@@ -28,21 +28,29 @@ export async function GET() {
     const dbUsers = await db.user.findMany({
       include: {
         group: true,
-        assignedDrivers: {
-          select: {
-            id: true,
-            clerkId: true,
-            firstName: true,
-            lastName: true,
-            username: true,
+        managedDrivers: {
+          include: {
+            driver: {
+              select: {
+                id: true,
+                clerkId: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
           },
         },
-        opsManager: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            username: true,
+        assignedOpsManagers: {
+          include: {
+            opsManager: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
           },
         },
         roles: {
@@ -91,21 +99,29 @@ export async function GET() {
       const syncedUsers = await db.user.findMany({
         include: {
           group: true,
-          assignedDrivers: {
-            select: {
-              id: true,
-              clerkId: true,
-              firstName: true,
-              lastName: true,
-              username: true,
+          managedDrivers: {
+            include: {
+              driver: {
+                select: {
+                  id: true,
+                  clerkId: true,
+                  firstName: true,
+                  lastName: true,
+                  username: true,
+                },
+              },
             },
           },
-          opsManager: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              username: true,
+          assignedOpsManagers: {
+            include: {
+              opsManager: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  username: true,
+                },
+              },
             },
           },
           roles: {
@@ -117,9 +133,16 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       });
 
+      // Transform to flatten managedDrivers and assignedOpsManagers for frontend
+      const transformedSyncedUsers = syncedUsers.map(user => ({
+        ...user,
+        assignedDrivers: user.managedDrivers?.map(md => md.driver) || [],
+        opsManagers: user.assignedOpsManagers?.map(ao => ao.opsManager) || [],
+      }));
+
       return NextResponse.json({
         success: true,
-        users: syncedUsers,
+        users: transformedSyncedUsers,
         synced: true,
       });
     }
@@ -148,11 +171,15 @@ export async function GET() {
       }
     }
 
-    // Merge Clerk data with DB data
+    // Merge Clerk data with DB data and flatten relations for frontend
     const usersWithClerkData = dbUsers.map(dbUser => ({
       ...dbUser,
       lastSignInAt: clerkUsersMap[dbUser.clerkId]?.lastSignInAt || dbUser.lastSignInAt,
       imageUrl: clerkUsersMap[dbUser.clerkId]?.imageUrl || dbUser.imageUrl,
+      // Flatten managedDrivers to assignedDrivers for backward compatibility
+      assignedDrivers: dbUser.managedDrivers?.map(md => md.driver) || [],
+      // Flatten assignedOpsManagers for drivers
+      opsManagers: dbUser.assignedOpsManagers?.map(ao => ao.opsManager) || [],
     }));
 
     return NextResponse.json({
@@ -258,30 +285,49 @@ export async function POST(request) {
       groupId: groupId,
     };
 
-    // Connect assigned drivers for ops managers
-    if (role === 'opsmanager' && assignedDriverIds && assignedDriverIds.length > 0) {
-      userData.assignedDrivers = {
-        connect: assignedDriverIds.map(id => ({ id })),
-      };
-    }
-
     const dbUser = await db.user.create({
       data: userData,
+    });
+
+    // Create driver assignments for ops managers using the join table
+    if (role === 'opsmanager' && assignedDriverIds && assignedDriverIds.length > 0) {
+      await db.opsManagerDriver.createMany({
+        data: assignedDriverIds.map(driverId => ({
+          opsManagerId: dbUser.id,
+          driverId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    // Fetch user with relations
+    const userWithRelations = await db.user.findUnique({
+      where: { id: dbUser.id },
       include: {
-        assignedDrivers: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            username: true,
+        managedDrivers: {
+          include: {
+            driver: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
           },
         },
       },
     });
 
+    // Transform for frontend
+    const transformedUser = {
+      ...userWithRelations,
+      assignedDrivers: userWithRelations.managedDrivers?.map(md => md.driver) || [],
+    };
+
     return NextResponse.json({
       success: true,
-      user: dbUser,
+      user: transformedUser,
     });
   } catch (error) {
     console.error('Error creating user:', error);

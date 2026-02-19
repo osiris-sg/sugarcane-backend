@@ -298,7 +298,6 @@ export async function sendIncidentNotification(
             clerkId: true,
             firstName: true,
             lastName: true,
-            opsManagerId: true,
             isActive: true,
           },
         },
@@ -328,7 +327,6 @@ export async function sendIncidentNotification(
             clerkId: true,
             firstName: true,
             lastName: true,
-            opsManagerId: true,
           },
         });
         if (legacyDriver) {
@@ -391,25 +389,35 @@ export async function sendIncidentNotification(
       }
 
       // 2. Find and notify all unique ops managers (who manage these drivers)
-      const opsManagerIds = Array.from(new Set(assignedDrivers.map((d) => d.opsManagerId).filter(Boolean)));
-      for (const opsManagerId of opsManagerIds) {
-        const opsManager = await db.user.findUnique({
-          where: { id: opsManagerId as string },
-          select: { clerkId: true, isActive: true },
-        });
+      const driverIds = assignedDrivers.map((d) => d.id);
+      const opsManagerAssignments = await db.opsManagerDriver.findMany({
+        where: { driverId: { in: driverIds } },
+        include: {
+          opsManager: {
+            select: { id: true, clerkId: true, isActive: true },
+          },
+        },
+      });
 
-        if (opsManager?.isActive) {
-          const opsPayload: NotificationPayload = {
-            ...driverPayload,
-            title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
-            body: `${displayName}: ${driverName} breached SLA`,
-          };
-          const result = await sendPushNotification(opsManager.clerkId, opsPayload);
-          totalSent += result.sent;
-          totalFailed += result.failed;
+      // Get unique active ops managers
+      const uniqueOpsManagers = new Map();
+      for (const assignment of opsManagerAssignments) {
+        if (assignment.opsManager?.isActive) {
+          uniqueOpsManagers.set(assignment.opsManager.id, assignment.opsManager);
         }
       }
-      console.log(`[Push] Sent ${type} notification to ${opsManagerIds.length} ops manager(s)`);
+
+      for (const opsManager of uniqueOpsManagers.values()) {
+        const opsPayload: NotificationPayload = {
+          ...driverPayload,
+          title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
+          body: `${displayName}: ${driverName} breached SLA`,
+        };
+        const result = await sendPushNotification(opsManager.clerkId, opsPayload);
+        totalSent += result.sent;
+        totalFailed += result.failed;
+      }
+      console.log(`[Push] Sent ${type} notification to ${uniqueOpsManagers.size} ops manager(s)`);
 
       // 3. Notify all admins with attribution
       const admins = await db.user.findMany({
@@ -451,25 +459,35 @@ export async function sendIncidentNotification(
       console.log(`[Push] Sent post-breach reminder to ${assignedDrivers.length} driver(s)`);
 
       // 2. Notify all unique ops managers (who manage these drivers) - NO admin
-      const opsManagerIds = Array.from(new Set(assignedDrivers.map((d) => d.opsManagerId).filter(Boolean)));
-      for (const opsManagerId of opsManagerIds) {
-        const opsManager = await db.user.findUnique({
-          where: { id: opsManagerId as string },
-          select: { clerkId: true, isActive: true },
-        });
+      const driverIdsForReminder = assignedDrivers.map((d) => d.id);
+      const opsManagerAssignmentsForReminder = await db.opsManagerDriver.findMany({
+        where: { driverId: { in: driverIdsForReminder } },
+        include: {
+          opsManager: {
+            select: { id: true, clerkId: true, isActive: true },
+          },
+        },
+      });
 
-        if (opsManager?.isActive) {
-          const opsPayload: NotificationPayload = {
-            ...driverPayload,
-            title: "🔴 SLA BREACHED - Ongoing",
-            body: `${displayName}: ${driverName} still unresolved`,
-          };
-          const result = await sendPushNotification(opsManager.clerkId, opsPayload);
-          totalSent += result.sent;
-          totalFailed += result.failed;
+      // Get unique active ops managers
+      const uniqueOpsManagersForReminder = new Map();
+      for (const assignment of opsManagerAssignmentsForReminder) {
+        if (assignment.opsManager?.isActive) {
+          uniqueOpsManagersForReminder.set(assignment.opsManager.id, assignment.opsManager);
         }
       }
-      console.log(`[Push] Sent post-breach reminder to ${opsManagerIds.length} ops manager(s)`);
+
+      for (const opsManager of uniqueOpsManagersForReminder.values()) {
+        const opsPayload: NotificationPayload = {
+          ...driverPayload,
+          title: "🔴 SLA BREACHED - Ongoing",
+          body: `${displayName}: ${driverName} still unresolved`,
+        };
+        const result = await sendPushNotification(opsManager.clerkId, opsPayload);
+        totalSent += result.sent;
+        totalFailed += result.failed;
+      }
+      console.log(`[Push] Sent post-breach reminder to ${uniqueOpsManagersForReminder.size} ops manager(s)`);
     }
 
     console.log(

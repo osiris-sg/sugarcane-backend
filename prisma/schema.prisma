@@ -351,10 +351,14 @@ model User {
   groupId      String?
   group        Group?    @relation(fields: [groupId], references: [id])
 
-  // Ops Manager relationship (for drivers)
+  // Legacy ops manager field (to be removed after migration)
   opsManagerId    String?
-  opsManager      User?    @relation("OpsManagerDrivers", fields: [opsManagerId], references: [id])
-  assignedDrivers User[]   @relation("OpsManagerDrivers")
+  opsManagerLegacy User?    @relation("OpsManagerDriversLegacy", fields: [opsManagerId], references: [id])
+  assignedDriversLegacy User[]   @relation("OpsManagerDriversLegacy")
+
+  // Ops Manager <-> Driver relationships (many-to-many via join table)
+  managedDrivers     OpsManagerDriver[] @relation("OpsManagerToDriver")
+  assignedOpsManagers OpsManagerDriver[] @relation("DriverToOpsManager")
 
   // Device assignments (many-to-many)
   assignedDevices DeviceDriver[]
@@ -381,6 +385,21 @@ model UserRoleAssignment {
   @@unique([userId, role])
   @@index([userId])
   @@index([role])
+}
+
+// Junction table for OpsManager <-> Driver many-to-many relationship
+model OpsManagerDriver {
+  id           String   @id @default(cuid())
+  opsManagerId String
+  driverId     String
+  createdAt    DateTime @default(now())
+
+  opsManager   User     @relation("OpsManagerToDriver", fields: [opsManagerId], references: [id], onDelete: Cascade)
+  driver       User     @relation("DriverToOpsManager", fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([opsManagerId, driverId])
+  @@index([opsManagerId])
+  @@index([driverId])
 }
 
 model PushSubscription {
