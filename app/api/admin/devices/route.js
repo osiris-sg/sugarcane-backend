@@ -31,7 +31,7 @@ export async function GET(request) {
           role: true,
           groupId: true,
           roles: { select: { role: true } },
-          assignedDrivers: { select: { id: true } }, // Drivers managed by this ops manager
+          managedDrivers: { select: { driver: { select: { id: true } } } }, // Drivers managed by this ops manager (many-to-many)
         },
       });
 
@@ -61,7 +61,7 @@ export async function GET(request) {
         whereClause = {};
       } else if (hasOpsManagerRole) {
         // OPS_MANAGER: see their assigned devices + devices of drivers they manage
-        const managedDriverIds = dbUser.assignedDrivers?.map(d => d.id) || [];
+        const managedDriverIds = dbUser.managedDrivers?.map(md => md.driver.id) || [];
         const allUserIds = [dbUser.id, ...managedDriverIds];
 
         whereClause = {
