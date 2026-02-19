@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -153,12 +154,17 @@ function TypeBadge({ type }) {
 export default function IncidentsPage() {
   const { user } = useUser();
   const { isAdmin } = useUserRoles();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const highlightedIncidentId = searchParams.get("id");
 
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+  const [highlightedId, setHighlightedId] = useState(null);
+  const incidentRefs = useRef({});
 
   // Lazy loading state
   const [totalIncidents, setTotalIncidents] = useState(0);
@@ -211,6 +217,36 @@ export default function IncidentsPage() {
   useEffect(() => {
     fetchIncidents();
   }, []);
+
+  // Handle deep link from notification - scroll to and highlight the incident
+  useEffect(() => {
+    if (highlightedIncidentId && incidents.length > 0 && !loading) {
+      // Set highlight for visual feedback
+      setHighlightedId(highlightedIncidentId);
+
+      // Check if incident is in current list, if not change status filter to show all
+      const incidentInList = incidents.find((i) => i.id === highlightedIncidentId);
+      if (!incidentInList) {
+        // Incident might be resolved, change filter to show all
+        setStatusFilter("all");
+      }
+
+      // Small delay to allow render, then scroll
+      setTimeout(() => {
+        const element = incidentRefs.current[highlightedIncidentId];
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        // Clear the URL parameter after scrolling
+        router.replace("/dashboard/operations/incidents", { scroll: false });
+      }, 300);
+
+      // Remove highlight after 5 seconds
+      setTimeout(() => {
+        setHighlightedId(null);
+      }, 5000);
+    }
+  }, [highlightedIncidentId, incidents, loading, router]);
 
   // Re-fetch when sort or filters change
   useEffect(() => {
@@ -700,17 +736,23 @@ export default function IncidentsPage() {
                   paginatedIncidents.map((incident) => {
                     const isCritical = incident.slaOutcome === "SLA_BREACHED" || incident.reminderCount >= 2;
                     const isWarning = incident.reminderCount === 1;
+                    const isHighlighted = highlightedId === incident.id;
 
                     return (
                     <TableRow
                       key={incident.id}
-                      className={
+                      ref={(el) => (incidentRefs.current[incident.id] = el)}
+                      className={`${
+                        isHighlighted
+                          ? "ring-2 ring-primary ring-inset animate-pulse"
+                          : ""
+                      } ${
                         isCritical
                           ? "bg-red-600 text-white hover:bg-red-700"
                           : isWarning
                             ? "bg-yellow-100 hover:bg-yellow-200"
                             : ""
-                      }
+                      }`}
                     >
                       <TableCell>
                         <PriorityBadge
@@ -834,17 +876,23 @@ export default function IncidentsPage() {
               {paginatedIncidents.map((incident) => {
                 const isCritical = incident.slaOutcome === "SLA_BREACHED" || incident.reminderCount >= 2;
                 const isWarning = incident.reminderCount === 1;
+                const isHighlighted = highlightedId === incident.id;
 
                 return (
                   <Card
                     key={incident.id}
-                    className={
+                    ref={(el) => (incidentRefs.current[incident.id] = el)}
+                    className={`${
+                      isHighlighted
+                        ? "ring-2 ring-primary animate-pulse"
+                        : ""
+                    } ${
                       isCritical
                         ? "bg-red-600 text-white border-red-700"
                         : isWarning
                           ? "bg-yellow-50 border-yellow-200"
                           : ""
-                    }
+                    }`}
                   >
                     <CardContent className="p-3 space-y-2">
                       <div className="flex items-start justify-between">
