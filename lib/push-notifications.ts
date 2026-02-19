@@ -407,7 +407,7 @@ export async function sendIncidentNotification(
         }
       }
 
-      for (const opsManager of uniqueOpsManagers.values()) {
+      for (const opsManager of Array.from(uniqueOpsManagers.values())) {
         const opsPayload: NotificationPayload = {
           ...driverPayload,
           title: type === "breach" ? "🚨 SLA Breach" : "⚠️ Escalation",
@@ -477,7 +477,7 @@ export async function sendIncidentNotification(
         }
       }
 
-      for (const opsManager of uniqueOpsManagersForReminder.values()) {
+      for (const opsManager of Array.from(uniqueOpsManagersForReminder.values())) {
         const opsPayload: NotificationPayload = {
           ...driverPayload,
           title: "🔴 SLA BREACHED - Ongoing",
