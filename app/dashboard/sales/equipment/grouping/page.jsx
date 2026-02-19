@@ -42,6 +42,7 @@ export default function DeviceGroupingPage() {
   const [newGroupName, setNewGroupName] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [savingDevices, setSavingDevices] = useState({});
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
 
   // Redirect non-admins
   if (isLoaded && rolesLoaded && !isAdmin) {
@@ -173,12 +174,19 @@ export default function DeviceGroupingPage() {
   };
 
   const filteredDevices = devices.filter((d) => {
+    // Filter by search term
     const search = searchTerm.toLowerCase();
-    return (
+    const matchesSearch =
       d.deviceId?.toLowerCase().includes(search) ||
       d.deviceName?.toLowerCase().includes(search) ||
-      d.location?.toLowerCase().includes(search)
-    );
+      d.location?.toLowerCase().includes(search);
+
+    // Filter by selected group
+    const matchesGroup = selectedGroupId
+      ? d.assignedGroupIds.includes(selectedGroupId)
+      : true;
+
+    return matchesSearch && matchesGroup;
   });
 
   // Group devices by whether they have assignments
@@ -241,6 +249,14 @@ export default function DeviceGroupingPage() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Users className="h-4 w-4" />
               Franchisee Groups
+              {selectedGroupId && (
+                <button
+                  onClick={() => setSelectedGroupId(null)}
+                  className="text-xs text-primary hover:underline ml-2"
+                >
+                  Clear filter
+                </button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
@@ -250,24 +266,43 @@ export default function DeviceGroupingPage() {
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {groups.map((group) => (
-                  <div
-                    key={group.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm group"
-                  >
-                    <Layers className="h-4 w-4 text-muted-foreground" />
-                    <span>{group.name}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {group.deviceCount || 0}
-                    </Badge>
-                    <button
-                      onClick={() => deleteGroup(group.id, group.name)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                {groups.map((group) => {
+                  const isSelected = selectedGroupId === group.id;
+
+                  return (
+                    <div
+                      key={group.id}
+                      className="flex items-center gap-2 group"
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+                      <button
+                        onClick={() => setSelectedGroupId(isSelected ? null : group.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted hover:bg-muted/80"
+                        }`}
+                      >
+                        <Layers className={`h-4 w-4 ${isSelected ? "text-primary-foreground" : "text-muted-foreground"}`} />
+                        <span>{group.name}</span>
+                        <Badge
+                          variant={isSelected ? "secondary" : "outline"}
+                          className={`text-xs ${isSelected ? "bg-primary-foreground/20 text-primary-foreground border-0" : ""}`}
+                        >
+                          {group.deviceCount || 0}
+                        </Badge>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteGroup(group.id, group.name);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

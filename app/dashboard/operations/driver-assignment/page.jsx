@@ -29,6 +29,7 @@ export default function DriverAssignmentPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [savingDevices, setSavingDevices] = useState({});
+  const [selectedDriverId, setSelectedDriverId] = useState(null);
 
   // Redirect non-admins
   if (isLoaded && rolesLoaded && !isAdmin) {
@@ -119,13 +120,28 @@ export default function DriverAssignmentPage() {
     }
   };
 
+  // Calculate device count per driver
+  const driverDeviceCounts = {};
+  devices.forEach((device) => {
+    device.assignedDriverIds.forEach((driverId) => {
+      driverDeviceCounts[driverId] = (driverDeviceCounts[driverId] || 0) + 1;
+    });
+  });
+
   const filteredDevices = devices.filter((d) => {
+    // Filter by search term
     const search = searchTerm.toLowerCase();
-    return (
+    const matchesSearch =
       d.deviceId?.toLowerCase().includes(search) ||
       d.deviceName?.toLowerCase().includes(search) ||
-      d.location?.toLowerCase().includes(search)
-    );
+      d.location?.toLowerCase().includes(search);
+
+    // Filter by selected driver
+    const matchesDriver = selectedDriverId
+      ? d.assignedDriverIds.includes(selectedDriverId)
+      : true;
+
+    return matchesSearch && matchesDriver;
   });
 
   // Group devices by whether they have assignments
@@ -160,29 +176,55 @@ export default function DriverAssignmentPage() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Truck className="h-4 w-4" />
               Drivers
+              {selectedDriverId && (
+                <button
+                  onClick={() => setSelectedDriverId(null)}
+                  className="text-xs text-primary hover:underline ml-2"
+                >
+                  Clear filter
+                </button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="flex flex-wrap gap-2">
-              {drivers.map((driver) => (
-                <div
-                  key={driver.id}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm"
-                >
-                  {driver.imageUrl ? (
-                    <img
-                      src={driver.imageUrl}
-                      alt=""
-                      className="h-5 w-5 rounded-full"
-                    />
-                  ) : (
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-100">
-                      <User className="h-3 w-3 text-orange-600" />
-                    </div>
-                  )}
-                  <span>{driver.firstName} {driver.lastName}</span>
-                </div>
-              ))}
+              {drivers.map((driver) => {
+                const deviceCount = driverDeviceCounts[driver.id] || 0;
+                const isSelected = selectedDriverId === driver.id;
+
+                return (
+                  <button
+                    key={driver.id}
+                    onClick={() => setSelectedDriverId(isSelected ? null : driver.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                      isSelected
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted hover:bg-muted/80"
+                    }`}
+                  >
+                    {driver.imageUrl ? (
+                      <img
+                        src={driver.imageUrl}
+                        alt=""
+                        className="h-5 w-5 rounded-full"
+                      />
+                    ) : (
+                      <div className={`flex h-5 w-5 items-center justify-center rounded-full ${
+                        isSelected ? "bg-primary-foreground/20" : "bg-orange-100"
+                      }`}>
+                        <User className={`h-3 w-3 ${isSelected ? "text-primary-foreground" : "text-orange-600"}`} />
+                      </div>
+                    )}
+                    <span>{driver.firstName} {driver.lastName}</span>
+                    <Badge
+                      variant={isSelected ? "secondary" : "outline"}
+                      className={`text-xs ${isSelected ? "bg-primary-foreground/20 text-primary-foreground border-0" : ""}`}
+                    >
+                      {deviceCount}
+                    </Badge>
+                  </button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
