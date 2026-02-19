@@ -6,16 +6,15 @@ import { sendIncidentNotification, sendEscalationNotification } from '../../../.
 const SLA_HOURS = 3;
 const REMINDER_1_HOURS = 2;        // First reminder at 2 hours
 const REMINDER_2_HOURS = 2.5;      // Second reminder at 2.5 hours
-const POST_BREACH_REMINDER_HOURS = 1; // Hourly reminders after breach
+// Post-breach reminders disabled - breach notification sent once only
 
 /**
  * SLA Monitor Cron Job
  * Runs every 5 minutes to:
  * 1. Check all OPEN/ACKNOWLEDGED/IN_PROGRESS incidents
  * 2. Send reminders at 2h, 2h 30m marks
- * 3. Mark SLA breach at 3h, log penalty
- * 4. Continue hourly reminders post-breach
- * 5. Escalate to Ops Manager + Admin on breach
+ * 3. Mark SLA breach at 3h, log penalty, send breach notification ONCE
+ * 4. Escalate to Ops Manager + Admin on breach
  */
 export async function GET(request) {
   const authHeader = request.headers.get('authorization');
@@ -54,7 +53,6 @@ export async function GET(request) {
     let skippedUnassigned = 0;
     let reminders2h30 = 0;
     let breaches = 0;
-    let postBreachReminders = 0;
 
     for (const incident of openIncidents) {
       const displayName = deviceLocationMap.get(incident.deviceId) || incident.deviceName;
@@ -78,35 +76,8 @@ export async function GET(request) {
         ? (now.getTime() - lastReminder.getTime()) / (60 * 60 * 1000)
         : Infinity;
 
-      // === CASE 1: Already breached - send hourly reminders to driver + ops manager (no admin) ===
+      // === CASE 1: Already breached - skip (breach notification sent once only) ===
       if (incident.slaOutcome === 'SLA_BREACHED') {
-        // Don't send reminders for escalated zero sales incidents
-        if (incident.type === 'ZERO_SALES' && incident.escalatedAt) {
-          continue;
-        }
-
-        // Send hourly reminder if enough time has passed
-        if (hoursSinceLastReminder >= POST_BREACH_REMINDER_HOURS) {
-          await db.incident.update({
-            where: { id: incident.id },
-            data: {
-              lastReminderAt: now,
-              reminderCount: { increment: 1 },
-            },
-          });
-
-          // Use post_breach_reminder type: sends to driver + ops manager, NOT admin
-          const issueDescription = incident.faultName || incident.faultCode || incident.type.replace(/_/g, ' ');
-          await sendIncidentNotification({
-            type: 'post_breach_reminder',
-            incident,
-            title: '🔴 SLA BREACHED - Ongoing',
-            body: `${displayName}: ${issueDescription} (${Math.round(elapsedHours)}h)`,
-          });
-
-          postBreachReminders++;
-          console.log(`[SLA-Monitor] Post-breach reminder for ${displayName} (${Math.round(elapsedHours)}h elapsed)`);
-        }
         continue;
       }
 
@@ -208,17 +179,17 @@ export async function GET(request) {
     }
 
     // Log notification
-    if (reminders2h > 0 || reminders2h30 > 0 || breaches > 0 || postBreachReminders > 0) {
+    if (reminders2h > 0 || reminders2h30 > 0 || breaches > 0) {
       await db.notificationLog.create({
         data: {
           type: 'sla_monitor',
-          message: `SLA: ${reminders2h} 2h reminders, ${reminders2h30} 2h30m reminders, ${breaches} breaches, ${postBreachReminders} post-breach`,
-          recipients: reminders2h + reminders2h30 + breaches + postBreachReminders,
+          message: `SLA: ${reminders2h} 2h reminders, ${reminders2h30} 2h30m reminders, ${breaches} breaches`,
+          recipients: reminders2h + reminders2h30 + breaches,
         },
       });
     }
 
-    console.log(`[SLA-Monitor] Completed. 2h: ${reminders2h}, 2h30m: ${reminders2h30}, Breaches: ${breaches}, Post-breach: ${postBreachReminders}, Skipped (no driver): ${skippedUnassigned}`);
+    console.log(`[SLA-Monitor] Completed. 2h: ${reminders2h}, 2h30m: ${reminders2h30}, Breaches: ${breaches}, Skipped (no driver): ${skippedUnassigned}`);
 
     return NextResponse.json({
       success: true,
@@ -226,7 +197,6 @@ export async function GET(request) {
       reminders2h,
       reminders2h30,
       breaches,
-      postBreachReminders,
       skippedUnassigned,
       timestamp: now.toISOString(),
     });
