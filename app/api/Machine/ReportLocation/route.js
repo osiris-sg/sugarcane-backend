@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, swapDeviceId } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 // POST /api/Machine/ReportLocation
@@ -6,15 +6,18 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName, latitude, longitude } = body;
+    const { deviceId: rawDeviceId, deviceName, latitude, longitude } = body;
 
     // Validate required fields
-    if (!deviceId) {
+    if (!rawDeviceId) {
       return NextResponse.json(
         { success: false, error: 'deviceId is required' },
         { status: 400 }
       );
     }
+
+    // Swap device ID if needed (for mismatched devices 852346/852356)
+    const deviceId = swapDeviceId(rawDeviceId);
 
     if (latitude === undefined || longitude === undefined) {
       return NextResponse.json(

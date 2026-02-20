@@ -1,4 +1,4 @@
-import { getMenu } from '@/lib/db';
+import { getMenu, swapDeviceId } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export async function POST(request) {
@@ -10,7 +10,10 @@ export async function POST(request) {
   const headerTerminalId = request.headers.get('X-Terminal-Id') || request.headers.get('terminalId');
 
   // Use terminalId, machineId, or header values
-  const deviceId = terminalId || machineId || headerTerminalId || headerMachineId;
+  const rawDeviceId = terminalId || machineId || headerTerminalId || headerMachineId;
+
+  // Swap device ID if needed (for mismatched devices 852346/852356)
+  const deviceId = rawDeviceId ? swapDeviceId(rawDeviceId) : rawDeviceId;
 
   const menu = await getMenu(deviceId);
   let menus = [menu];
