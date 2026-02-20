@@ -172,9 +172,9 @@ export default function IncidentsPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Sorting - default: oldest first (longest elapsed time at top)
+  // Sorting - admins: oldest first (longest elapsed time at top), others: newest first
   const [sortKey, setSortKey] = useState("startTime");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const [sortDirection, setSortDirection] = useState(null); // Will be set based on role
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("open");
@@ -200,7 +200,9 @@ export default function IncidentsPage() {
     params.set("offset", offset.toString());
     params.set("limit", BATCH_SIZE.toString());
     params.set("sortBy", sortKey);
-    params.set("sortDir", sortDirection);
+    if (sortDirection) {
+      params.set("sortDir", sortDirection);
+    }
 
     if (statusFilter === "open") {
       params.set("status", "OPEN,ACKNOWLEDGED,IN_PROGRESS");
@@ -215,9 +217,18 @@ export default function IncidentsPage() {
     return `/api/incidents?${params.toString()}`;
   }
 
+  // Set default sort direction based on role
   useEffect(() => {
-    fetchIncidents();
-  }, []);
+    if (sortDirection === null) {
+      setSortDirection(isAdmin ? "asc" : "desc");
+    }
+  }, [isAdmin, sortDirection]);
+
+  useEffect(() => {
+    if (sortDirection !== null) {
+      fetchIncidents();
+    }
+  }, [sortDirection]);
 
   // Handle deep link from notification - scroll to and highlight the incident
   useEffect(() => {
@@ -251,7 +262,7 @@ export default function IncidentsPage() {
 
   // Re-fetch when sort or filters change
   useEffect(() => {
-    if (!loading) {
+    if (!loading && sortDirection !== null) {
       fetchIncidentsWithSort();
     }
   }, [sortKey, sortDirection, statusFilter, typeFilter]);

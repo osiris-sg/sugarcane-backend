@@ -124,7 +124,7 @@ export async function GET(request) {
     const offset = parseInt(searchParams.get('offset')) || 0;
     const limit = parseInt(searchParams.get('limit')) || 100;
     const sortBy = searchParams.get('sortBy') || 'startTime';
-    const sortDir = searchParams.get('sortDir') || 'desc';
+    const sortDirParam = searchParams.get('sortDir'); // Don't default yet - depends on role
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const assignedOpsId = searchParams.get('assignedOpsId');
@@ -134,6 +134,8 @@ export async function GET(request) {
 
     // Filter devices based on user role
     const { userId } = await auth();
+    let hasAdminRole = false;
+
     if (userId) {
       const dbUser = await db.user.findUnique({
         where: { clerkId: userId },
@@ -147,7 +149,7 @@ export async function GET(request) {
       });
 
       // Check roles
-      const hasAdminRole = ['ADMIN', 'MANAGER'].includes(dbUser?.role) ||
+      hasAdminRole = ['ADMIN', 'MANAGER'].includes(dbUser?.role) ||
         dbUser?.roles?.some(r => ['ADMIN', 'MANAGER'].includes(r.role));
       const hasOpsManagerRole = dbUser?.role === 'OPS_MANAGER' ||
         dbUser?.roles?.some(r => r.role === 'OPS_MANAGER');
@@ -258,8 +260,12 @@ export async function GET(request) {
     }
 
     // Build orderBy
+    // For admins, default to ascending (oldest first / least elapsed to most)
+    // For others, default to descending (newest first)
     const validSortFields = ['startTime', 'resolvedAt', 'slaDeadline', 'status', 'deviceName', 'type', 'reminderCount', 'faultName', 'slaOutcome'];
     const orderByField = validSortFields.includes(sortBy) ? sortBy : 'startTime';
+    const defaultSortDir = hasAdminRole ? 'asc' : 'desc';
+    const sortDir = sortDirParam || defaultSortDir;
     const orderByDir = sortDir === 'asc' ? 'asc' : 'desc';
 
     // Get total count and paginated incidents
