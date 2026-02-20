@@ -172,7 +172,7 @@ export default function IncidentsPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Sorting - admins: oldest first (longest elapsed time at top), others: newest first
+  // Sorting - admins: newest first, others: oldest first (longest elapsed at top)
   const [sortKey, setSortKey] = useState("startTime");
   const [sortDirection, setSortDirection] = useState(null); // Will be set based on role
 
@@ -220,7 +220,7 @@ export default function IncidentsPage() {
   // Set default sort direction based on role
   useEffect(() => {
     if (sortDirection === null) {
-      setSortDirection(isAdmin ? "asc" : "desc");
+      setSortDirection(isAdmin ? "desc" : "asc");
     }
   }, [isAdmin, sortDirection]);
 

@@ -260,11 +260,11 @@ export async function GET(request) {
     }
 
     // Build orderBy
-    // For admins, default to ascending (oldest first / least elapsed to most)
-    // For others, default to descending (newest first)
+    // For admins, default to descending (newest first)
+    // For others (drivers/ops), default to ascending (oldest first / most elapsed at top)
     const validSortFields = ['startTime', 'resolvedAt', 'slaDeadline', 'status', 'deviceName', 'type', 'reminderCount', 'faultName', 'slaOutcome'];
     const orderByField = validSortFields.includes(sortBy) ? sortBy : 'startTime';
-    const defaultSortDir = hasAdminRole ? 'asc' : 'desc';
+    const defaultSortDir = hasAdminRole ? 'desc' : 'asc';
     const sortDir = sortDirParam || defaultSortDir;
     const orderByDir = sortDir === 'asc' ? 'asc' : 'desc';
 
