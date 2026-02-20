@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db, getDeviceNameById } from '@/lib/db';
+import { db, getDeviceNameById, swapDeviceId } from '@/lib/db';
 import { sendIncidentNotification } from '@/lib/push-notifications';
 
 // Fault code to name mapping (from TelegramHelper.smali)
@@ -35,14 +35,17 @@ const E50D_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { deviceId, deviceName: reportedName, type, faultCode, faultName, orderId, timeBlock, priority } = body;
+    const { deviceId: rawDeviceId, deviceName: reportedName, type, faultCode, faultName, orderId, timeBlock, priority } = body;
 
-    if (!deviceId || !type) {
+    if (!rawDeviceId || !type) {
       return NextResponse.json(
         { success: false, error: 'deviceId and type are required' },
         { status: 400 }
       );
     }
+
+    // Swap device ID if needed (for mismatched devices 852346/852356)
+    const deviceId = swapDeviceId(rawDeviceId);
 
     // Look up the correct device name and location from database
     const deviceName = await getDeviceNameById(deviceId, reportedName);

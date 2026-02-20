@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, getDeviceNameById } from '@/lib/db';
+import { db, getDeviceNameById, swapDeviceId } from '@/lib/db';
 import {
   isDayShift,
   isNightShift,
@@ -16,7 +16,10 @@ const E50D_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { category, message: originalMessage, type, deviceId, deviceName: reportedName } = body;
+    const { category, message: originalMessage, type, deviceId: rawDeviceId, deviceName: reportedName } = body;
+
+    // Swap device ID if needed (for mismatched devices 852346/852356)
+    const deviceId = rawDeviceId ? swapDeviceId(rawDeviceId) : rawDeviceId;
 
     // Look up the correct device name from database
     let correctDeviceName = reportedName;
@@ -24,15 +27,23 @@ export async function POST(request) {
       correctDeviceName = await getDeviceNameById(deviceId, reportedName);
     }
 
-    // Replace the device name in the message if it was wrong
+    // Replace the device name and ID in the message if they were wrong
     let message = originalMessage;
     if (reportedName && correctDeviceName && reportedName !== correctDeviceName) {
       // Replace "Device Name: <wrong>" with "Device Name: <correct>"
-      message = originalMessage.replace(
+      message = message.replace(
         `Device Name: ${reportedName}`,
         `Device Name: ${correctDeviceName}`
       );
       console.log(`[Telegram] Corrected device name: ${reportedName} -> ${correctDeviceName}`);
+    }
+    // Also replace swapped device ID in the message
+    if (rawDeviceId && deviceId && rawDeviceId !== deviceId) {
+      message = message.replace(
+        `Device ID: ${rawDeviceId}`,
+        `Device ID: ${deviceId}`
+      );
+      console.log(`[Telegram] Corrected device ID: ${rawDeviceId} -> ${deviceId}`);
     }
 
     const deviceName = correctDeviceName;
