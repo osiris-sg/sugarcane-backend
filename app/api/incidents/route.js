@@ -242,7 +242,11 @@ export async function GET(request) {
       where.slaOutcome = slaOutcome;
     } else {
       // By default, hide breached incidents - they go to penalties page
-      where.slaOutcome = { not: 'SLA_BREACHED' };
+      // Use OR to include null (unassigned devices have no SLA)
+      where.OR = [
+        { slaOutcome: { not: 'SLA_BREACHED' } },
+        { slaOutcome: null },
+      ];
     }
 
     if (assignedOpsId) {
