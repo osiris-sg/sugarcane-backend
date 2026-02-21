@@ -10,6 +10,7 @@ import { Settings, TrendingUp, Globe, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ManagementBox } from "@/components/dashboard/management-box";
 import { NavHeader } from "@/components/layout/nav-header";
+import { unsubscribePushNotifications } from "@/lib/push-utils";
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
@@ -17,6 +18,12 @@ export default function DashboardPage() {
 
   // Get role from database via useUserRoles hook
   const { isAdmin, isDriver, isOpsManager, roles, isLoaded: rolesLoaded } = useUserRoles();
+
+  // Handle sign out - unsubscribe from push notifications first
+  const handleSignOut = async () => {
+    await unsubscribePushNotifications();
+    signOut({ redirectUrl: "/sign-in" });
+  };
 
   // Role-based redirects
   if (isLoaded && rolesLoaded && !isAdmin) {
@@ -60,7 +67,7 @@ export default function DashboardPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => signOut({ redirectUrl: "/sign-in" })}
+            onClick={handleSignOut}
             className="text-red-600 hover:bg-red-100 hover:text-red-600"
           >
             <LogOut className="mr-2 h-4 w-4" />

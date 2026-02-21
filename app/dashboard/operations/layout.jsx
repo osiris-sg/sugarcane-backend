@@ -38,6 +38,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { NotificationToggle } from "@/components/notification-toggle";
+import { unsubscribePushNotifications } from "@/lib/push-utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -223,6 +224,12 @@ export default function OperationsLayout({ children }) {
   const isLoaded = isClerkLoaded && isRolesLoaded;
   const canAccessOps = isAdmin || isDriver || isOpsManager;
 
+  // Handle sign out - unsubscribe from push notifications first
+  const handleSignOut = async () => {
+    await unsubscribePushNotifications();
+    signOut({ redirectUrl: "/sign-in" });
+  };
+
   // Get sidebar items based on role
   // Admins: everything
   // Ops managers: no Reports or Setup sections (but includes Penalties)
@@ -351,7 +358,7 @@ export default function OperationsLayout({ children }) {
               <span>Account</span>
             </div>
             <button
-              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              onClick={handleSignOut}
               className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-red-600"
             >
               <LogOut className="h-4 w-4" />
@@ -419,7 +426,7 @@ export default function OperationsLayout({ children }) {
             </div>
             {!isCollapsed && (
               <button
-                onClick={() => signOut({ redirectUrl: "/sign-in" })}
+                onClick={handleSignOut}
                 className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-red-600"
               >
                 <LogOut className="h-4 w-4" />
@@ -428,7 +435,7 @@ export default function OperationsLayout({ children }) {
           </div>
           {isCollapsed && (
             <button
-              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              onClick={handleSignOut}
               className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600"
             >
               <LogOut className="h-4 w-4" />

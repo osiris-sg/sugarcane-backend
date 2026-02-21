@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { unsubscribePushNotifications } from "@/lib/push-utils";
 
 export default function ChangePasswordPage() {
   const { user, isLoaded } = useUser();
@@ -24,6 +25,12 @@ export default function ChangePasswordPage() {
 
   // Check if user needs to change password
   const requirePasswordChange = user?.publicMetadata?.requirePasswordChange;
+
+  // Handle sign out - unsubscribe from push notifications first
+  const handleSignOut = async () => {
+    await unsubscribePushNotifications();
+    signOut({ redirectUrl: "/sign-in" });
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -224,7 +231,7 @@ export default function ChangePasswordPage() {
             <Button
               variant="link"
               className="text-muted-foreground"
-              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              onClick={handleSignOut}
             >
               Sign out and use a different account
             </Button>

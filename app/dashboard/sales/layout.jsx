@@ -28,6 +28,7 @@ import {
   User,
 } from "lucide-react";
 import { NotificationToggle } from "@/components/notification-toggle";
+import { unsubscribePushNotifications } from "@/lib/push-utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -234,6 +235,12 @@ export default function SalesLayout({ children }) {
   const isFinance = roles.includes('FINANCE');
   const isAdminOps = roles.includes('ADMINOPS');
 
+  // Handle sign out - unsubscribe from push notifications first
+  const handleSignOut = async () => {
+    await unsubscribePushNotifications();
+    signOut({ redirectUrl: "/sign-in" });
+  };
+
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -342,7 +349,7 @@ export default function SalesLayout({ children }) {
             </div>
             {!isCollapsed && (
               <button
-                onClick={() => signOut({ redirectUrl: "/sign-in" })}
+                onClick={handleSignOut}
                 className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-red-600"
               >
                 <LogOut className="h-4 w-4" />
@@ -351,7 +358,7 @@ export default function SalesLayout({ children }) {
           </div>
           {isCollapsed && (
             <button
-              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              onClick={handleSignOut}
               className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600"
             >
               <LogOut className="h-4 w-4" />
@@ -396,7 +403,7 @@ export default function SalesLayout({ children }) {
               <span>Account</span>
             </div>
             <button
-              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              onClick={handleSignOut}
               className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-red-600"
             >
               <LogOut className="h-4 w-4" />
