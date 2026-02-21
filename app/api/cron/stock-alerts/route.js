@@ -256,14 +256,15 @@ export async function GET(request) {
         }
       }
 
-      // === CASE 3: Stock back above threshold - auto resolve ===
+      // === CASE 3: Stock back above threshold - auto resolve LOW_STOCK only ===
+      // OUT_OF_STOCK incidents are NOT auto-resolved (they have penalties attached)
       // Check for any open incidents regardless of isLowStock flag (in case it was reset elsewhere)
       if (!isLowStock) {
-        // Find and resolve any open incidents (both LOW_STOCK and OUT_OF_STOCK)
+        // Find and resolve only LOW_STOCK incidents (not OUT_OF_STOCK - those need manual resolution)
         const openIncidents = await db.incident.findMany({
           where: {
             deviceId: stock.deviceId,
-            type: { in: ['LOW_STOCK', 'OUT_OF_STOCK'] },
+            type: 'LOW_STOCK',
             status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
           }
         });
