@@ -95,6 +95,31 @@ export async function POST(request) {
 
     const now = new Date();
     const SLA_HOURS = 3;
+    const DEDUPE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+    // Deduplicate: Check if there's an existing OPEN incident with same fault code within 5 min
+    if (faultCode) {
+      const existingIncident = await db.incident.findFirst({
+        where: {
+          deviceId,
+          faultCode,
+          type: 'ERROR_NOTIFICATION',
+          status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] },
+          startTime: { gte: new Date(now.getTime() - DEDUPE_WINDOW_MS) }
+        },
+        orderBy: { startTime: 'desc' }
+      });
+
+      if (existingIncident) {
+        console.log(`[Issue] Duplicate fault ${faultCode} for ${deviceName} within 5 min - skipping (existing: ${existingIncident.id})`);
+        return NextResponse.json({
+          success: true,
+          skipped: true,
+          reason: 'Duplicate fault within 5 minutes',
+          existingIncidentId: existingIncident.id
+        });
+      }
+    }
 
     // Check if device has an assigned driver (SLA only applies to assigned devices)
     const deviceDriver = await db.deviceDriver.findFirst({
