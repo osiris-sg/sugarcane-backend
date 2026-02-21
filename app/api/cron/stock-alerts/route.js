@@ -257,7 +257,8 @@ export async function GET(request) {
       }
 
       // === CASE 3: Stock back above threshold - auto resolve ===
-      else if (!isLowStock && stock.isLowStock) {
+      // Check for any open incidents regardless of isLowStock flag (in case it was reset elsewhere)
+      if (!isLowStock) {
         // Find and resolve any open incidents (both LOW_STOCK and OUT_OF_STOCK)
         const openIncidents = await db.incident.findMany({
           where: {
@@ -267,41 +268,46 @@ export async function GET(request) {
           }
         });
 
-        for (const incident of openIncidents) {
-          // Determine final SLA outcome:
-          // - If already breached, keep it
-          // - If no SLA was set (null), keep it null
-          // - Otherwise, mark as within SLA
-          let finalSlaOutcome = incident.slaOutcome;
-          if (incident.slaOutcome === 'PENDING') {
-            finalSlaOutcome = 'WITHIN_SLA';
-          }
-          // If slaOutcome is null (no driver), keep it null
-          // If slaOutcome is 'SLA_BREACHED', keep it
-
-          await db.incident.update({
-            where: { id: incident.id },
-            data: {
-              status: 'RESOLVED',
-              resolvedAt: now,
-              resolution: 'Auto-resolved: Stock replenished',
-              slaOutcome: finalSlaOutcome,
+        if (openIncidents.length > 0) {
+          for (const incident of openIncidents) {
+            // Determine final SLA outcome:
+            // - If already breached, keep it
+            // - If no SLA was set (null), keep it null
+            // - Otherwise, mark as within SLA
+            let finalSlaOutcome = incident.slaOutcome;
+            if (incident.slaOutcome === 'PENDING') {
+              finalSlaOutcome = 'WITHIN_SLA';
             }
-          });
+            // If slaOutcome is null (no driver), keep it null
+            // If slaOutcome is 'SLA_BREACHED', keep it
 
-          // No push notification for stock replenished - auto-resolved silently
-        }
+            await db.incident.update({
+              where: { id: incident.id },
+              data: {
+                status: 'RESOLVED',
+                resolvedAt: now,
+                resolution: 'Auto-resolved: Stock replenished',
+                slaOutcome: finalSlaOutcome,
+              }
+            });
 
-        await db.stock.update({
-          where: { id: stock.id },
-          data: {
-            isLowStock: false,
-            lowStockTriggeredAt: null,
-            priority: 1,
+            console.log(`[StockAlert] Auto-resolved ${incident.type} incident for ${displayName}`);
           }
-        });
-        resolved++;
-        console.log(`[StockAlert] Resolved low stock for ${displayName} (now ${stock.quantity} pcs)`);
+
+          // Reset stock flags if they were set
+          if (stock.isLowStock) {
+            await db.stock.update({
+              where: { id: stock.id },
+              data: {
+                isLowStock: false,
+                lowStockTriggeredAt: null,
+                priority: 1,
+              }
+            });
+          }
+          resolved += openIncidents.length;
+          console.log(`[StockAlert] Resolved ${openIncidents.length} stock incident(s) for ${displayName} (now ${stock.quantity} pcs)`);
+        }
       }
     }
 
